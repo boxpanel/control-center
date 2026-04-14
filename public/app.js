@@ -1484,7 +1484,19 @@ async function refreshSerialPortSelect({ desiredValue } = {}) {
   if (!(els.serialPortSelect instanceof HTMLSelectElement)) return;
   const desired = String(desiredValue || "");
   const ports = await loadSerialPorts();
-  const hasDesired = desired ? ports.some((p) => String(p?.path || p?.comName || "").trim() === desired) : false;
+  const rankedPorts = ports.slice().sort((a, b) => {
+    const pathA = String(a?.path || a?.comName || "").trim();
+    const pathB = String(b?.path || b?.comName || "").trim();
+    const rank = (v) => {
+      if (/\/dev\/ttyAS\d+$/i.test(v)) return 0;
+      if (/\/dev\/ttyUSB\d+$/i.test(v) || /\/dev\/ttyACM\d+$/i.test(v)) return 1;
+      if (/\/dev\/ttyS\d+$/i.test(v)) return 3;
+      return 2;
+    };
+    const diff = rank(pathA) - rank(pathB);
+    return diff || pathA.localeCompare(pathB);
+  });
+  const hasDesired = desired ? rankedPorts.some((p) => String(p?.path || p?.comName || "").trim() === desired) : false;
 
   els.serialPortSelect.textContent = "";
   const optEmpty = document.createElement("option");
@@ -1492,7 +1504,7 @@ async function refreshSerialPortSelect({ desiredValue } = {}) {
   optEmpty.textContent = "（不选择）";
   els.serialPortSelect.appendChild(optEmpty);
 
-  for (const p of ports) {
+  for (const p of rankedPorts) {
     const path = String(p?.path || p?.comName || "").trim();
     if (!path) continue;
     const byIdPath = String(p?.byIdPath || "").trim();
@@ -1503,6 +1515,8 @@ async function refreshSerialPortSelect({ desiredValue } = {}) {
     const productId = String(p?.productId || "").trim();
     const pnpId = String(p?.pnpId || "").trim();
     const labelParts = [];
+    if (/\/dev\/ttyAS\d+$/i.test(path)) labelParts.push("板载串口");
+    else if (/\/dev\/ttyS\d+$/i.test(path)) labelParts.push("普通 ttyS（谨慎选择）");
     if (byIdPath) labelParts.push(byIdPath);
     else if (friendlyName) labelParts.push(friendlyName);
     if (manufacturer && !labelParts.includes(manufacturer)) labelParts.push(manufacturer);
