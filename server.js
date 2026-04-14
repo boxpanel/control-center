@@ -139,6 +139,19 @@ async function savePlateJpegToDisk({ jpegBuffer, eventDate, plate, id }) {
   return path.relative(uploadsDir, abs).split(path.sep).join("/");
 }
 
+async function savePlateImageFileToDisk({ srcPath, eventDate, plate, id, ext }) {
+  const { y, m, day } = formatDateFolderParts(eventDate);
+  const safePlate = sanitizeNamePart(plate);
+  const safeExt = String(ext || ".jpg").trim().toLowerCase();
+  const finalExt = /^\.[a-z0-9]+$/i.test(safeExt) ? safeExt : ".jpg";
+  const dir = path.join(platesUploadDir, y, m, day);
+  await fs.mkdir(dir, { recursive: true });
+  const file = `${formatTimestampForFile(eventDate)}_${safePlate}_${String(id || "").slice(-6)}${finalExt}`;
+  const abs = path.join(dir, file);
+  await fs.copyFile(srcPath, abs);
+  return path.relative(uploadsDir, abs).split(path.sep).join("/");
+}
+
 function deletePlatesByIds(ids) {
   const arr = Array.isArray(ids) ? ids.map((x) => String(x || "").trim()).filter(Boolean) : [];
   if (!arr.length) return 0;
@@ -421,6 +434,13 @@ app.use(express.static(publicDir));
 
 let ftpServer = null;
 let ftpServerKey = "";
+let ftpIngestTimer = null;
+let ftpIngestKey = "";
+
+const FTP_PASV_MIN_PORT = 40000;
+const FTP_PASV_MAX_PORT = 40100;
+const FTP_INGEST_SETTLE_MS = 3000;
+const FTP_INGEST_SCAN_INTERVAL_MS = 5000;
 
 let backendSerialPort = null;
 let backendSerialKey = "";
@@ -596,7 +616,64 @@ function resolveFtpRootDir(rootDir) {
   return path.join(__dirname, v);
 }
 
+function isLoopbackIp(ip) {
+  const v = String(ip || "").trim();
+  return v === "127.0.0.1" || v === "::1" || v === "::ffff:127.0.0.1";
+}
+
+function resolvePreferredLanIp(systemCfg) {
+  const cfg = normalizeSystemConfig(systemCfg);
+  const ifaces = listPrivateIPv4();
+  const manual = String(cfg.manualIp || "").trim();
+  const preferred = String(cfg.preferredIp || "").trim();
+  if (cfg.ipMode === "manual" && manual) return manual;
+  if (preferred && ifaces.some((item) => item.address === preferred)) return preferred;
+  return ifaces[0]?.address || "127.0.0.1";
+}
+
+function isFtpImageFile(filePath) {
+  return /\.(jpe?g|png|bmp|webp)$/i.test(String(filePath || ""));
+}
+
+function isFtpMetadataFile(filePath) {
+  return /\.(json|xml|txt)$/i.test(String(filePath || ""));
+}
+
+function extractPlateFromText(text) {
+  const raw = String(text || "");
+  const compact = raw.replace(/\s+/g, "").toUpperCase();
+  const cn = compact.match(/([\u4E00-\u9FFF][A-Z][A-Z0-9]{5,6})/u);
+  if (cn?.[1]) return cn[1];
+  const en = compact.match(/\b([A-Z]{1,3}[A-Z0-9]{4,7})\b/);
+  if (en?.[1]) return en[1];
+  return "";
+}
+
+function extractPlateFromFilename(filePath) {
+  const base = path.basename(String(filePath || ""), path.extname(String(filePath || "")));
+  return extractPlateFromText(base.replace(/[_-]+/g, " "));
+}
+
+async function listFilesRecursive(rootDir) {
+  const out = [];
+  const stack = [rootDir];
+  while (stack.length) {
+    const dir = stack.pop();
+    const entries = await fs.readdir(dir, { withFileTypes: true }).catch(() => []);
+    for (const entry of entries) {
+      const abs = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        stack.push(abs);
+      } else if (entry.isFile()) {
+        out.push(abs);
+      }
+    }
+  }
+  return out;
+}
+
 async function stopFtpServer() {
+  stopFtpIngestLoop();
   if (!ftpServer) return;
   const srv = ftpServer;
   ftpServer = null;
@@ -606,6 +683,117 @@ async function stopFtpServer() {
   } catch {}
 }
 
+function stopFtpIngestLoop() {
+  if (ftpIngestTimer) clearInterval(ftpIngestTimer);
+  ftpIngestTimer = null;
+  ftpIngestKey = "";
+}
+
+async function ingestFtpImageFile(absPath, rootDir, sidecarByStem) {
+  const relPath = path.relative(rootDir, absPath).split(path.sep).join("/");
+  const sourceEventKey = `ftp:${relPath}`;
+  if (stmtPlateGetBySourceEventKey.get(sourceEventKey)) return false;
+
+  const stat = await fs.stat(absPath).catch(() => null);
+  if (!stat || !stat.isFile() || stat.size <= 0) return false;
+  if (Date.now() - stat.mtimeMs < FTP_INGEST_SETTLE_MS) return false;
+
+  const stemKey = absPath.slice(0, absPath.length - path.extname(absPath).length).toLowerCase();
+  let plate = "";
+  const metadataFiles = sidecarByStem.get(stemKey) || [];
+  for (const metaPath of metadataFiles) {
+    const text = await fs.readFile(metaPath, "utf8").catch(() => "");
+    plate = extractPlateFromText(text);
+    if (plate) break;
+  }
+  if (!plate) plate = extractPlateFromFilename(absPath);
+  if (!plate) plate = path.basename(absPath, path.extname(absPath));
+
+  const receivedAt = Date.now();
+  const eventAt = stat.mtimeMs > 0 ? stat.mtimeMs : receivedAt;
+  const id = newPlateId(receivedAt);
+  const imagePath = await savePlateImageFileToDisk({
+    srcPath: absPath,
+    eventDate: new Date(eventAt),
+    plate,
+    id,
+    ext: path.extname(absPath) || ".jpg"
+  });
+  stmtPlateInsert.run({
+    id,
+    plate,
+    receivedAt,
+    eventAt,
+    imagePath,
+    sourceEventKey,
+    ftpRemotePath: relPath,
+    serialSentAt: 0
+  });
+  broadcastEvent({
+    type: "lpr",
+    id,
+    plate,
+    timestamp: new Date(eventAt).toISOString(),
+    receivedAt,
+    eventAt,
+    image: "",
+    imageUrl: `/api/plates/image/${encodeURIComponent(id)}`,
+    ftpRemotePath: relPath
+  });
+  const serialCfg = normalizeBackendSerialConfig((await getClientConfig())?.serial);
+  if (backendSerialPort && serialCfg.forwardEnabled) {
+    setImmediate(() => {
+      backendSerialEnqueueWrite(plate + "\r\n").then((ok) => {
+        if (ok) {
+          try {
+            stmtPlateUpdateSerialSent.run(Date.now(), id);
+          } catch {}
+        }
+      });
+    });
+  }
+  return true;
+}
+
+async function runFtpIngestScan(conf) {
+  const resolvedRoot = resolveFtpRootDir(conf?.rootDir);
+  const files = await listFilesRecursive(resolvedRoot);
+  const sidecarByStem = new Map();
+  for (const absPath of files) {
+    if (!isFtpMetadataFile(absPath)) continue;
+    const stemKey = absPath.slice(0, absPath.length - path.extname(absPath).length).toLowerCase();
+    const arr = sidecarByStem.get(stemKey) || [];
+    arr.push(absPath);
+    sidecarByStem.set(stemKey, arr);
+  }
+  for (const absPath of files) {
+    if (!isFtpImageFile(absPath)) continue;
+    try {
+      await ingestFtpImageFile(absPath, resolvedRoot, sidecarByStem);
+    } catch (err) {
+      console.error("[FTP] ingest scan failed:", err?.message || String(err));
+    }
+  }
+}
+
+function scheduleFtpIngestLoop(conf) {
+  const nextKey = ftpConfigKey(conf);
+  if (!conf?.enabled) {
+    stopFtpIngestLoop();
+    return;
+  }
+  if (ftpIngestTimer && ftpIngestKey === nextKey) return;
+  stopFtpIngestLoop();
+  ftpIngestKey = nextKey;
+  const run = () => {
+    runFtpIngestScan(conf).catch((err) => {
+      console.error("[FTP] ingest loop error:", err?.message || String(err));
+    });
+  };
+  run();
+  ftpIngestTimer = setInterval(run, FTP_INGEST_SCAN_INTERVAL_MS);
+}
+
 async function ensureFtpServer(cfg) {
   const conf = normalizeFtpServerConfig(cfg);
   const nextKey = ftpConfigKey(conf);
@@ -613,15 +801,27 @@ async function ensureFtpServer(cfg) {
 
   await stopFtpServer();
   ftpServerKey = nextKey;
-  if (!conf.enabled) return;
+  if (!conf.enabled) {
+    stopFtpIngestLoop();
+    return;
+  }
   if (conf.port < 1024 && typeof process.getuid === "function" && process.getuid() !== 0) {
     throw new Error("FTP 端口小于 1024 需要 root 权限，建议改用 2121，或给 node 授予 cap_net_bind_service");
   }
 
   const url = `ftp://0.0.0.0:${conf.port}`;
   const resolvedRoot = resolveFtpRootDir(conf.rootDir);
+  const info = await loadOrInitDeviceInfo();
+  const preferredLanIp = resolvePreferredLanIp(info?.system);
   await ensureDir(resolvedRoot);
-  const srv = new FtpSrv({ url, anonymous: !conf.username });
+  const srv = new FtpSrv({
+    url,
+    anonymous: !conf.username,
+    pasv_url: (remoteAddress) => (isLoopbackIp(remoteAddress) ? "127.0.0.1" : preferredLanIp),
+    pasv_min: FTP_PASV_MIN_PORT,
+    pasv_max: FTP_PASV_MAX_PORT,
+    greeting: ["Control Center FTP ready"]
+  });
   srv.on("login", ({ username, password }, resolve, reject) => {
     if (conf.username) {
       if (String(username || "") !== conf.username || String(password || "") !== conf.password) {
@@ -633,7 +833,9 @@ async function ensureFtpServer(cfg) {
   });
   srv.on("client-error", () => {});
   await srv.listen();
+  console.log(`[FTP] listening on ${url}, root=${resolvedRoot}, pasv=${preferredLanIp}:${FTP_PASV_MIN_PORT}-${FTP_PASV_MAX_PORT}`);
   ftpServer = srv;
+  scheduleFtpIngestLoop(conf);
 }
 
 async function runCommandCapture(command, args, { timeoutMs = 1800 } = {}) {
