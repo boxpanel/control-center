@@ -1,4 +1,4 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
@@ -20,9 +20,9 @@
       </header>
 
       <div class="layout">
-        <nav class="sidebar" aria-label="导航条">
+        <nav class="sidebar" aria-label="导航栏">
           <div class="sideTitle">导航</div>
-          <button id="navHomeBtn" type="button" class="navBtn active" aria-current="page">主页</button>
+          <button id="navHomeBtn" type="button" class="navBtn active" aria-current="page">首页</button>
           <button id="navNetworkBtn" type="button" class="navBtn">网络设备</button>
           <button id="navSerialBtn" type="button" class="navBtn">串口设置</button>
           <button id="navSystemBtn" type="button" class="navBtn">系统设置</button>
@@ -57,7 +57,7 @@
                 </div>
                 <div class="dashCard">
                   <div class="dashLabel">最近一条</div>
-                  <div id="dashLatest" class="dashValue dashLatest">—</div>
+                  <div id="dashLatest" class="dashValue dashLatest">--</div>
                 </div>
               </div>
             </section>
@@ -187,7 +187,7 @@
                   <input id="serialSendInput" type="text" autocomplete="off" placeholder="输入要发送的内容" />
                 </div>
                 <div class="field span-4">
-                  <label for="serialPortSelect">端口列表</label>
+                  <label for="serialPortSelect">串口列表</label>
                   <select id="serialPortSelect" style="max-width: 260px;"></select>
                 </div>
                 <div class="field span-4">
@@ -231,7 +231,7 @@
                   <label for="systemClientMode">客户端模式</label>
                   <label style="display:flex; align-items:center; gap:8px; margin-top:6px;">
                     <input id="systemClientMode" type="checkbox" />
-                    开启（可被服务端搜索/管理）
+                    开启（可被服务端搜索、管理）
                   </label>
                 </div>
                 <div class="field span-4">
@@ -242,7 +242,7 @@
                   </select>
                 </div>
                 <div class="field span-4">
-                  <label for="systemIpInput">设备 IP（用于对外展示/注册）</label>
+                  <label for="systemIpInput">设备 IP（用于对外展示、注册）</label>
                   <input id="systemIpInput" type="text" autocomplete="off" placeholder="例如：192.168.1.22" />
                 </div>
                 <div class="field span-4">
@@ -258,7 +258,7 @@
                 <button id="systemSaveBtn" type="button">保存</button>
               </div>
               <div id="systemPassHint" style="margin-top:10px; font-size:12px; color:#6b7280;"></div>
-              <div id="fingerprintBox" class="fingerprintBox" style="margin-top:10px;">加载指纹码中...</div>
+              <div id="fingerprintBox" class="fingerprintBox" style="margin-top:10px;">加载设备指纹中...</div>
               <div id="systemSaveHint" style="margin-top:10px; font-size:12px; color:#6b7280;"></div>
             </section>
 
@@ -334,6 +334,7 @@
       </div>
     </div>
 
-    <script type="module" src="/app.js?v=50"></script>
+    <script type="module" src="/app.js?v=51"></script>
   </body>
 </html>
+

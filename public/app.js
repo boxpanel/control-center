@@ -296,20 +296,20 @@ async function initSystemUi() {
       if (!wantsPassChange) return;
 
       if (!oldPwd || !newPwd) {
-        setSystemPassHint("鑻ヨ淇敼瀵嗙爜锛岃鍚屾椂濉啓褰撳墠瀵嗙爜鍜屾柊瀵嗙爜", true);
+        setSystemPassHint("若要修改密码，请同时填写当前密码和新密码", true);
         return;
       }
       try {
-        setSystemPassHint("瀵嗙爜淇敼涓?..");
+        setSystemPassHint("密码修改中...");
         await fetchJson("/api/auth/change-password", { oldPassword: oldPwd, newPassword: newPwd });
         if (els.systemOldPassword) els.systemOldPassword.value = "";
         if (els.systemNewPassword) els.systemNewPassword.value = "";
-        setSystemPassHint("瀵嗙爜淇敼鎴愬姛", false, true);
+        setSystemPassHint("密码修改成功", false, true);
       } catch (e) {
-        setSystemPassHint(`淇敼澶辫触锛?{String(e?.message || e || "")}`, true);
+        setSystemPassHint(`修改失败：${String(e?.message || e || "")}`, true);
       }
     } catch (e) {
-      setSystemHint(`淇濆瓨澶辫触锛?{String(e?.message || e || "")}`, true);
+      setSystemHint(`保存失败：${String(e?.message || e || "")}`, true);
     } finally {
       els.systemSaveBtn.disabled = false;
     }
@@ -371,7 +371,7 @@ async function initSystemUi() {
         }
         if (els.ftpIngestDir) els.ftpIngestDir.textContent = rootDir ? rootDir : "uploads/ftp";
       } catch (e) {
-        setFtpHint(`淇濆瓨澶辫触锛?{String(e?.message || e || "")}`, true);
+        setFtpHint(`保存失败：${String(e?.message || e || "")}`, true);
       } finally {
         els.ftpServerSaveBtn.disabled = false;
       }
@@ -386,7 +386,7 @@ async function loadFingerprint() {
     const res = await fetch("/api/device/fingerprint", { method: "GET" });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
-      fingerprintBox.textContent = "鎸囩汗鐮佸姞杞藉け璐?(HTTP " + res.status + ")";
+      fingerprintBox.textContent = "设备指纹加载失败 (HTTP " + res.status + ")";
       return;
     }
     const fp = String(data?.fingerprint || "");
@@ -394,7 +394,7 @@ async function loadFingerprint() {
       fingerprintBox.textContent = "未获取到设备指纹码";
       return;
     }
-    fingerprintBox.textContent = `璁惧鎸囩汗鐮侊細${fp}`;
+    fingerprintBox.textContent = `设备指纹码：${fp}`;
   } catch (e) {
     fingerprintBox.textContent = "获取设备指纹失败";
   }
@@ -436,14 +436,14 @@ let lastPlateQueryState = { plateText: "", date: "" };
 function idbRequestToPromise(req) {
   return new Promise((resolve, reject) => {
     req.onsuccess = () => resolve(req.result);
-    req.onerror = () => reject(req.error || new Error("IndexedDB 璇锋眰澶辫触"));
+    req.onerror = () => reject(req.error || new Error("IndexedDB 请求失败"));
   });
 }
 
 async function ensurePlateDb() {
   if (plateDbPromise) return plateDbPromise;
   if (!("indexedDB" in window)) {
-    plateDbPromise = Promise.reject(new Error("褰撳墠娴忚鍣ㄤ笉鏀寔 IndexedDB"));
+    plateDbPromise = Promise.reject(new Error("当前浏览器不支持 IndexedDB"));
     return plateDbPromise;
   }
   plateDbPromise = new Promise((resolve, reject) => {
@@ -456,7 +456,7 @@ async function ensurePlateDb() {
       }
     };
     req.onsuccess = () => resolve(req.result);
-    req.onerror = () => reject(req.error || new Error("鎵撳紑 IndexedDB 澶辫触"));
+    req.onerror = () => reject(req.error || new Error("打开 IndexedDB 失败"));
   });
   return plateDbPromise;
 }
@@ -466,7 +466,7 @@ async function plateDbPut(record) {
   await new Promise((resolve, reject) => {
     const tx = db.transaction(PLATE_STORE_NAME, "readwrite");
     tx.oncomplete = () => resolve();
-    tx.onerror = () => reject(tx.error || new Error("淇濆瓨璁板綍澶辫触"));
+    tx.onerror = () => reject(tx.error || new Error("保存记录失败"));
     tx.objectStore(PLATE_STORE_NAME).put(record);
   });
 }
@@ -483,7 +483,7 @@ async function plateDbDelete(id) {
   await new Promise((resolve, reject) => {
     const tx = db.transaction(PLATE_STORE_NAME, "readwrite");
     tx.oncomplete = () => resolve();
-    tx.onerror = () => reject(tx.error || new Error("鍒犻櫎璁板綍澶辫触"));
+    tx.onerror = () => reject(tx.error || new Error("删除记录失败"));
     tx.objectStore(PLATE_STORE_NAME).delete(String(id));
   });
 }
@@ -493,7 +493,7 @@ async function plateDbListLatest(limit = 200) {
   const out = [];
   await new Promise((resolve, reject) => {
     const tx = db.transaction(PLATE_STORE_NAME, "readonly");
-    tx.onerror = () => reject(tx.error || new Error("璇诲彇璁板綍澶辫触"));
+    tx.onerror = () => reject(tx.error || new Error("读取记录失败"));
     const store = tx.objectStore(PLATE_STORE_NAME);
     const idx = store.index("receivedAt");
     const req = idx.openCursor(null, "prev");
@@ -504,7 +504,7 @@ async function plateDbListLatest(limit = 200) {
       if (out.length >= limit) return resolve();
       cursor.continue();
     };
-    req.onerror = () => reject(req.error || new Error("璇诲彇璁板綍澶辫触"));
+    req.onerror = () => reject(req.error || new Error("读取记录失败"));
   });
   return out;
 }
@@ -541,7 +541,7 @@ function ensureEmptyHint(plateListEl) {
   if (emptyHint) return;
   const el = document.createElement("div");
   el.className = "empty-hint";
-  el.textContent = "鏆傛棤杞︾墝鏁版嵁锛岀瓑寰呮帴鏀?..";
+  el.textContent = "暂无车牌数据，等待接收...";
   plateListEl.appendChild(el);
 }
 
@@ -687,7 +687,7 @@ function updatePlateCardMeta(id) {
 
   const imgEl = card.querySelector(".plate-metaImage");
   if (imgEl instanceof HTMLElement) {
-    imgEl.textContent = hasImage ? "鍥剧墖锛氭湁" : "鍥剧墖锛氭棤";
+    imgEl.textContent = hasImage ? "图片：有" : "图片：无";
     imgEl.classList.toggle("ok", hasImage);
     imgEl.classList.toggle("muted", !hasImage);
   }
@@ -718,13 +718,13 @@ function renderPlateCard(record, { prepend, skipFilterApply } = {}) {
   const serialSent = Boolean(Number(record.serialSentAt || 0));
 
   card.innerHTML = `
-    <div class="plate-checkWrap"><input class="plate-check" type="checkbox" aria-label="閫夋嫨" /></div>
-    <img src="${imgSrc}" class="plate-img" alt="杞︾墝鎴浘" />
+    <div class="plate-checkWrap"><input class="plate-check" type="checkbox" aria-label="选择" /></div>
+    <img src="${imgSrc}" class="plate-img" alt="车牌截图" />
     <div class="plate-info">
       <div class="plate-text">${plateText}</div>
       <div class="plate-metaRow">
         <span class="plate-metaTime">${timeStr}</span>
-        <span class="plate-metaTag plate-metaImage ${hasImage ? "ok" : "muted"}">${hasImage ? "鍥剧墖锛氭湁" : "鍥剧墖锛氭棤"}</span>
+        <span class="plate-metaTag plate-metaImage ${hasImage ? "ok" : "muted"}">${hasImage ? "图片：有" : "图片：无"}</span>
         <span class="plate-metaTag plate-metaSerial ${serialSent ? "ok" : "muted"}">${serialSent ? "串口：已发送" : "串口：未发送"}</span>
       </div>
     </div>
@@ -762,7 +762,7 @@ async function enrichRecordImageMeta(id, imageDataUrl) {
     if (img.decode) await img.decode();
     else await new Promise((resolve, reject) => {
       img.onload = () => resolve();
-      img.onerror = () => reject(new Error("鍥剧墖鍔犺浇澶辫触"));
+      img.onerror = () => reject(new Error("图片加载失败"));
     });
   } catch {
     return;
@@ -822,7 +822,7 @@ function fillPlateDetailModal(record) {
 
   const w = Number(record.imageWidth || 0);
   const h = Number(record.imageHeight || 0);
-  if (sizeEl) sizeEl.textContent = w && h ? `${w} 脳 ${h}` : "鏈煡";
+  if (sizeEl) sizeEl.textContent = w && h ? `${w} × ${h}` : "未知";
 
   const sentAt = Number(record.serialSentAt || 0);
   if (serialEl) serialEl.textContent = sentAt ? formatDateTime(sentAt) : "未发送";
@@ -1019,7 +1019,7 @@ function updatePlateDashboard() {
       els.dashLatest.textContent = `${plate} @ ${formatDateTime(ts) || formatTimeOnly(ts)}`.trim();
     }
   }
-  if (els.dashUpdatedAt) els.dashUpdatedAt.textContent = `鏇存柊锛?{formatTimeOnly(nowMs)}`;
+  if (els.dashUpdatedAt) els.dashUpdatedAt.textContent = `更新：${formatTimeOnly(nowMs)}`;
 }
 
 function updatePlateTableSummary({ total, filteredCount }) {
@@ -1084,7 +1084,7 @@ function renderPlateTable() {
   }
 
   if (!rows.length) {
-    els.plateTableBody.innerHTML = `<tr><td colspan="5" style="padding:18px; color:#6b7280; text-align:center;">鏆傛棤鏁版嵁</td></tr>`;
+    els.plateTableBody.innerHTML = `<tr><td colspan="5" style="padding:18px; color:#6b7280; text-align:center;">暂无数据</td></tr>`;
   } else {
     els.plateTableBody.innerHTML = rows.join("");
   }
@@ -1209,7 +1209,7 @@ function initPlateModule() {
         applyPlateFiltersFromUi();
         logLine(`已删除 ${ids.length} 条记录`);
       } catch {
-        logLine("鍒犻櫎璁板綍澶辫触");
+        logLine("删除记录失败");
       } finally {
         updatePlateBulkUi();
       }
@@ -1259,9 +1259,9 @@ async function ensureRtspCachedForKey(key) {
       const rtsp = await fetchJson("/api/onvif/stream-uri", payload);
       const v = String(rtsp?.rtspUriWithAuth || rtsp?.rtspUri || "").trim();
       if (v) rtspByHostPort.set(key, v);
-      else rtspErrorByHostPort.set(key, "RTSP 鑾峰彇涓虹┖");
+      else rtspErrorByHostPort.set(key, "RTSP 获取为空");
     } catch (e) {
-      rtspErrorByHostPort.set(key, `RTSP 鑾峰彇澶辫触锛?{e.message}`);
+      rtspErrorByHostPort.set(key, `RTSP 获取失败：${e.message}`);
     } finally {
       rtspPendingByHostPort.delete(key);
     }
@@ -1530,7 +1530,7 @@ function serialEnqueueSend(text) {
       return true;
     })
     .catch((e) => {
-      logSerialLine(`涓插彛鍙戦€佸け璐ワ細${e?.message || e}`);
+      logSerialLine(`串口发送失败：${e?.message || e}`);
       return false;
     });
   serialState.sendChain = task.then(() => {});
@@ -1553,7 +1553,7 @@ async function serialReadLoop() {
       serialState.readBuffer = parts.pop() || "";
       for (const line of parts) {
         const t = String(line || "").trim();
-        if (t) logSerialLine(`[涓插彛] ${t}`);
+        if (t) logSerialLine(`[串口] ${t}`);
       }
     }
   } catch {
@@ -1581,7 +1581,7 @@ async function serialConnect() {
     serialReadLoop();
   } catch (e) {
     setSerialUiState({ connected: false, statusText: "未连接" });
-    logSerialLine(`涓插彛杩炴帴澶辫触锛?{e?.message || e}`);
+    logSerialLine(`串口连接失败：${e?.message || e}`);
     await serialDisconnect();
   }
 }
@@ -1591,7 +1591,7 @@ async function serialSend() {
   const text = String(els.serialSendInput?.value || "");
   if (!text) return;
   const ok = await serialEnqueueSend(text);
-  if (ok) logSerialLine(`[涓插彛鍙戦€乚 ${text}`);
+  if (ok) logSerialLine(`[串口发送] ${text}`);
 }
 
 function initSerialUi() {
@@ -1858,7 +1858,7 @@ async function stopStream() {
     }
     await fetchJson("/api/stream/stop", { streamId: activeStreamId });
   } catch (e) {
-    logLine(`鍋滄澶辫触锛?{e.message}`);
+    logLine(`停止失败：${e.message}`);
   } finally {
     activeStreamId = "";
     detachPlayer();
@@ -1875,7 +1875,7 @@ async function connectAndPlay() {
   const host = parsedHost.host.trim();
   const port = parsedHost.port;
   if (!host) {
-    logLine("璇峰～鍐?IP / Host");
+    logLine("请填写 IP / Host");
     return;
   }
   els.hostInput.value = host;
@@ -1886,7 +1886,7 @@ async function connectAndPlay() {
     try {
       const appHealth = await fetchJson("/api/app/health");
       logLine(
-        `鏈嶅姟淇℃伅锛?{appHealth?.platform || ""} ${appHealth?.node || ""} pid=${appHealth?.pid || ""} mediamtxApi=${appHealth?.mediamtx?.apiBase || ""}`
+        `服务信息：${appHealth?.platform || ""} ${appHealth?.node || ""} pid=${appHealth?.pid || ""} mediamtxApi=${appHealth?.mediamtx?.apiBase || ""}`
       );
     } catch {}
     logLine("通过 ONVIF 获取 RTSP URI...");
@@ -1896,7 +1896,7 @@ async function connectAndPlay() {
       username: els.userInput.value,
       password: els.passInput.value
     });
-    logLine("宸茶幏鍙?RTSP URI");
+    logLine("已获取 RTSP URI");
 
     if (activeStreamId) await stopStream();
 
@@ -1921,11 +1921,11 @@ async function connectAndPlay() {
       if (!activeStreamId) return;
       try {
         const s = await fetch(`/api/stream/status/${encodeURIComponent(activeStreamId)}`).then((r) => r.json());
-        if (s?.lastError) logLine(`鍙栨祦鏃ュ織锛?{s.lastError.split(/\r?\n/).slice(-3).join(" | ")}`);
+        if (s?.lastError) logLine(`取流日志：${s.lastError.split(/\r?\n/).slice(-3).join(" | ")}`);
       } catch {}
     }, 2500);
   } catch (e) {
-    logLine(`杩炴帴澶辫触锛?{e.message}`);
+    logLine(`连接失败：${e.message}`);
     try {
       const h = await fetchJson("/api/mediamtx/health");
       logLine(
@@ -1971,7 +1971,7 @@ async function playWebrtc(whepUrl) {
   detachPlayer();
 
   if (!window.RTCPeerConnection) {
-    throw new Error("褰撳墠娴忚鍣ㄤ笉鏀寔 WebRTC");
+    throw new Error("当前浏览器不支持 WebRTC");
   }
 
   pc = new RTCPeerConnection({});
@@ -2235,7 +2235,7 @@ function initEventStream() {
   const handleLpr = async (data) => {
     const plate = String(data?.plate || "").trim();
     if (!plate) return;
-    logLine(`[杞︾墝璇嗗埆] 鏀跺埌杞︾墝鍙凤細${plate}`);
+    logLine(`[车牌识别] 收到车牌号：${plate}`);
 
     const id = String(data?.id || "") || `${Date.now()}-${Math.random().toString(16).slice(2)}`;
     const receivedAt = Number(data?.receivedAt || Date.now()) || Date.now();
@@ -2267,14 +2267,14 @@ function initEventStream() {
     if (record.imageDataUrl) enrichRecordImageMeta(record.id, record.imageDataUrl);
 
     if (serialState.forwardEnabled && !serialState.backendPort) {
-      logSerialLine(`[涓插彛鍙戦€乚 宸叉帴鏀惰溅鐗岋紝鍑嗗杞彂: ${plate}`);
+      logSerialLine(`[串口发送] 已接收车牌，准备转发: ${plate}`);
       const ok = await serialEnqueueSend(plate + "\r\n");
       if (ok) {
         const sentAt = Date.now();
         updateRecordSerialSent(record.id, sentAt);
-        logSerialLine(`[涓插彛鍙戦€乚 宸茶浆鍙戣溅鐗? ${plate}`);
+        logSerialLine(`[串口发送] 已转发车牌: ${plate}`);
       } else {
-        logSerialLine(`[涓插彛鍙戦€乚 杞彂澶辫触: ${plate}`);
+        logSerialLine(`[串口发送] 转发失败: ${plate}`);
       }
     }
   };
@@ -2354,5 +2354,8 @@ try {
 window.addEventListener("beforeunload", () => {
   cancelAnimationFrame(renderHandle);
 });
+
+
+
 
 
