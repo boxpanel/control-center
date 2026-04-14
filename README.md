@@ -21,10 +21,12 @@ This command now:
 - installs required Ubuntu packages
 - installs Node.js 20 if missing
 - clones or updates the repository
+- backs up local uncommitted changes before updating
 - installs npm dependencies
 - registers a `systemd` service
 - enables auto-start on boot
 - rolls back the service and incomplete install directory if setup fails
+- stores local change backups under `.upgrade-backup-*` inside the install directory during upgrades
 
 ## Manual Install
 
@@ -76,6 +78,8 @@ chmod +x ./manage.sh
 ./manage.sh logs
 ./manage.sh uninstall
 ```
+
+`./manage.sh uninstall` will stop the service, remove the `systemd` unit, and delete the whole install directory after confirmation.
 
 ## Notes
 
