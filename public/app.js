@@ -1484,6 +1484,7 @@ async function refreshSerialPortSelect({ desiredValue } = {}) {
   if (!(els.serialPortSelect instanceof HTMLSelectElement)) return;
   const desired = String(desiredValue || "");
   const ports = await loadSerialPorts();
+  const hasDesired = desired ? ports.some((p) => String(p?.path || p?.comName || "").trim() === desired) : false;
 
   els.serialPortSelect.textContent = "";
   const optEmpty = document.createElement("option");
@@ -1516,13 +1517,15 @@ async function refreshSerialPortSelect({ desiredValue } = {}) {
     els.serialPortSelect.appendChild(opt);
   }
 
-  if (desired && !Array.from(els.serialPortSelect.options).some((o) => o.value === desired)) {
+  if (desired && !hasDesired) {
     const opt = document.createElement("option");
     opt.value = desired;
-    opt.textContent = `${desired}（已保存）`;
+    opt.textContent = `${desired}（旧配置无效，请重新选择）`;
+    opt.title = `${desired}\n该串口不存在于当前系统，请重新选择有效端口`;
     els.serialPortSelect.appendChild(opt);
   }
   els.serialPortSelect.value = desired;
+  return { hasDesired };
 }
 
 async function fetchBackendSerialStatus() {
@@ -1539,7 +1542,10 @@ async function syncBackendSerialUi() {
       applySerialBaudRateToUi(Number(backend.baudRate));
     }
     if (els.serialPortSelect instanceof HTMLSelectElement) {
-      await refreshSerialPortSelect({ desiredValue: serialState.backendPort });
+      const portSelectState = await refreshSerialPortSelect({ desiredValue: serialState.backendPort });
+      if (serialState.backendPort && portSelectState?.hasDesired === false && !serialState.backendOpen) {
+        setSerialHintText(`已保存的串口 ${serialState.backendPort} 在当前系统中不存在，请重新选择有效端口。`);
+      }
     }
     if (els.serialForwardEnabled instanceof HTMLInputElement) {
       els.serialForwardEnabled.checked = Boolean(backend?.enabled);
@@ -1712,7 +1718,10 @@ function initSerialUi() {
       if (els.serialForwardEnabled instanceof HTMLInputElement) {
         els.serialForwardEnabled.checked = serialState.forwardEnabled;
       }
-      await refreshSerialPortSelect({ desiredValue: serialState.backendPort });
+      const portSelectState = await refreshSerialPortSelect({ desiredValue: serialState.backendPort });
+      if (serialState.backendPort && portSelectState?.hasDesired === false) {
+        setSerialHintText(`已保存的串口 ${serialState.backendPort} 在当前系统中不存在，请重新选择有效端口。`);
+      }
       if (!shouldUseWebSerial()) await syncBackendSerialUi();
     } catch {}
   })();
