@@ -112,6 +112,53 @@ ensure_nodejs() {
   fi
 }
 
+sanitize_legacy_serial_config() {
+  local config_path="$ROOT_DIR/.device-info.json"
+  if [[ ! -f "$config_path" ]]; then
+    return
+  fi
+
+  shopt -s nullglob
+  local board_ports=(/dev/ttyAS*)
+  shopt -u nullglob
+  if [[ "${#board_ports[@]}" -eq 0 ]]; then
+    return
+  fi
+
+  local result
+  result="$(
+    node --input-type=module - "$config_path" <<'EOF'
+import fs from "node:fs";
+
+const configPath = process.argv[2];
+const raw = fs.readFileSync(configPath, "utf8");
+const parsed = JSON.parse(raw);
+const serial = parsed && typeof parsed.serial === "object" ? parsed.serial : null;
+const backendPort = String(serial?.backendPort || "").trim();
+
+if (!/^\/dev\/ttyS\d+$/i.test(backendPort)) {
+  process.stdout.write("unchanged");
+  process.exit(0);
+}
+
+parsed.serial = {
+  baudRate: Number(serial?.baudRate || 115200) || 115200,
+  forwardEnabled: false,
+  backendPort: ""
+};
+
+fs.writeFileSync(configPath, JSON.stringify(parsed), "utf8");
+process.stdout.write(`cleared:${backendPort}`);
+EOF
+  )"
+
+  if [[ "$result" == cleared:* ]]; then
+    step "Clearing stale serial port configuration"
+    printf "Cleared legacy backend serial port: %s\n" "${result#cleared:}"
+    printf "Detected board serial ports: %s\n" "${board_ports[*]}"
+  fi
+}
+
 print_access_info() {
   local base_port="$1"
   local local_ips
@@ -177,6 +224,7 @@ printf "Platform: Ubuntu/Linux\n"
 
 step "Creating app folders"
 mkdir -p data uploads uploads/ftp uploads/plates streams
+sanitize_legacy_serial_config
 
 step "Installing dependencies"
 if [[ -f package-lock.json ]]; then

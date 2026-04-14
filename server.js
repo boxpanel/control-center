@@ -686,11 +686,30 @@ async function getDiskSerialBestEffort() {
   }
 }
 
+async function listLinuxBoardSerialPorts() {
+  if (process.platform !== "linux") return [];
+  try {
+    const entries = await fs.readdir("/dev");
+    return entries
+      .filter((name) => /^ttyAS\d+$/i.test(String(name || "")))
+      .map((name) => `/dev/${name}`)
+      .sort((a, b) => a.localeCompare(b));
+  } catch {
+    return [];
+  }
+}
+
+function shouldClearLegacyLinuxSerialPort(port, boardPorts) {
+  const current = String(port || "").trim();
+  return /^\/dev\/ttyS\d+$/i.test(current) && Array.isArray(boardPorts) && boardPorts.length > 0;
+}
+
 async function loadOrInitDeviceInfo() {
   try {
     const raw = await fs.readFile(deviceInfoPath, "utf8");
     const parsed = JSON.parse(raw);
     if (parsed?.installDate && parsed?.secret) {
+      const linuxBoardPorts = await listLinuxBoardSerialPorts();
       const patch = {};
       if (!parsed.connection || typeof parsed.connection !== "object") {
         patch.connection = { host: "", port: 80, username: "", password: "" };
@@ -716,7 +735,12 @@ async function loadOrInitDeviceInfo() {
           !Object.prototype.hasOwnProperty.call(s, "baudRate") ||
           !Object.prototype.hasOwnProperty.call(s, "forwardEnabled") ||
           !Object.prototype.hasOwnProperty.call(s, "backendPort");
-        if (needs) patch.serial = { ...serialDefaults, ...s };
+        const mergedSerial = { ...serialDefaults, ...s };
+        if (shouldClearLegacyLinuxSerialPort(mergedSerial.backendPort, linuxBoardPorts)) {
+          patch.serial = { ...mergedSerial, forwardEnabled: false, backendPort: "" };
+        } else if (needs) {
+          patch.serial = mergedSerial;
+        }
       }
       const systemDefaults = { name: "", clientMode: false, ipMode: "auto", preferredIp: "", manualIp: "" };
       if (!parsed.system || typeof parsed.system !== "object") {
