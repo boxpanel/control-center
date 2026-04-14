@@ -326,6 +326,7 @@ async function initSystemUi() {
   const ftpUser = String(ftpServer?.username || "");
   const ftpPass = String(ftpServer?.password || "");
   const ftpRootDir = String(ftpServer?.rootDir || "");
+  const ftpResolvedRootDir = String(ftpServer?.resolvedRootDir || ftpRootDir || "uploads/ftp");
 
   if (els.ftpServerEnabled instanceof HTMLInputElement) els.ftpServerEnabled.checked = ftpEnabled;
   if (els.ftpServerPort) els.ftpServerPort.value = String(ftpPort);
@@ -339,7 +340,7 @@ async function initSystemUi() {
     els.ftpIngestUrl.textContent = `ftp://${addr}:${ftpPort}/`;
   }
   if (els.ftpIngestDir) {
-    els.ftpIngestDir.textContent = ftpRootDir ? ftpRootDir : "uploads/ftp";
+    els.ftpIngestDir.textContent = ftpResolvedRootDir;
   }
 
   if (els.ftpServerSaveBtn) {
@@ -362,13 +363,16 @@ async function initSystemUi() {
       };
       try {
         els.ftpServerSaveBtn.disabled = true;
-        await fetchJson("/api/device/config", payload);
+        const data = await fetchJson("/api/device/config", payload);
         setFtpHint("保存成功");
         if (els.ftpIngestUrl) {
           const ipShownNow = String(els.systemIpInput?.value || "").trim() || autoIp || "127.0.0.1";
           els.ftpIngestUrl.textContent = `ftp://${ipShownNow}:${port}/`;
         }
-        if (els.ftpIngestDir) els.ftpIngestDir.textContent = rootDir ? rootDir : "uploads/ftp";
+        if (els.ftpIngestDir) {
+          const resolvedRootDir = String(data?.config?.ingest?.ftpServer?.resolvedRootDir || rootDir || "uploads/ftp");
+          els.ftpIngestDir.textContent = resolvedRootDir;
+        }
       } catch (e) {
         setFtpHint(`保存失败：${String(e?.message || e || "")}`, true);
       } finally {

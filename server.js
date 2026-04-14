@@ -1772,6 +1772,7 @@ function normalizeSystemPatch(raw) {
 
 function normalizeIngestConfig(raw) {
   const ftpServer = normalizeFtpServerConfig(raw?.ftpServer);
+  ftpServer.resolvedRootDir = resolveFtpRootDir(ftpServer.rootDir);
   return { ftpServer };
 }
 
