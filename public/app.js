@@ -1,0 +1,2358 @@
+﻿const els = {
+  discoverBtn: document.getElementById("discoverBtn"),
+  connectBtn: document.getElementById("connectBtn"),
+  stopBtn: document.getElementById("stopBtn"),
+  snapshotBtn: document.getElementById("snapshotBtn"),
+  clearLogBtn: document.getElementById("clearLogBtn"),
+  clearSerialLogBtn: document.getElementById("clearSerialLogBtn"),
+  fingerprintBox: document.getElementById("fingerprintBox"),
+  navHomeBtn: document.getElementById("navHomeBtn"),
+  navNetworkBtn: document.getElementById("navNetworkBtn"),
+  navSerialBtn: document.getElementById("navSerialBtn"),
+  navSystemBtn: document.getElementById("navSystemBtn"),
+  homePage: document.getElementById("homePage"),
+  networkPage: document.getElementById("networkPage"),
+  serialPage: document.getElementById("serialPage"),
+  systemPage: document.getElementById("systemPage"),
+  dashUpdatedAt: document.getElementById("dashUpdatedAt"),
+  dashTotal: document.getElementById("dashTotal"),
+  dashToday: document.getElementById("dashToday"),
+  dashLastHour: document.getElementById("dashLastHour"),
+  dashUniqueToday: document.getElementById("dashUniqueToday"),
+  dashFiltered: document.getElementById("dashFiltered"),
+  dashLatest: document.getElementById("dashLatest"),
+  hostInput: document.getElementById("hostInput"),
+  portInput: document.getElementById("portInput"),
+  userInput: document.getElementById("userInput"),
+  passInput: document.getElementById("passInput"),
+  video: document.getElementById("video"),
+  canvas: document.getElementById("canvas"),
+  canvasWrap: document.querySelector(".canvasWrap"),
+  rtspTransport: document.getElementById("rtspTransport"),
+  processMode: document.getElementById("processMode"),
+  showProcessed: document.getElementById("showProcessed"),
+  discoverIpList: document.getElementById("discoverIpList"),
+  serialBaudRate: document.getElementById("serialBaudRate"),
+  serialBaudRateInput: document.getElementById("serialBaudRateInput"),
+  serialSendInput: document.getElementById("serialSendInput"),
+  serialPortSelect: document.getElementById("serialPortSelect"),
+  serialConnectBtn: document.getElementById("serialConnectBtn"),
+  serialDisconnectBtn: document.getElementById("serialDisconnectBtn"),
+  serialSendBtn: document.getElementById("serialSendBtn"),
+  serialStatus: document.getElementById("serialStatus"),
+  serialHint: document.getElementById("serialHint"),
+  serialForwardEnabled: document.getElementById("serialForwardEnabled"),
+  plateSelectAll: document.getElementById("plateSelectAll"),
+  plateSearchInput: document.getElementById("plateSearchInput"),
+  plateDateInput: document.getElementById("plateDateInput"),
+  plateQueryBtn: document.getElementById("plateQueryBtn"),
+  plateDeleteBtn: document.getElementById("plateDeleteBtn"),
+  plateMockBtn: document.getElementById("plateMockBtn"),
+  plateViewCardsBtn: document.getElementById("plateViewCardsBtn"),
+  plateViewTableBtn: document.getElementById("plateViewTableBtn"),
+  plateTableWrap: document.getElementById("plateTableWrap"),
+  plateTableBody: document.getElementById("plateTableBody"),
+  plateTableSummary: document.getElementById("plateTableSummary"),
+  platePageSize: document.getElementById("platePageSize"),
+  platePrevPageBtn: document.getElementById("platePrevPageBtn"),
+  plateNextPageBtn: document.getElementById("plateNextPageBtn"),
+  platePageInfo: document.getElementById("platePageInfo"),
+  systemNameInput: document.getElementById("systemNameInput"),
+  systemClientMode: document.getElementById("systemClientMode"),
+  systemIpMode: document.getElementById("systemIpMode"),
+  systemIpInput: document.getElementById("systemIpInput"),
+  systemOldPassword: document.getElementById("systemOldPassword"),
+  systemNewPassword: document.getElementById("systemNewPassword"),
+  systemSaveBtn: document.getElementById("systemSaveBtn"),
+  systemSaveHint: document.getElementById("systemSaveHint"),
+  systemPassHint: document.getElementById("systemPassHint"),
+  ftpServerEnabled: document.getElementById("ftpServerEnabled"),
+  ftpServerPort: document.getElementById("ftpServerPort"),
+  ftpServerRootDir: document.getElementById("ftpServerRootDir"),
+  ftpServerUser: document.getElementById("ftpServerUser"),
+  ftpServerPass: document.getElementById("ftpServerPass"),
+  ftpServerSaveBtn: document.getElementById("ftpServerSaveBtn"),
+  ftpServerHint: document.getElementById("ftpServerHint"),
+  httpIngestUrl: document.getElementById("httpIngestUrl"),
+  ftpIngestUrl: document.getElementById("ftpIngestUrl"),
+  ftpIngestDir: document.getElementById("ftpIngestDir"),
+  log: document.getElementById("log"),
+  serialLog: document.getElementById("serialLog")
+};
+
+let pc = null;
+let activeStreamId = "";
+let activeWhepSessionUrl = "";
+let renderHandle = 0;
+const STORAGE_KEY = "onvif:lastConnection";
+const SESSION_STREAMING_KEY = "onvif:wasStreaming";
+let lastSavedSignature = "";
+const rtspByHostPort = new Map();
+const rtspPendingByHostPort = new Map();
+const rtspErrorByHostPort = new Map();
+let hoverHostPortKey = "";
+
+const tooltip = (() => {
+  const el = document.createElement("div");
+  el.style.position = "fixed";
+  el.style.left = "0";
+  el.style.top = "0";
+  el.style.maxWidth = "520px";
+  el.style.padding = "8px 10px";
+  el.style.borderRadius = "8px";
+  el.style.background = "rgba(0,0,0,0.82)";
+  el.style.color = "#fff";
+  el.style.fontSize = "12px";
+  el.style.lineHeight = "1.35";
+  el.style.whiteSpace = "pre-wrap";
+  el.style.pointerEvents = "none";
+  el.style.zIndex = "9999";
+  el.style.display = "none";
+  document.body.appendChild(el);
+  const show = (text, x, y) => {
+    if (!text) return hide();
+    el.textContent = text;
+    el.style.display = "block";
+    const pad = 12;
+    const vw = window.innerWidth || 0;
+    const vh = window.innerHeight || 0;
+    const rect = el.getBoundingClientRect();
+    const left = Math.max(8, Math.min(vw - rect.width - 8, x + pad));
+    const top = Math.max(8, Math.min(vh - rect.height - 8, y + pad));
+    el.style.left = `${left}px`;
+    el.style.top = `${top}px`;
+  };
+  const hide = () => {
+    el.style.display = "none";
+  };
+  return { show, hide };
+})();
+
+function now() {
+  const d = new Date();
+  const hh = String(d.getHours()).padStart(2, "0");
+  const mm = String(d.getMinutes()).padStart(2, "0");
+  const ss = String(d.getSeconds()).padStart(2, "0");
+  return `${hh}:${mm}:${ss}`;
+}
+
+function appendLog(el, text) {
+  if (!(el instanceof HTMLElement)) return;
+  el.textContent += `[${now()}] ${text}\n`;
+  el.scrollTop = el.scrollHeight;
+}
+
+function logLine(text) {
+  appendLog(els.log, text);
+}
+
+function logSerialLine(text) {
+  appendLog(els.serialLog, text);
+}
+
+const mainViewState = { view: "home" };
+
+function setMainView(view) {
+  const v = view === "serial" ? "serial" : view === "network" ? "network" : view === "system" ? "system" : "home";
+  mainViewState.view = v;
+  if (els.homePage) els.homePage.classList.toggle("view-hidden", v !== "home");
+  if (els.networkPage) els.networkPage.classList.toggle("view-hidden", v !== "network");
+  if (els.serialPage) els.serialPage.classList.toggle("view-hidden", v !== "serial");
+  if (els.systemPage) els.systemPage.classList.toggle("view-hidden", v !== "system");
+  if (els.navHomeBtn) {
+    els.navHomeBtn.classList.toggle("active", v === "home");
+    if (v === "home") els.navHomeBtn.setAttribute("aria-current", "page");
+    else els.navHomeBtn.removeAttribute("aria-current");
+  }
+  if (els.navNetworkBtn) {
+    els.navNetworkBtn.classList.toggle("active", v === "network");
+    if (v === "network") els.navNetworkBtn.setAttribute("aria-current", "page");
+    else els.navNetworkBtn.removeAttribute("aria-current");
+  }
+  if (els.navSerialBtn) {
+    els.navSerialBtn.classList.toggle("active", v === "serial");
+    if (v === "serial") els.navSerialBtn.setAttribute("aria-current", "page");
+    else els.navSerialBtn.removeAttribute("aria-current");
+  }
+  if (els.navSystemBtn) {
+    els.navSystemBtn.classList.toggle("active", v === "system");
+    if (v === "system") els.navSystemBtn.setAttribute("aria-current", "page");
+    else els.navSystemBtn.removeAttribute("aria-current");
+  }
+}
+
+function initSidebarNav() {
+  if (els.navHomeBtn) els.navHomeBtn.addEventListener("click", () => setMainView("home"));
+  if (els.navNetworkBtn) els.navNetworkBtn.addEventListener("click", () => setMainView("network"));
+  if (els.navSerialBtn) els.navSerialBtn.addEventListener("click", () => setMainView("serial"));
+  if (els.navSystemBtn) els.navSystemBtn.addEventListener("click", () => setMainView("system"));
+  setMainView("home");
+}
+
+function setSystemHint(text, isError = false) {
+  if (!els.systemSaveHint) return;
+  els.systemSaveHint.textContent = String(text || "");
+  els.systemSaveHint.style.color = isError ? "#b91c1c" : "#6b7280";
+}
+
+function setSystemPassHint(text, isError = false, isSuccess = false) {
+  if (!els.systemPassHint) return;
+  els.systemPassHint.textContent = String(text || "");
+  if (isError) els.systemPassHint.style.color = "#b91c1c";
+  else if (isSuccess) els.systemPassHint.style.color = "#15803d";
+  else els.systemPassHint.style.color = "#6b7280";
+}
+
+function setFtpHint(text, isError = false) {
+  if (!els.ftpServerHint) return;
+  els.ftpServerHint.textContent = String(text || "");
+  els.ftpServerHint.style.color = isError ? "#b91c1c" : "#6b7280";
+}
+
+async function loadNetIfaces() {
+  try {
+    const r = await fetchJsonGet("/api/net/ifaces");
+    return Array.isArray(r?.interfaces) ? r.interfaces : [];
+  } catch {
+    return [];
+  }
+}
+
+function pickFirstIfaceIp(ifaces) {
+  for (const i of ifaces || []) {
+    const addr = String(i?.address || "").trim();
+    if (addr) return addr;
+  }
+  return "";
+}
+
+function readCurrentAppPort() {
+  try {
+    const u = new URL(window.location.href);
+    const p = Number(u.port || "");
+    if (Number.isFinite(p) && p > 0) return Math.floor(p);
+  } catch {}
+  return 3000;
+}
+
+async function initSystemUi() {
+  if (!els.systemNameInput || !els.systemIpInput || !els.systemSaveBtn || !els.systemIpMode || !els.systemClientMode)
+    return;
+  setSystemHint("");
+  setSystemPassHint("");
+
+  const cfg = await loadDeviceConfig();
+  const system = cfg?.system || {};
+  const name = String(system?.name || "");
+  const clientMode = Boolean(system?.clientMode);
+  const ipMode = String(system?.ipMode || "auto") === "manual" ? "manual" : "auto";
+  const manualIp = String(system?.manualIp || "");
+  els.systemNameInput.value = name;
+  if (els.systemClientMode instanceof HTMLInputElement) els.systemClientMode.checked = clientMode;
+  els.systemIpMode.value = ipMode;
+
+  const ifaces = await loadNetIfaces();
+  const autoIp = pickFirstIfaceIp(ifaces);
+  const appPort = readCurrentAppPort();
+
+  const applyIpModeToUi = () => {
+    const mode = String(els.systemIpMode?.value || "auto") === "manual" ? "manual" : "auto";
+    if (mode === "manual") {
+      els.systemIpInput.readOnly = false;
+      els.systemIpInput.value = manualIp || els.systemIpInput.value || "";
+      els.systemIpInput.placeholder = "渚嬪锛?92.168.1.22";
+    } else {
+      els.systemIpInput.readOnly = true;
+      els.systemIpInput.value = autoIp || "";
+      els.systemIpInput.placeholder = "鑷姩鑾峰彇";
+    }
+  };
+  els.systemIpMode.addEventListener("change", () => {
+    applyIpModeToUi();
+    setSystemHint("");
+  });
+  applyIpModeToUi();
+
+  els.systemSaveBtn.addEventListener("click", async () => {
+    const mode = String(els.systemIpMode?.value || "auto") === "manual" ? "manual" : "auto";
+    const payload = {
+      system: {
+        name: String(els.systemNameInput?.value || "").trim(),
+        clientMode: Boolean(els.systemClientMode instanceof HTMLInputElement ? els.systemClientMode.checked : false),
+        ipMode: mode,
+        manualIp: mode === "manual" ? String(els.systemIpInput?.value || "").trim() : ""
+      }
+    };
+    try {
+      els.systemSaveBtn.disabled = true;
+      setSystemHint("");
+      setSystemPassHint("");
+      await fetchJson("/api/device/config", payload);
+      setSystemHint("保存成功");
+
+      const oldPwd = String(els.systemOldPassword?.value || "");
+      const newPwd = String(els.systemNewPassword?.value || "");
+      const wantsPassChange = Boolean(oldPwd || newPwd);
+      if (!wantsPassChange) return;
+
+      if (!oldPwd || !newPwd) {
+        setSystemPassHint("鑻ヨ淇敼瀵嗙爜锛岃鍚屾椂濉啓褰撳墠瀵嗙爜鍜屾柊瀵嗙爜", true);
+        return;
+      }
+      try {
+        setSystemPassHint("瀵嗙爜淇敼涓?..");
+        await fetchJson("/api/auth/change-password", { oldPassword: oldPwd, newPassword: newPwd });
+        if (els.systemOldPassword) els.systemOldPassword.value = "";
+        if (els.systemNewPassword) els.systemNewPassword.value = "";
+        setSystemPassHint("瀵嗙爜淇敼鎴愬姛", false, true);
+      } catch (e) {
+        setSystemPassHint(`淇敼澶辫触锛?{String(e?.message || e || "")}`, true);
+      }
+    } catch (e) {
+      setSystemHint(`淇濆瓨澶辫触锛?{String(e?.message || e || "")}`, true);
+    } finally {
+      els.systemSaveBtn.disabled = false;
+    }
+  });
+
+  if (els.httpIngestUrl) {
+    const ipShown = ipMode === "manual" ? (manualIp || autoIp) : autoIp;
+    els.httpIngestUrl.textContent = ipShown ? `http://${ipShown}:${appPort}/api/isapi/event` : `/api/isapi/event`;
+  }
+
+  const ingest = cfg?.ingest || {};
+  const ftpServer = ingest?.ftpServer || {};
+  const ftpEnabled = Boolean(ftpServer?.enabled);
+  const ftpPort = Number(ftpServer?.port || 21) || 21;
+  const ftpUser = String(ftpServer?.username || "");
+  const ftpPass = String(ftpServer?.password || "");
+  const ftpRootDir = String(ftpServer?.rootDir || "");
+
+  if (els.ftpServerEnabled instanceof HTMLInputElement) els.ftpServerEnabled.checked = ftpEnabled;
+  if (els.ftpServerPort) els.ftpServerPort.value = String(ftpPort);
+  if (els.ftpServerRootDir) els.ftpServerRootDir.value = ftpRootDir;
+  if (els.ftpServerUser) els.ftpServerUser.value = ftpUser;
+  if (els.ftpServerPass) els.ftpServerPass.value = ftpPass;
+
+  if (els.ftpIngestUrl) {
+    const ipShown = ipMode === "manual" ? (manualIp || autoIp) : autoIp;
+    const addr = ipShown || "127.0.0.1";
+    els.ftpIngestUrl.textContent = `ftp://${addr}:${ftpPort}/`;
+  }
+  if (els.ftpIngestDir) {
+    els.ftpIngestDir.textContent = ftpRootDir ? ftpRootDir : "uploads/ftp";
+  }
+
+  if (els.ftpServerSaveBtn) {
+    els.ftpServerSaveBtn.addEventListener("click", async () => {
+      const enabled = Boolean(els.ftpServerEnabled instanceof HTMLInputElement ? els.ftpServerEnabled.checked : false);
+      const port = Number(els.ftpServerPort?.value || 21) || 21;
+      const rootDir = String(els.ftpServerRootDir?.value || "").trim();
+      const username = String(els.ftpServerUser?.value || "").trim();
+      const password = String(els.ftpServerPass?.value || "");
+      const payload = {
+        ingest: {
+          ftpServer: {
+            enabled,
+            port,
+            rootDir,
+            username,
+            password
+          }
+        }
+      };
+      try {
+        els.ftpServerSaveBtn.disabled = true;
+        await fetchJson("/api/device/config", payload);
+        setFtpHint("保存成功");
+        if (els.ftpIngestUrl) {
+          const ipShownNow = String(els.systemIpInput?.value || "").trim() || autoIp || "127.0.0.1";
+          els.ftpIngestUrl.textContent = `ftp://${ipShownNow}:${port}/`;
+        }
+        if (els.ftpIngestDir) els.ftpIngestDir.textContent = rootDir ? rootDir : "uploads/ftp";
+      } catch (e) {
+        setFtpHint(`淇濆瓨澶辫触锛?{String(e?.message || e || "")}`, true);
+      } finally {
+        els.ftpServerSaveBtn.disabled = false;
+      }
+    });
+  }
+}
+
+async function loadFingerprint() {
+  const fingerprintBox = document.getElementById("fingerprintBox");
+  if (!fingerprintBox) return;
+  try {
+    const res = await fetch("/api/device/fingerprint", { method: "GET" });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      fingerprintBox.textContent = "鎸囩汗鐮佸姞杞藉け璐?(HTTP " + res.status + ")";
+      return;
+    }
+    const fp = String(data?.fingerprint || "");
+    if (!fp) {
+      fingerprintBox.textContent = "未获取到设备指纹码";
+      return;
+    }
+    fingerprintBox.textContent = `璁惧鎸囩汗鐮侊細${fp}`;
+  } catch (e) {
+    fingerprintBox.textContent = "获取设备指纹失败";
+  }
+}
+
+async function fetchJson(url, body) {
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body ?? {})
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(data?.error || `HTTP ${res.status}`);
+  }
+  return data;
+}
+
+async function fetchJsonGet(url) {
+  const res = await fetch(url, { method: "GET" });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(data?.error || `HTTP ${res.status}`);
+  }
+  return data;
+}
+
+const PLATE_DB_NAME = "onvif-ipcam";
+const PLATE_DB_VERSION = 1;
+const PLATE_STORE_NAME = "plateRecords";
+let plateDbPromise = null;
+const plateById = new Map();
+const plateSelectedIds = new Set();
+const plateUiState = { view: "cards" };
+const plateTableState = { page: 1, pageSize: 20, sortKey: "time", sortDir: "desc" };
+let plateTableVisibleIds = [];
+let lastPlateQueryState = { plateText: "", date: "" };
+
+function idbRequestToPromise(req) {
+  return new Promise((resolve, reject) => {
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error || new Error("IndexedDB 璇锋眰澶辫触"));
+  });
+}
+
+async function ensurePlateDb() {
+  if (plateDbPromise) return plateDbPromise;
+  if (!("indexedDB" in window)) {
+    plateDbPromise = Promise.reject(new Error("褰撳墠娴忚鍣ㄤ笉鏀寔 IndexedDB"));
+    return plateDbPromise;
+  }
+  plateDbPromise = new Promise((resolve, reject) => {
+    const req = indexedDB.open(PLATE_DB_NAME, PLATE_DB_VERSION);
+    req.onupgradeneeded = () => {
+      const db = req.result;
+      if (!db.objectStoreNames.contains(PLATE_STORE_NAME)) {
+        const store = db.createObjectStore(PLATE_STORE_NAME, { keyPath: "id" });
+        store.createIndex("receivedAt", "receivedAt", { unique: false });
+      }
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error || new Error("鎵撳紑 IndexedDB 澶辫触"));
+  });
+  return plateDbPromise;
+}
+
+async function plateDbPut(record) {
+  const db = await ensurePlateDb();
+  await new Promise((resolve, reject) => {
+    const tx = db.transaction(PLATE_STORE_NAME, "readwrite");
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error || new Error("淇濆瓨璁板綍澶辫触"));
+    tx.objectStore(PLATE_STORE_NAME).put(record);
+  });
+}
+
+async function plateDbGet(id) {
+  const db = await ensurePlateDb();
+  const tx = db.transaction(PLATE_STORE_NAME, "readonly");
+  const store = tx.objectStore(PLATE_STORE_NAME);
+  return await idbRequestToPromise(store.get(String(id)));
+}
+
+async function plateDbDelete(id) {
+  const db = await ensurePlateDb();
+  await new Promise((resolve, reject) => {
+    const tx = db.transaction(PLATE_STORE_NAME, "readwrite");
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error || new Error("鍒犻櫎璁板綍澶辫触"));
+    tx.objectStore(PLATE_STORE_NAME).delete(String(id));
+  });
+}
+
+async function plateDbListLatest(limit = 200) {
+  const db = await ensurePlateDb();
+  const out = [];
+  await new Promise((resolve, reject) => {
+    const tx = db.transaction(PLATE_STORE_NAME, "readonly");
+    tx.onerror = () => reject(tx.error || new Error("璇诲彇璁板綍澶辫触"));
+    const store = tx.objectStore(PLATE_STORE_NAME);
+    const idx = store.index("receivedAt");
+    const req = idx.openCursor(null, "prev");
+    req.onsuccess = () => {
+      const cursor = req.result;
+      if (!cursor) return resolve();
+      out.push(cursor.value);
+      if (out.length >= limit) return resolve();
+      cursor.continue();
+    };
+    req.onerror = () => reject(req.error || new Error("璇诲彇璁板綍澶辫触"));
+  });
+  return out;
+}
+
+function formatDateTime(ms) {
+  const n = Number(ms);
+  if (!Number.isFinite(n) || n <= 0) return "";
+  return new Date(n).toLocaleString("zh-CN", { hour12: false });
+}
+
+function formatTimeOnly(ms) {
+  const n = Number(ms);
+  if (!Number.isFinite(n) || n <= 0) return "";
+  const d = new Date(n);
+  const hh = String(d.getHours()).padStart(2, "0");
+  const mm = String(d.getMinutes()).padStart(2, "0");
+  const ss = String(d.getSeconds()).padStart(2, "0");
+  return `${hh}:${mm}:${ss}`;
+}
+
+function getRecordTs(rec) {
+  return Number(rec?.eventAt || rec?.receivedAt || 0) || 0;
+}
+
+function removeEmptyHint(plateListEl) {
+  const emptyHint = plateListEl.querySelector(".empty-hint");
+  if (emptyHint) emptyHint.remove();
+}
+
+function ensureEmptyHint(plateListEl) {
+  const hasCard = plateListEl.querySelector(".plate-card:not(.hidden)");
+  if (hasCard) return;
+  const emptyHint = plateListEl.querySelector(".empty-hint");
+  if (emptyHint) return;
+  const el = document.createElement("div");
+  el.className = "empty-hint";
+  el.textContent = "鏆傛棤杞︾墝鏁版嵁锛岀瓑寰呮帴鏀?..";
+  plateListEl.appendChild(el);
+}
+
+function updatePlateBulkUi() {
+  if (els.plateDeleteBtn) els.plateDeleteBtn.disabled = plateSelectedIds.size === 0;
+  if (els.plateSelectAll) {
+    let visibleIds = [];
+    if (plateUiState.view === "table") {
+      visibleIds = plateTableVisibleIds.slice();
+    } else {
+      const cards = Array.from(document.querySelectorAll(".plate-card:not(.hidden)"));
+      visibleIds = cards.map((el) => String(el.dataset.recordId || "")).filter(Boolean);
+    }
+    if (!visibleIds.length) {
+      els.plateSelectAll.checked = false;
+      els.plateSelectAll.indeterminate = false;
+      return;
+    }
+    const selectedVisible = visibleIds.filter((id) => plateSelectedIds.has(id)).length;
+    els.plateSelectAll.checked = selectedVisible > 0 && selectedVisible === visibleIds.length;
+    els.plateSelectAll.indeterminate = selectedVisible > 0 && selectedVisible < visibleIds.length;
+  }
+}
+
+function syncSelectionToCard(id, checked) {
+  const key = String(id || "");
+  if (!key) return;
+  const cardEl = document.querySelector(`.plate-card[data-record-id="${CSS.escape(key)}"]`);
+  if (!cardEl) return;
+  cardEl.classList.toggle("selected", Boolean(checked));
+  const cb = cardEl.querySelector(".plate-check");
+  if (cb instanceof HTMLInputElement) cb.checked = Boolean(checked);
+}
+
+function syncSelectionToTableRow(id, checked) {
+  const key = String(id || "");
+  if (!key) return;
+  const rowEl = document.querySelector(`.plate-row[data-record-id="${CSS.escape(key)}"]`);
+  if (rowEl) rowEl.classList.toggle("selected", Boolean(checked));
+  const cb = document.querySelector(`.plate-row-check[data-record-id="${CSS.escape(key)}"]`);
+  if (cb instanceof HTMLInputElement) cb.checked = Boolean(checked);
+}
+
+function setPlateSelectedById(id, checked) {
+  const key = String(id || "");
+  if (!key) return;
+  const on = Boolean(checked);
+  if (on) plateSelectedIds.add(key);
+  else plateSelectedIds.delete(key);
+  syncSelectionToCard(key, on);
+  syncSelectionToTableRow(key, on);
+  updatePlateBulkUi();
+}
+
+function toLocalIsoDate(ms) {
+  const n = Number(ms);
+  if (!Number.isFinite(n) || n <= 0) return "";
+  const d = new Date(n);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+function getPlateQueryStateFromUi() {
+  return {
+    plateText: String(els.plateSearchInput?.value || ""),
+    date: String(els.plateDateInput?.value || "")
+  };
+}
+
+function getAllPlateRecords() {
+  const out = [];
+  for (const rec of plateById.values()) {
+    if (!rec?.id) continue;
+    out.push(rec);
+  }
+  return out;
+}
+
+function filterPlateRecords(records, { plateText, date } = {}) {
+  const q = String(plateText || "").trim().toLowerCase();
+  const dateVal = String(date || "").trim();
+  const out = [];
+  for (const rec of records || []) {
+    const plate = String(rec?.plate || "").toLowerCase();
+    const ts = getRecordTs(rec);
+    const day = toLocalIsoDate(ts);
+    const matchPlate = !q || plate.includes(q);
+    const matchDate = !dateVal || day === dateVal;
+    if (matchPlate && matchDate) out.push(rec);
+  }
+  return out;
+}
+
+function applyPlateFilters({ plateText, date } = {}) {
+  lastPlateQueryState = { plateText: String(plateText || ""), date: String(date || "") };
+  const q = String(plateText || "").trim().toLowerCase();
+  const dateVal = String(date || "").trim();
+  const plateListEl = document.getElementById("plateList");
+  if (!plateListEl) return;
+  const cards = Array.from(plateListEl.querySelectorAll(".plate-card"));
+  for (const card of cards) {
+    const plate = String(card.dataset.plate || "").toLowerCase();
+    const ts = Number(card.dataset.ts || 0) || 0;
+    const day = toLocalIsoDate(ts);
+    const matchPlate = !q || plate.includes(q);
+    const matchDate = !dateVal || day === dateVal;
+    const visible = matchPlate && matchDate;
+    card.classList.toggle("hidden", !visible);
+  }
+  ensureEmptyHint(plateListEl);
+  renderPlateTable();
+  updatePlateDashboard();
+  updatePlateBulkUi();
+}
+
+function applyPlateFiltersFromUi() {
+  const state = getPlateQueryStateFromUi();
+  applyPlateFilters(state);
+}
+
+function getImgSrcOrFallback(imageDataUrl) {
+  const v = String(imageDataUrl || "");
+  if (v) return v;
+  return 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="240" height="160"><rect width="100%25" height="100%25" fill="%23222"/><text x="50%25" y="50%25" font-size="14" text-anchor="middle" dominant-baseline="middle" fill="%23999">鏃犲浘鐗?/text></svg>';
+}
+
+function updatePlateCardMeta(id) {
+  const key = String(id || "");
+  if (!key) return;
+  const card = document.querySelector(`.plate-card[data-record-id="${CSS.escape(key)}"]`);
+  if (!(card instanceof HTMLElement)) return;
+  const rec = plateById.get(key);
+  if (!rec) return;
+
+  const timeStr = formatDateTime(rec.eventAt || rec.receivedAt) || formatDateTime(rec.receivedAt);
+  const hasImage = Boolean(String(rec.imageDataUrl || ""));
+  const serialSent = Boolean(Number(rec.serialSentAt || 0));
+
+  const timeEl = card.querySelector(".plate-metaTime");
+  if (timeEl) timeEl.textContent = timeStr;
+
+  const imgEl = card.querySelector(".plate-metaImage");
+  if (imgEl instanceof HTMLElement) {
+    imgEl.textContent = hasImage ? "鍥剧墖锛氭湁" : "鍥剧墖锛氭棤";
+    imgEl.classList.toggle("ok", hasImage);
+    imgEl.classList.toggle("muted", !hasImage);
+  }
+
+  const serialEl = card.querySelector(".plate-metaSerial");
+  if (serialEl instanceof HTMLElement) {
+    serialEl.textContent = serialSent ? "串口：已发送" : "串口：未发送";
+    serialEl.classList.toggle("ok", serialSent);
+    serialEl.classList.toggle("muted", !serialSent);
+  }
+}
+
+function renderPlateCard(record, { prepend, skipFilterApply } = {}) {
+  const plateListEl = document.getElementById("plateList");
+  if (!plateListEl) return;
+  removeEmptyHint(plateListEl);
+
+  const card = document.createElement("div");
+  card.className = "plate-card";
+  card.dataset.recordId = String(record.id || "");
+  card.dataset.plate = String(record.plate || "");
+  card.dataset.ts = String(record.eventAt || record.receivedAt || 0);
+
+  const timeStr = formatDateTime(record.eventAt || record.receivedAt) || formatDateTime(record.receivedAt);
+  const imgSrc = getImgSrcOrFallback(record.imageDataUrl);
+  const plateText = String(record.plate || "");
+  const hasImage = Boolean(String(record.imageDataUrl || ""));
+  const serialSent = Boolean(Number(record.serialSentAt || 0));
+
+  card.innerHTML = `
+    <div class="plate-checkWrap"><input class="plate-check" type="checkbox" aria-label="閫夋嫨" /></div>
+    <img src="${imgSrc}" class="plate-img" alt="杞︾墝鎴浘" />
+    <div class="plate-info">
+      <div class="plate-text">${plateText}</div>
+      <div class="plate-metaRow">
+        <span class="plate-metaTime">${timeStr}</span>
+        <span class="plate-metaTag plate-metaImage ${hasImage ? "ok" : "muted"}">${hasImage ? "鍥剧墖锛氭湁" : "鍥剧墖锛氭棤"}</span>
+        <span class="plate-metaTag plate-metaSerial ${serialSent ? "ok" : "muted"}">${serialSent ? "串口：已发送" : "串口：未发送"}</span>
+      </div>
+    </div>
+  `;
+
+  const checkbox = card.querySelector(".plate-check");
+  if (checkbox instanceof HTMLInputElement) {
+    const id = String(card.dataset.recordId || "");
+    checkbox.checked = plateSelectedIds.has(id);
+    card.classList.toggle("selected", checkbox.checked);
+    checkbox.addEventListener("click", (ev) => ev.stopPropagation());
+    checkbox.addEventListener("dblclick", (ev) => ev.stopPropagation());
+    checkbox.addEventListener("change", () => setPlateSelectedById(id, checkbox.checked));
+  }
+
+  card.addEventListener("dblclick", (ev) => {
+    if (ev.target instanceof HTMLInputElement) return;
+    const id = String(card.dataset.recordId || "");
+    if (!id) return;
+    openPlateDetailById(id);
+  });
+
+  if (prepend) plateListEl.prepend(card);
+  else plateListEl.appendChild(card);
+  if (!skipFilterApply) applyPlateFiltersFromUi();
+}
+
+async function enrichRecordImageMeta(id, imageDataUrl) {
+  const src = String(imageDataUrl || "");
+  if (!src) return;
+  const img = new Image();
+  img.decoding = "async";
+  img.src = src;
+  try {
+    if (img.decode) await img.decode();
+    else await new Promise((resolve, reject) => {
+      img.onload = () => resolve();
+      img.onerror = () => reject(new Error("鍥剧墖鍔犺浇澶辫触"));
+    });
+  } catch {
+    return;
+  }
+  const w = Number(img.naturalWidth || 0);
+  const h = Number(img.naturalHeight || 0);
+  if (!w || !h) return;
+  const rec = plateById.get(id);
+  if (!rec) return;
+  if (rec.imageWidth === w && rec.imageHeight === h) return;
+  rec.imageWidth = w;
+  rec.imageHeight = h;
+  plateById.set(id, rec);
+}
+
+async function updateRecordSerialSent(id, sentAt) {
+  const key = String(id || "");
+  if (!key) return;
+  const t = Number(sentAt);
+  if (!Number.isFinite(t) || t <= 0) return;
+  let rec = plateById.get(key);
+  if (!rec) rec = null;
+  if (!rec) return;
+  rec.serialSentAt = t;
+  plateById.set(key, rec);
+  try {
+    await fetchJson(`/api/plates/${encodeURIComponent(key)}/serial-sent`, { sentAt: t });
+  } catch {}
+  updatePlateCardMeta(key);
+  renderPlateTable();
+  updatePlateDashboard();
+}
+
+function setModalOpen(open) {
+  const modal = document.getElementById("plateDetailModal");
+  if (!modal) return;
+  if (open) {
+    modal.classList.add("open");
+    modal.setAttribute("aria-hidden", "false");
+  } else {
+    modal.classList.remove("open");
+    modal.setAttribute("aria-hidden", "true");
+  }
+}
+
+function fillPlateDetailModal(record) {
+  const imgEl = document.getElementById("plateDetailImg");
+  const plateEl = document.getElementById("plateDetailPlate");
+  const receivedEl = document.getElementById("plateDetailReceivedAt");
+  const sizeEl = document.getElementById("plateDetailImageSize");
+  const serialEl = document.getElementById("plateDetailSerialSentAt");
+  const ftpEl = document.getElementById("plateDetailFtpPath");
+
+  if (imgEl) imgEl.src = getImgSrcOrFallback(record.imageDataUrl);
+  if (plateEl) plateEl.textContent = String(record.plate || "");
+  if (receivedEl) receivedEl.textContent = formatDateTime(record.eventAt || record.receivedAt) || formatDateTime(record.receivedAt);
+
+  const w = Number(record.imageWidth || 0);
+  const h = Number(record.imageHeight || 0);
+  if (sizeEl) sizeEl.textContent = w && h ? `${w} 脳 ${h}` : "鏈煡";
+
+  const sentAt = Number(record.serialSentAt || 0);
+  if (serialEl) serialEl.textContent = sentAt ? formatDateTime(sentAt) : "未发送";
+
+  const ftpPath = String(record.ftpRemotePath || "");
+  if (ftpEl) ftpEl.textContent = ftpPath || "无";
+}
+
+async function openPlateDetailById(id) {
+  const key = String(id || "");
+  if (!key) return;
+  let rec = plateById.get(key);
+  if (!rec) {
+    try {
+      const r = await fetchJsonGet(`/api/plates/${encodeURIComponent(key)}`);
+      rec = r?.record || null;
+    } catch {
+      rec = null;
+    }
+  }
+  if (!rec) return;
+  plateById.set(key, rec);
+  fillPlateDetailModal(rec);
+  setModalOpen(true);
+}
+
+function initPlateDetailModalUi() {
+  const modal = document.getElementById("plateDetailModal");
+  if (!modal) return;
+  const closeBtn = document.getElementById("plateDetailCloseBtn");
+  if (closeBtn) closeBtn.addEventListener("click", () => setModalOpen(false));
+  modal.addEventListener("click", (ev) => {
+    const t = ev.target;
+    if (t instanceof HTMLElement && t.dataset.close === "1") setModalOpen(false);
+  });
+  document.addEventListener("keydown", (ev) => {
+    if (ev.key === "Escape") setModalOpen(false);
+  });
+}
+
+async function loadPlateHistoryToUi() {
+  const plateListEl = document.getElementById("plateList");
+  if (!plateListEl) return;
+  let list = [];
+  try {
+    const r = await fetchJsonGet("/api/plates/latest?limit=2000");
+    list = Array.isArray(r?.items) ? r.items : [];
+  } catch {
+    ensureEmptyHint(plateListEl);
+    return;
+  }
+  plateListEl.textContent = "";
+  for (const rec of list.reverse()) {
+    if (!rec?.id) continue;
+    plateById.set(String(rec.id), rec);
+  }
+  for (const rec of list) renderPlateCard(rec, { prepend: false, skipFilterApply: true });
+  ensureEmptyHint(plateListEl);
+  for (const rec of list) {
+    const id = String(rec.id || "");
+    if (!id) continue;
+    if (rec.imageDataUrl && (!rec.imageWidth || !rec.imageHeight)) enrichRecordImageMeta(id, rec.imageDataUrl);
+  }
+  applyPlateFiltersFromUi();
+}
+
+function randomFrom(arr) {
+  if (!arr.length) return "";
+  return arr[Math.floor(Math.random() * arr.length)];
+}
+
+function randomPlate() {
+  const provinces = ["京", "沪", "浙", "苏", "粤", "鲁", "川", "渝", "鄂", "皖", "闽", "赣", "冀", "豫", "云"];
+  const letters = "ABCDEFGHJKLMNPQRSTUVWXYZ";
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ0123456789";
+  const p = randomFrom(provinces);
+  const head = randomFrom(letters);
+  const isNewEnergy = Math.random() < 0.35;
+  const len = isNewEnergy ? 6 : 5;
+  let tail = "";
+  for (let i = 0; i < len; i++) tail += randomFrom(chars);
+  return `${p}${head}${tail}`;
+}
+
+function makePlateSvgDataUrl({ width, height, plate, seedText }) {
+  const w = Math.max(1, Math.floor(Number(width) || 1));
+  const h = Math.max(1, Math.floor(Number(height) || 1));
+  const safePlate = String(plate || "");
+  const safeSeed = String(seedText || "");
+  const fontSize = Math.max(12, Math.floor(Math.min(w, h) * 0.18));
+  const smallSize = Math.max(10, Math.floor(fontSize * 0.52));
+  const svg = `<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0b1220"/>
+      <stop offset="1" stop-color="#1f2937"/>
+    </linearGradient>
+  </defs>
+  <rect x="0" y="0" width="${w}" height="${h}" fill="url(#g)"/>
+  <rect x="${Math.floor(w * 0.03)}" y="${Math.floor(h * 0.06)}" width="${Math.floor(w * 0.94)}" height="${Math.floor(h * 0.88)}" rx="${Math.floor(Math.min(w, h) * 0.06)}" fill="none" stroke="#94a3b8" stroke-width="${Math.max(2, Math.floor(Math.min(w, h) * 0.02))}"/>
+  <text x="50%" y="52%" fill="#e5e7eb" font-family="system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, 'PingFang SC', 'Microsoft YaHei', sans-serif" font-size="${fontSize}" font-weight="700" text-anchor="middle" dominant-baseline="middle">${safePlate}</text>
+  <text x="50%" y="${Math.floor(h * 0.86)}" fill="#9ca3af" font-family="system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, 'PingFang SC', 'Microsoft YaHei', sans-serif" font-size="${smallSize}" text-anchor="middle" dominant-baseline="middle">${safeSeed}</text>
+</svg>`;
+  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+}
+
+async function generateMockPlates(count = 18) {
+  const n = Math.max(1, Math.min(2000, Math.floor(Number(count) || 0)));
+  try {
+    await fetchJson("/api/plates/mock", { count: n });
+    await loadPlateHistoryToUi();
+    logLine(`已生成 ${n} 条模拟车牌记录`);
+  } catch {
+    logLine("鐢熸垚妯℃嫙鏁版嵁澶辫触");
+  }
+}
+
+function setPlateView(view) {
+  const v = view === "table" ? "table" : "cards";
+  plateUiState.view = v;
+  const listEl = document.getElementById("plateList");
+  if (listEl) listEl.classList.toggle("view-hidden", v !== "cards");
+  if (els.plateTableWrap) els.plateTableWrap.classList.toggle("view-hidden", v !== "table");
+  if (els.plateViewCardsBtn) {
+    els.plateViewCardsBtn.classList.toggle("active", v === "cards");
+    els.plateViewCardsBtn.setAttribute("aria-selected", v === "cards" ? "true" : "false");
+  }
+  if (els.plateViewTableBtn) {
+    els.plateViewTableBtn.classList.toggle("active", v === "table");
+    els.plateViewTableBtn.setAttribute("aria-selected", v === "table" ? "true" : "false");
+  }
+  renderPlateTable();
+  updatePlateBulkUi();
+}
+
+function compareRecords(a, b, key, dir) {
+  const direction = dir === "asc" ? 1 : -1;
+  if (key === "plate") {
+    const av = String(a?.plate || "");
+    const bv = String(b?.plate || "");
+    return av.localeCompare(bv, "zh-CN") * direction;
+  }
+  if (key === "image") {
+    const av = String(a?.imageDataUrl || "") ? 1 : 0;
+    const bv = String(b?.imageDataUrl || "") ? 1 : 0;
+    return (av - bv) * direction;
+  }
+  if (key === "serial") {
+    const av = Number(a?.serialSentAt || 0) || 0;
+    const bv = Number(b?.serialSentAt || 0) || 0;
+    return (av - bv) * direction;
+  }
+  const av = getRecordTs(a);
+  const bv = getRecordTs(b);
+  return (av - bv) * direction;
+}
+
+function updatePlateDashboard() {
+  const all = getAllPlateRecords();
+  const filtered = filterPlateRecords(all, lastPlateQueryState);
+  const nowMs = Date.now();
+  const startOfToday = new Date();
+  startOfToday.setHours(0, 0, 0, 0);
+  const todayStartMs = startOfToday.getTime();
+  const lastHourStart = nowMs - 60 * 60 * 1000;
+
+  let todayCount = 0;
+  let lastHourCount = 0;
+  let latest = null;
+  const uniqueToday = new Set();
+
+  for (const rec of all) {
+    const ts = getRecordTs(rec);
+    if (ts <= 0) continue;
+    if (ts >= todayStartMs) {
+      todayCount += 1;
+      uniqueToday.add(String(rec.plate || ""));
+    }
+    if (ts >= lastHourStart) lastHourCount += 1;
+    if (!latest || ts > getRecordTs(latest)) latest = rec;
+  }
+
+  if (els.dashTotal) els.dashTotal.textContent = String(all.length);
+  if (els.dashToday) els.dashToday.textContent = String(todayCount);
+  if (els.dashLastHour) els.dashLastHour.textContent = String(lastHourCount);
+  if (els.dashUniqueToday) els.dashUniqueToday.textContent = String(uniqueToday.size);
+  if (els.dashFiltered) els.dashFiltered.textContent = String(filtered.length);
+  if (els.dashLatest) {
+    if (!latest) els.dashLatest.textContent = "--";
+    else {
+      const ts = getRecordTs(latest);
+      const plate = String(latest.plate || "");
+      els.dashLatest.textContent = `${plate} @ ${formatDateTime(ts) || formatTimeOnly(ts)}`.trim();
+    }
+  }
+  if (els.dashUpdatedAt) els.dashUpdatedAt.textContent = `鏇存柊锛?{formatTimeOnly(nowMs)}`;
+}
+
+function updatePlateTableSummary({ total, filteredCount }) {
+  if (!els.plateTableSummary) return;
+  const selected = plateSelectedIds.size;
+  els.plateTableSummary.textContent = `共 ${total} 条，筛选 ${filteredCount} 条，已选 ${selected} 条`;
+}
+
+function updatePlateSortHeaderUi() {
+  const wrap = els.plateTableWrap;
+  if (!wrap) return;
+  const labelMap = { plate: "车牌号", time: "时间", image: "图片", serial: "串口发送" };
+  const btns = Array.from(wrap.querySelectorAll(".thBtn"));
+  for (const b of btns) {
+    if (!(b instanceof HTMLButtonElement)) continue;
+    const k = String(b.dataset.sort || "");
+    const base = labelMap[k] || b.textContent || "";
+    const isActive = k === plateTableState.sortKey;
+    const arrow = isActive ? (plateTableState.sortDir === "asc" ? " ↑" : " ↓") : "";
+    b.textContent = `${base}${arrow}`;
+  }
+}
+
+function renderPlateTable() {
+  if (!els.plateTableWrap || !els.plateTableBody) return;
+  const all = getAllPlateRecords();
+  const query = getPlateQueryStateFromUi();
+  lastPlateQueryState = { plateText: query.plateText, date: query.date };
+  const filtered = filterPlateRecords(all, query);
+
+  filtered.sort((a, b) => compareRecords(a, b, plateTableState.sortKey, plateTableState.sortDir));
+
+  const pageSize = Math.max(1, Math.min(200, Number(plateTableState.pageSize) || 20));
+  plateTableState.pageSize = pageSize;
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  plateTableState.page = Math.max(1, Math.min(totalPages, Number(plateTableState.page) || 1));
+
+  const startIdx = (plateTableState.page - 1) * pageSize;
+  const pageItems = filtered.slice(startIdx, startIdx + pageSize);
+  plateTableVisibleIds = pageItems.map((r) => String(r.id || "")).filter(Boolean);
+
+  const rows = [];
+  for (const rec of pageItems) {
+    const id = String(rec?.id || "");
+    if (!id) continue;
+    const plate = String(rec?.plate || "");
+    const ts = getRecordTs(rec);
+    const timeText = formatDateTime(ts) || "";
+    const hasImage = String(rec?.imageDataUrl || "") ? "有" : "无";
+    const serialText = Number(rec?.serialSentAt || 0) ? formatDateTime(rec.serialSentAt) : "--";
+    const checked = plateSelectedIds.has(id) ? "checked" : "";
+    const selectedCls = plateSelectedIds.has(id) ? " selected" : "";
+    rows.push(
+      `<tr class="plate-row${selectedCls}" data-record-id="${id}">` +
+        `<td><input class="plate-row-check" data-record-id="${id}" type="checkbox" ${checked} /></td>` +
+        `<td>${plate}</td>` +
+        `<td>${timeText}</td>` +
+        `<td>${hasImage}</td>` +
+        `<td>${serialText}</td>` +
+      `</tr>`
+    );
+  }
+
+  if (!rows.length) {
+    els.plateTableBody.innerHTML = `<tr><td colspan="5" style="padding:18px; color:#6b7280; text-align:center;">鏆傛棤鏁版嵁</td></tr>`;
+  } else {
+    els.plateTableBody.innerHTML = rows.join("");
+  }
+
+  if (els.platePageInfo) els.platePageInfo.textContent = `${plateTableState.page} / ${totalPages}`;
+  if (els.platePrevPageBtn) els.platePrevPageBtn.disabled = plateTableState.page <= 1;
+  if (els.plateNextPageBtn) els.plateNextPageBtn.disabled = plateTableState.page >= totalPages;
+
+  updatePlateTableSummary({ total: all.length, filteredCount: filtered.length });
+  updatePlateSortHeaderUi();
+  updatePlateDashboard();
+  updatePlateBulkUi();
+}
+
+function initPlateTableUi() {
+  if (els.plateViewCardsBtn) els.plateViewCardsBtn.addEventListener("click", () => setPlateView("cards"));
+  if (els.plateViewTableBtn) els.plateViewTableBtn.addEventListener("click", () => setPlateView("table"));
+  if (els.platePageSize) {
+    els.platePageSize.value = String(plateTableState.pageSize);
+    els.platePageSize.addEventListener("change", () => {
+      plateTableState.pageSize = Number(els.platePageSize.value || 20) || 20;
+      plateTableState.page = 1;
+      renderPlateTable();
+    });
+  }
+  if (els.platePrevPageBtn) {
+    els.platePrevPageBtn.addEventListener("click", () => {
+      plateTableState.page = Math.max(1, plateTableState.page - 1);
+      renderPlateTable();
+    });
+  }
+  if (els.plateNextPageBtn) {
+    els.plateNextPageBtn.addEventListener("click", () => {
+      plateTableState.page = plateTableState.page + 1;
+      renderPlateTable();
+    });
+  }
+  if (els.plateTableWrap) {
+    els.plateTableWrap.addEventListener("click", (ev) => {
+      const target = ev.target;
+      if (target instanceof HTMLInputElement && target.classList.contains("plate-row-check")) {
+        const id = String(target.dataset.recordId || "");
+        setPlateSelectedById(id, target.checked);
+        return;
+      }
+      const thBtn = target instanceof HTMLElement ? target.closest(".thBtn") : null;
+      if (thBtn instanceof HTMLButtonElement) {
+        const k = String(thBtn.dataset.sort || "");
+        if (!k) return;
+        if (plateTableState.sortKey === k) {
+          plateTableState.sortDir = plateTableState.sortDir === "asc" ? "desc" : "asc";
+        } else {
+          plateTableState.sortKey = k;
+          plateTableState.sortDir = k === "plate" ? "asc" : "desc";
+        }
+        plateTableState.page = 1;
+        renderPlateTable();
+        return;
+      }
+      const row = target instanceof HTMLElement ? target.closest(".plate-row") : null;
+      if (row instanceof HTMLTableRowElement) {
+        const id = String(row.dataset.recordId || "");
+        if (id) openPlateDetailById(id);
+      }
+    });
+  }
+  setPlateView("cards");
+}
+
+function initPlateDashboardUi() {
+  updatePlateDashboard();
+  setInterval(() => updatePlateDashboard(), 5000);
+}
+
+function initPlateModule() {
+  initPlateDetailModalUi();
+  initPlateTableUi();
+  initPlateDashboardUi();
+  loadPlateHistoryToUi().catch(() => {});
+  const runQuery = () => applyPlateFiltersFromUi();
+  if (els.plateQueryBtn) els.plateQueryBtn.addEventListener("click", runQuery);
+  if (els.plateSearchInput) {
+    els.plateSearchInput.addEventListener("keydown", (ev) => {
+      if (ev.key === "Enter") runQuery();
+    });
+  }
+  if (els.plateDateInput) {
+    els.plateDateInput.addEventListener("keydown", (ev) => {
+      if (ev.key === "Enter") runQuery();
+    });
+  }
+  if (els.plateSelectAll) {
+    els.plateSelectAll.addEventListener("change", () => {
+      const on = Boolean(els.plateSelectAll?.checked);
+      if (plateUiState.view === "table") {
+        for (const id of plateTableVisibleIds) setPlateSelectedById(id, on);
+        return;
+      }
+      const cards = Array.from(document.querySelectorAll(".plate-card:not(.hidden)"));
+      for (const card of cards) {
+        const id = String(card.dataset.recordId || "");
+        if (!id) continue;
+        setPlateSelectedById(id, on);
+      }
+    });
+  }
+  if (els.plateDeleteBtn) {
+    els.plateDeleteBtn.addEventListener("click", async () => {
+      const ids = Array.from(plateSelectedIds);
+      if (!ids.length) return;
+      if (els.plateDeleteBtn) els.plateDeleteBtn.disabled = true;
+      try {
+        await fetchJson("/api/plates/delete", { ids });
+        for (const id of ids) {
+          plateById.delete(id);
+          plateSelectedIds.delete(id);
+          const el = document.querySelector(`.plate-card[data-record-id="${CSS.escape(id)}"]`);
+          if (el) el.remove();
+        }
+        const plateListEl = document.getElementById("plateList");
+        if (plateListEl) ensureEmptyHint(plateListEl);
+        applyPlateFiltersFromUi();
+        logLine(`已删除 ${ids.length} 条记录`);
+      } catch {
+        logLine("鍒犻櫎璁板綍澶辫触");
+      } finally {
+        updatePlateBulkUi();
+      }
+    });
+  }
+  if (els.plateMockBtn) {
+    els.plateMockBtn.addEventListener("click", async () => {
+      if (els.plateMockBtn) els.plateMockBtn.disabled = true;
+      try {
+        await generateMockPlates(24);
+      } catch {
+        logLine("鐢熸垚妯℃嫙鏁版嵁澶辫触");
+      } finally {
+        if (els.plateMockBtn) els.plateMockBtn.disabled = false;
+      }
+    });
+  }
+}
+
+function parseHostPortKey(key) {
+  const s = String(key || "");
+  const idx = s.lastIndexOf(":");
+  if (idx <= 0) return null;
+  const host = s.slice(0, idx).trim();
+  const p = Number(s.slice(idx + 1));
+  const port = Number.isFinite(p) && p > 0 && p <= 65535 ? Math.floor(p) : 80;
+  if (!host) return null;
+  return { host, port };
+}
+
+async function ensureRtspCachedForKey(key) {
+  if (!key) return;
+  if (rtspByHostPort.has(key) || rtspErrorByHostPort.has(key)) return;
+  if (rtspPendingByHostPort.has(key)) return;
+  const parsed = parseHostPortKey(key);
+  if (!parsed) return;
+
+  const payload = {
+    host: parsed.host,
+    port: parsed.port,
+    username: String(els.userInput?.value || ""),
+    password: String(els.passInput?.value || "")
+  };
+
+  const p = (async () => {
+    try {
+      const rtsp = await fetchJson("/api/onvif/stream-uri", payload);
+      const v = String(rtsp?.rtspUriWithAuth || rtsp?.rtspUri || "").trim();
+      if (v) rtspByHostPort.set(key, v);
+      else rtspErrorByHostPort.set(key, "RTSP 鑾峰彇涓虹┖");
+    } catch (e) {
+      rtspErrorByHostPort.set(key, `RTSP 鑾峰彇澶辫触锛?{e.message}`);
+    } finally {
+      rtspPendingByHostPort.delete(key);
+    }
+  })();
+
+  rtspPendingByHostPort.set(key, p);
+  await p;
+}
+
+function readLocalLastConnection() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object") return null;
+    return {
+      host: String(parsed.host || ""),
+      port: Number(parsed.port || 80) || 80,
+      username: String(parsed.username || ""),
+      password: String(parsed.password || ""),
+      savedAt: Number(parsed.savedAt || 0) || 0
+    };
+  } catch {
+    return null;
+  }
+}
+
+async function loadDeviceConfig() {
+  try {
+    const r = await fetchJsonGet("/api/device/config");
+    if (!r?.ok) return null;
+    return r.config || null;
+  } catch {
+    return null;
+  }
+}
+
+async function persistConnectionToServer({ host, port, username, password }) {
+  const payload = {
+    connection: {
+      host: String(host || "").trim(),
+      port: Number(port || 80) || 80,
+      username: String(username || ""),
+      password: String(password || "")
+    }
+  };
+  try {
+    await fetchJson("/api/device/config", payload);
+  } catch {}
+}
+
+async function persistSerialToServer({ baudRate, usbVendorId, usbProductId, forwardEnabled, backendPort }) {
+  const serial = {};
+  if (baudRate != null) serial.baudRate = Number(baudRate) || 115200;
+  const vId = Number(usbVendorId);
+  if (Number.isFinite(vId) && vId >= 0 && vId <= 65535) serial.usbVendorId = Math.floor(vId);
+  const pId = Number(usbProductId);
+  if (Number.isFinite(pId) && pId >= 0 && pId <= 65535) serial.usbProductId = Math.floor(pId);
+  if (forwardEnabled != null) serial.forwardEnabled = Boolean(forwardEnabled);
+  if (backendPort != null) serial.backendPort = String(backendPort || "").trim();
+  const payload = { serial };
+  try {
+    await fetchJson("/api/device/config", payload);
+  } catch {}
+}
+
+function getCurrentConnectionSignature() {
+  const host = String(els.hostInput?.value || "").trim();
+  const port = Number(els.portInput?.value || 80) || 80;
+  const username = String(els.userInput?.value || "");
+  const password = String(els.passInput?.value || "");
+  return JSON.stringify({ host, port, username, password });
+}
+
+function tryPersistConnectionOnce() {
+  if (!activeStreamId) return;
+  if (!els.video) return;
+  if (!els.video.videoWidth || !els.video.videoHeight) return;
+  const sig = getCurrentConnectionSignature();
+  if (sig === lastSavedSignature) return;
+  lastSavedSignature = sig;
+  let parsed;
+  try {
+    parsed = JSON.parse(sig);
+  } catch {
+    return;
+  }
+  if (!parsed?.host) return;
+  persistConnectionToServer(parsed);
+  try {
+    sessionStorage.setItem(SESSION_STREAMING_KEY, "1");
+  } catch {}
+  logLine("已保存连接信息，下次打开页面会自动载入。");
+}
+
+const serialState = {
+  port: null,
+  reader: null,
+  writer: null,
+  reading: false,
+  readBuffer: "",
+  lastBaudRate: 115200,
+  forwardEnabled: false,
+  backendPort: "",
+  sendChain: Promise.resolve()
+};
+
+const COMMON_BAUD_RATES = [9600, 19200, 38400, 57600, 115200, 230400, 460800, 921600];
+
+function isWebSerialSupported() {
+  return typeof navigator !== "undefined" && Boolean(navigator.serial);
+}
+
+function isBaudInputMode() {
+  return Boolean(els.serialBaudRateInput && els.serialBaudRateInput.style.display !== "none");
+}
+
+function removeInsertedCustomBaudOptions() {
+  if (!els.serialBaudRate) return;
+  const opts = Array.from(els.serialBaudRate.querySelectorAll('option[data-custom="1"]'));
+  for (const opt of opts) opt.remove();
+}
+
+function ensureCustomBaudOption(baudRate) {
+  if (!els.serialBaudRate) return;
+  const n = Number(baudRate);
+  const v = Number.isFinite(n) && n > 0 ? Math.floor(n) : 115200;
+  if (COMMON_BAUD_RATES.includes(v)) return;
+  removeInsertedCustomBaudOptions();
+  const opt = document.createElement("option");
+  opt.value = String(v);
+  opt.textContent = `${v}（自定义）`;
+  opt.dataset.custom = "1";
+  const marker = els.serialBaudRate.querySelector('option[value="custom"]');
+  if (marker?.parentElement === els.serialBaudRate) els.serialBaudRate.insertBefore(opt, marker);
+  else els.serialBaudRate.appendChild(opt);
+}
+
+function showBaudSelect(value) {
+  if (els.serialBaudRate) els.serialBaudRate.style.display = "block";
+  if (els.serialBaudRateInput) els.serialBaudRateInput.style.display = "none";
+  if (!els.serialBaudRate) return;
+  const n = Number(value);
+  const v = Number.isFinite(n) && n > 0 ? Math.floor(n) : 115200;
+  if (COMMON_BAUD_RATES.includes(v)) {
+    removeInsertedCustomBaudOptions();
+  } else {
+    ensureCustomBaudOption(v);
+  }
+  els.serialBaudRate.value = String(v);
+}
+
+function showBaudInput(value) {
+  if (els.serialBaudRate) els.serialBaudRate.style.display = "none";
+  if (els.serialBaudRateInput) {
+    els.serialBaudRateInput.style.display = "block";
+    els.serialBaudRateInput.value = String(value);
+    try {
+      els.serialBaudRateInput.focus();
+      els.serialBaudRateInput.select();
+    } catch {}
+  }
+}
+
+function getSerialBaudRate() {
+  if (isBaudInputMode()) {
+    const x = Number(els.serialBaudRateInput?.value || "");
+    return Number.isFinite(x) && x > 0 ? Math.floor(x) : 115200;
+  }
+  const selected = String(els.serialBaudRate?.value || "").trim();
+  const n = Number(selected);
+  return Number.isFinite(n) && n > 0 ? Math.floor(n) : 115200;
+}
+
+function applySerialBaudRateToUi(baudRate) {
+  const n = Number(baudRate);
+  const v = Number.isFinite(n) && n > 0 ? Math.floor(n) : 115200;
+  serialState.lastBaudRate = v;
+  showBaudSelect(v);
+}
+
+function setSerialUiState({ connected, statusText }) {
+  if (els.serialStatus) els.serialStatus.textContent = statusText || (connected ? "已连接" : "未连接");
+  if (els.serialConnectBtn) els.serialConnectBtn.disabled = connected;
+  if (els.serialDisconnectBtn) els.serialDisconnectBtn.disabled = !connected;
+  if (els.serialSendBtn) els.serialSendBtn.disabled = !connected;
+}
+
+async function loadSerialPorts() {
+  try {
+    const r = await fetchJsonGet("/api/serial/ports");
+    return Array.isArray(r?.ports) ? r.ports : [];
+  } catch {
+    return [];
+  }
+}
+
+async function refreshSerialPortSelect({ desiredValue } = {}) {
+  if (!(els.serialPortSelect instanceof HTMLSelectElement)) return;
+  const desired = String(desiredValue || "");
+  const ports = await loadSerialPorts();
+
+  els.serialPortSelect.textContent = "";
+  const optEmpty = document.createElement("option");
+  optEmpty.value = "";
+  optEmpty.textContent = "（不选择）";
+  els.serialPortSelect.appendChild(optEmpty);
+
+  for (const p of ports) {
+    const path = String(p?.path || p?.comName || "").trim();
+    if (!path) continue;
+    const label = String(p?.friendlyName || p?.manufacturer || p?.pnpId || "").trim();
+    const opt = document.createElement("option");
+    opt.value = path;
+    opt.textContent = label ? `${path}（${label}）` : path;
+    els.serialPortSelect.appendChild(opt);
+  }
+
+  if (desired && !Array.from(els.serialPortSelect.options).some((o) => o.value === desired)) {
+    const opt = document.createElement("option");
+    opt.value = desired;
+    opt.textContent = `${desired}（已保存）`;
+    els.serialPortSelect.appendChild(opt);
+  }
+  els.serialPortSelect.value = desired;
+}
+
+async function serialDisconnect() {
+  try {
+    if (serialState.reader) {
+      try {
+        await serialState.reader.cancel();
+      } catch {}
+      try {
+        serialState.reader.releaseLock();
+      } catch {}
+    }
+  } finally {
+    serialState.reader = null;
+  }
+  try {
+    if (serialState.writer) {
+      try {
+        serialState.writer.releaseLock();
+      } catch {}
+    }
+  } finally {
+    serialState.writer = null;
+  }
+  try {
+    if (serialState.port) await serialState.port.close();
+  } catch {}
+  serialState.port = null;
+  serialState.reading = false;
+  serialState.sendChain = Promise.resolve();
+  setSerialUiState({ connected: false, statusText: "未连接" });
+}
+
+function serialEnqueueSend(text) {
+  const msg = String(text ?? "");
+  const task = serialState.sendChain
+    .then(async () => {
+      if (!serialState.port || !serialState.writer) throw new Error("串口未连接");
+      const enc = new TextEncoder();
+      await serialState.writer.write(enc.encode(msg));
+      return true;
+    })
+    .catch((e) => {
+      logSerialLine(`涓插彛鍙戦€佸け璐ワ細${e?.message || e}`);
+      return false;
+    });
+  serialState.sendChain = task.then(() => {});
+  return task;
+}
+
+async function serialReadLoop() {
+  if (!serialState.port || !serialState.port.readable) return;
+  if (serialState.reading) return;
+  serialState.reading = true;
+  const decoder = new TextDecoder();
+  try {
+    serialState.reader = serialState.port.readable.getReader();
+    while (serialState.port && serialState.port.readable) {
+      const { value, done } = await serialState.reader.read();
+      if (done) break;
+      if (!value) continue;
+      serialState.readBuffer += decoder.decode(value, { stream: true });
+      const parts = serialState.readBuffer.split(/\r?\n/);
+      serialState.readBuffer = parts.pop() || "";
+      for (const line of parts) {
+        const t = String(line || "").trim();
+        if (t) logSerialLine(`[涓插彛] ${t}`);
+      }
+    }
+  } catch {
+  } finally {
+    try {
+      serialState.reader?.releaseLock?.();
+    } catch {}
+    serialState.reader = null;
+    serialState.reading = false;
+  }
+}
+
+async function serialConnect() {
+  if (!isWebSerialSupported()) return;
+  try {
+    const baudRate = getSerialBaudRate();
+    const port = await navigator.serial.requestPort();
+    const info = port?.getInfo?.() || {};
+    await port.open({ baudRate });
+    serialState.port = port;
+    serialState.writer = port.writable?.getWriter?.() || null;
+    serialState.sendChain = Promise.resolve();
+    setSerialUiState({ connected: true, statusText: `已连接（${baudRate}）` });
+    persistSerialToServer({ baudRate, usbVendorId: info.usbVendorId, usbProductId: info.usbProductId });
+    serialReadLoop();
+  } catch (e) {
+    setSerialUiState({ connected: false, statusText: "未连接" });
+    logSerialLine(`涓插彛杩炴帴澶辫触锛?{e?.message || e}`);
+    await serialDisconnect();
+  }
+}
+
+async function serialSend() {
+  if (!serialState.port || !serialState.writer) return;
+  const text = String(els.serialSendInput?.value || "");
+  if (!text) return;
+  const ok = await serialEnqueueSend(text);
+  if (ok) logSerialLine(`[涓插彛鍙戦€乚 ${text}`);
+}
+
+function initSerialUi() {
+  if (!els.serialConnectBtn || !els.serialDisconnectBtn || !els.serialSendBtn) return;
+  if (!isWebSerialSupported()) {
+    if (els.serialHint) els.serialHint.style.display = "block";
+    setSerialUiState({ connected: false, statusText: "不支持" });
+    if (els.serialConnectBtn) els.serialConnectBtn.disabled = true;
+    if (els.serialDisconnectBtn) els.serialDisconnectBtn.disabled = true;
+    if (els.serialSendBtn) els.serialSendBtn.disabled = true;
+    return;
+  }
+  setSerialUiState({ connected: false, statusText: "未连接" });
+  (async () => {
+    try {
+      const cfg = await loadDeviceConfig();
+      const serialCfg = cfg?.serial || {};
+      serialState.forwardEnabled = Boolean(serialCfg?.forwardEnabled);
+      serialState.backendPort = String(serialCfg?.backendPort || "").trim();
+      if (els.serialForwardEnabled instanceof HTMLInputElement) {
+        els.serialForwardEnabled.checked = serialState.forwardEnabled;
+      }
+      await refreshSerialPortSelect({ desiredValue: serialState.backendPort });
+    } catch {}
+  })();
+  if (els.serialForwardEnabled instanceof HTMLInputElement) {
+    els.serialForwardEnabled.addEventListener("change", () => {
+      serialState.forwardEnabled = Boolean(els.serialForwardEnabled.checked);
+      persistSerialToServer({ forwardEnabled: serialState.forwardEnabled });
+      logSerialLine(serialState.forwardEnabled ? "串口转发已开启" : "串口转发已关闭");
+    });
+  }
+  if (els.serialPortSelect instanceof HTMLSelectElement) {
+    els.serialPortSelect.addEventListener("change", () => {
+      serialState.backendPort = String(els.serialPortSelect.value || "").trim();
+      persistSerialToServer({ backendPort: serialState.backendPort });
+      logSerialLine(serialState.backendPort ? `串口后端端口已设置：${serialState.backendPort}` : "串口后端端口已清空");
+    });
+    els.serialPortSelect.addEventListener("mousedown", () => {
+      refreshSerialPortSelect({ desiredValue: serialState.backendPort });
+    });
+    els.serialPortSelect.addEventListener("focus", () => {
+      refreshSerialPortSelect({ desiredValue: serialState.backendPort });
+    });
+  }
+  if (els.serialBaudRate) {
+    els.serialBaudRate.addEventListener("change", () => {
+      if (els.serialBaudRate.value === "custom") {
+        showBaudInput(serialState.lastBaudRate || 115200);
+      } else {
+        const baudRate = getSerialBaudRate();
+        serialState.lastBaudRate = baudRate;
+        persistSerialToServer({ baudRate });
+      }
+    });
+  }
+  if (els.serialBaudRateInput) {
+    els.serialBaudRateInput.addEventListener("change", () => {
+      const baudRate = getSerialBaudRate();
+      serialState.lastBaudRate = baudRate;
+      persistSerialToServer({ baudRate });
+      showBaudSelect(baudRate);
+    });
+    els.serialBaudRateInput.addEventListener("keydown", (ev) => {
+      if (ev.key === "Enter") {
+        const baudRate = getSerialBaudRate();
+        serialState.lastBaudRate = baudRate;
+        persistSerialToServer({ baudRate });
+        showBaudSelect(baudRate);
+      }
+    });
+    els.serialBaudRateInput.addEventListener("blur", () => {
+      const baudRate = getSerialBaudRate();
+      serialState.lastBaudRate = baudRate;
+      persistSerialToServer({ baudRate });
+      showBaudSelect(baudRate);
+    });
+  }
+  els.serialConnectBtn.addEventListener("click", () => {
+    serialConnect();
+  });
+  els.serialDisconnectBtn.addEventListener("click", () => {
+    serialDisconnect();
+  });
+  els.serialSendBtn.addEventListener("click", () => {
+    serialSend();
+  });
+  els.serialSendInput?.addEventListener("keydown", (ev) => {
+    if (ev.key === "Enter") serialSend();
+  });
+  navigator.serial.addEventListener("disconnect", () => {
+    serialDisconnect();
+  });
+}
+
+function parseHostFromXaddr(xaddr) {
+  try {
+    const u = new URL(xaddr);
+    return { host: u.hostname, port: u.port ? Number(u.port) : 80 };
+  } catch {
+    return null;
+  }
+}
+
+function parseHostAndPortFromInput(raw, fallbackPort) {
+  const s = String(raw || "").trim();
+  const fb = Number(fallbackPort) || 80;
+  if (!s) return { host: "", port: fb };
+  if (s.startsWith("[") && s.includes("]")) {
+    const idx = s.indexOf("]");
+    const host = s.slice(1, idx);
+    const rest = s.slice(idx + 1);
+    if (rest.startsWith(":")) {
+      const p = Number(rest.slice(1));
+      if (Number.isFinite(p) && p > 0 && p <= 65535) return { host, port: Math.floor(p) };
+    }
+    return { host, port: fb };
+  }
+  const first = s.indexOf(":");
+  const last = s.lastIndexOf(":");
+  if (first > 0 && first === last) {
+    const host = s.slice(0, last).trim();
+    const p = Number(s.slice(last + 1));
+    if (host && Number.isFinite(p) && p > 0 && p <= 65535) return { host, port: Math.floor(p) };
+  }
+  return { host: s, port: fb };
+}
+
+function setButtons({ streaming }) {
+  if (els.stopBtn) els.stopBtn.disabled = !streaming;
+  if (els.snapshotBtn) els.snapshotBtn.disabled = !streaming;
+}
+
+function setDiscoverIpList(devices) {
+  const ul = document.getElementById("discoverIpList");
+  if (!ul) return;
+  ul.innerHTML = "";
+  const seen = new Set();
+  const rows = [];
+  const ensureRow = ({ host, port, device }) => {
+    const p = Number.isFinite(port) && port > 0 && port <= 65535 ? Math.floor(port) : 80;
+    if (!host) return;
+    const key = `${host}:${p}`;
+    if (seen.has(key)) {
+      const existing = rows.find((row) => row.key === key);
+      if (existing && device?.sadp) existing.sadp = device.sadp;
+      if (existing) {
+        const proto = String(device?.protocol || device?.source || "").trim().toLowerCase();
+        if (proto.includes("sadp")) existing.protocols.add("SADP");
+        else if (proto.includes("onvif") || proto.includes("ws-discovery")) existing.protocols.add("ONVIF");
+      }
+      return;
+    }
+    const protocols = new Set();
+    const proto = String(device?.protocol || device?.source || "").trim().toLowerCase();
+    if (proto.includes("sadp")) protocols.add("SADP");
+    else if (proto.includes("onvif") || proto.includes("ws-discovery")) protocols.add("ONVIF");
+    seen.add(key);
+    rows.push({
+      key,
+      host,
+      port: p,
+      sadp: device?.sadp || null,
+      protocols
+    });
+  };
+  for (const d of devices || []) {
+    const xaddrs = Array.isArray(d.xaddrs) ? d.xaddrs : [];
+    for (const xa of xaddrs) {
+      try {
+        const u = new URL(xa);
+        const host = String(u.hostname || "").trim();
+        const port = u.port ? Number(u.port) : u.protocol === "https:" ? 443 : 80;
+        ensureRow({ host, port, device: d });
+      } catch {}
+    }
+    const name = String(d.name || "").trim();
+    if (!name) continue;
+    const parsed = parseHostAndPortFromInput(name, 80);
+    const host = String(parsed.host || "").trim();
+    const port = Number(parsed.port || 80) || 80;
+    ensureRow({ host, port, device: d });
+  }
+  for (const row of rows) {
+    const protocolText = Array.from(row.protocols).join("+") || "-";
+    const protocol = protocolText.padEnd(10, " ");
+    const hostPort = `${row.host}:${row.port}`.padEnd(24, " ");
+    const mac = String(row.sadp?.mac || "-").padEnd(20, " ");
+    const activatedRaw = row.sadp?.activated;
+    const activated = activatedRaw == null ? "未知" : activatedRaw ? "已激活" : "未激活";
+    const serial = String(row.sadp?.deviceSn || "-");
+    const opt = document.createElement("option");
+    opt.value = row.key;
+    opt.textContent = `${protocol} ${hostPort} ${mac} ${activated.padEnd(6, " ")} ${serial}`;
+    opt.title = `协议: ${protocolText}\nIP: ${hostPort.trim()}\nMAC: ${String(row.sadp?.mac || "-")}\n激活: ${activated}\n序列号: ${serial}`;
+    ul.appendChild(opt);
+  }
+}
+
+async function discover() {
+  try {
+    els.discoverBtn.disabled = true;
+    logLine("开始搜索...");
+    const [sadpResult, onvifResult] = await Promise.allSettled([
+      fetchJson("/api/hikvision/sadp-discover", {
+        timeoutMs: 2500,
+        port: 37020
+      }),
+      fetchJson("/api/onvif/ws-discover", {
+        timeoutMs: 4500,
+        bindAddress: "",
+        allIfaces: true,
+        ttl: 2,
+        repeat: 3
+      })
+    ]);
+    const sadpDevices =
+      sadpResult.status === "fulfilled" ? (sadpResult.value?.devices || []).map((d) => ({ ...d, protocol: "sadp" })) : [];
+    const onvifDevices =
+      onvifResult.status === "fulfilled" ? (onvifResult.value?.devices || []).map((d) => ({ ...d, protocol: "onvif" })) : [];
+    const devices = [...sadpDevices, ...onvifDevices];
+    setDiscoverIpList(devices);
+    logLine(`SADP ${sadpDevices.length} / ONVIF ${onvifDevices.length} / TOTAL ${devices.length}`);
+    if (sadpResult.status === "rejected") {
+      logLine(`SADP discover failed: ${sadpResult.reason?.message || sadpResult.reason || "unknown"}`);
+    }
+    if (onvifResult.status === "rejected") {
+      logLine(`ONVIF discover failed: ${onvifResult.reason?.message || onvifResult.reason || "unknown"}`);
+    }
+    if (!devices.length) {
+      logLine("没有发现设备，可以尝试子网扫描。");
+    }
+  } catch (e) {
+    logLine(`搜索失败: ${e.message}`);
+  } finally {
+    els.discoverBtn.disabled = false;
+  }
+}
+
+function detachPlayer() {
+  if (pc) {
+    try {
+      pc.close();
+    } catch {}
+    pc = null;
+  }
+  activeWhepSessionUrl = "";
+  if (els.video) {
+    els.video.removeAttribute("src");
+    els.video.srcObject = null;
+    els.video.load();
+  }
+}
+
+async function stopStream() {
+  if (!activeStreamId) return;
+  try {
+    els.stopBtn.disabled = true;
+    if (activeWhepSessionUrl) {
+      try {
+        await fetch(activeWhepSessionUrl, { method: "DELETE" });
+      } catch {}
+      activeWhepSessionUrl = "";
+    }
+    await fetchJson("/api/stream/stop", { streamId: activeStreamId });
+  } catch (e) {
+    logLine(`鍋滄澶辫触锛?{e.message}`);
+  } finally {
+    activeStreamId = "";
+    detachPlayer();
+    setButtons({ streaming: false });
+    try {
+      sessionStorage.setItem(SESSION_STREAMING_KEY, "0");
+    } catch {}
+  }
+}
+
+async function connectAndPlay() {
+  const inputPort = Number(els.portInput.value || 80);
+  const parsedHost = parseHostAndPortFromInput(els.hostInput.value, inputPort);
+  const host = parsedHost.host.trim();
+  const port = parsedHost.port;
+  if (!host) {
+    logLine("璇峰～鍐?IP / Host");
+    return;
+  }
+  els.hostInput.value = host;
+  els.portInput.value = String(port);
+
+  try {
+    els.connectBtn.disabled = true;
+    try {
+      const appHealth = await fetchJson("/api/app/health");
+      logLine(
+        `鏈嶅姟淇℃伅锛?{appHealth?.platform || ""} ${appHealth?.node || ""} pid=${appHealth?.pid || ""} mediamtxApi=${appHealth?.mediamtx?.apiBase || ""}`
+      );
+    } catch {}
+    logLine("通过 ONVIF 获取 RTSP URI...");
+    const rtsp = await fetchJson("/api/onvif/stream-uri", {
+      host,
+      port,
+      username: els.userInput.value,
+      password: els.passInput.value
+    });
+    logLine("宸茶幏鍙?RTSP URI");
+
+    if (activeStreamId) await stopStream();
+
+    logLine("启动 MediaMTX WebRTC（低延迟）...");
+    const rtspUriToUse = rtsp.rtspUriWithAuth || rtsp.rtspUri || "";
+    if (host && port && rtspUriToUse) {
+      const key = `${host}:${port}`;
+      rtspByHostPort.set(key, String(rtspUriToUse));
+      rtspErrorByHostPort.delete(key);
+    }
+    const started = await fetchJson("/api/stream/start", {
+      rtspUri: rtspUriToUse || rtsp.rtspUri,
+      transcode: false,
+      rtspTransport: (els.rtspTransport?.value || "tcp"),
+      backend: "mediamtx"
+    });
+    activeStreamId = started.streamId;
+    setButtons({ streaming: true });
+    await playWebrtc(started.whepUrl || `/webrtc/${encodeURIComponent(activeStreamId)}/whep`);
+
+    setTimeout(async () => {
+      if (!activeStreamId) return;
+      try {
+        const s = await fetch(`/api/stream/status/${encodeURIComponent(activeStreamId)}`).then((r) => r.json());
+        if (s?.lastError) logLine(`鍙栨祦鏃ュ織锛?{s.lastError.split(/\r?\n/).slice(-3).join(" | ")}`);
+      } catch {}
+    }, 2500);
+  } catch (e) {
+    logLine(`杩炴帴澶辫触锛?{e.message}`);
+    try {
+      const h = await fetchJson("/api/mediamtx/health");
+      logLine(
+        `MediaMTX 鑷锛歛piBase=${h?.apiBase || ""} local=${h?.isLocalApi ? "yes" : "no"} apiOk=${h?.api?.ok ? "yes" : "no"} apiStatus=${h?.api?.status ?? ""} apiErr=${h?.api?.error || ""}`
+      );
+    } catch {}
+    setButtons({ streaming: false });
+    try {
+      sessionStorage.setItem(SESSION_STREAMING_KEY, "0");
+    } catch {}
+  } finally {
+    els.connectBtn.disabled = false;
+  }
+}
+
+function waitIceGatheringComplete(peer, timeoutMs) {
+  return new Promise((resolve) => {
+    if (peer.iceGatheringState === "complete") {
+      resolve(true);
+      return;
+    }
+    const t = setTimeout(() => {
+      cleanup();
+      resolve(false);
+    }, timeoutMs);
+    const onChange = () => {
+      if (peer.iceGatheringState === "complete") {
+        cleanup();
+        resolve(true);
+      }
+    };
+    const cleanup = () => {
+      clearTimeout(t);
+      try {
+        peer.removeEventListener("icegatheringstatechange", onChange);
+      } catch {}
+    };
+    peer.addEventListener("icegatheringstatechange", onChange);
+  });
+}
+
+async function playWebrtc(whepUrl) {
+  detachPlayer();
+
+  if (!window.RTCPeerConnection) {
+    throw new Error("褰撳墠娴忚鍣ㄤ笉鏀寔 WebRTC");
+  }
+
+  pc = new RTCPeerConnection({});
+  const remoteStream = new MediaStream();
+
+  pc.addEventListener("track", (ev) => {
+    if (ev.track) remoteStream.addTrack(ev.track);
+  });
+  pc.addEventListener("connectionstatechange", () => {
+    const st = pc?.connectionState || "";
+    if (st) logLine(`WebRTC 鐘舵€侊細${st}`);
+  });
+
+  pc.addTransceiver("video", { direction: "recvonly" });
+  pc.addTransceiver("audio", { direction: "recvonly" });
+
+  const offer = await pc.createOffer();
+  await pc.setLocalDescription(offer);
+  await waitIceGatheringComplete(pc, 4000);
+
+  const local = pc.localDescription;
+  if (!local?.sdp) throw new Error("鐢熸垚 WebRTC Offer 澶辫触");
+
+  const res = await fetch(whepUrl, {
+    method: "POST",
+    headers: { "Content-Type": "application/sdp", Accept: "application/sdp" },
+    body: local.sdp
+  });
+  const answerSdp = await res.text();
+  if (!res.ok) {
+    throw new Error(answerSdp || `HTTP ${res.status}`);
+  }
+
+  const loc = res.headers.get("Location") || res.headers.get("location") || "";
+  if (loc) {
+    activeWhepSessionUrl = new URL(loc, window.location.origin).toString();
+  }
+
+  await pc.setRemoteDescription({ type: "answer", sdp: answerSdp });
+
+  if (els.video) {
+    els.video.srcObject = remoteStream;
+    els.video.muted = true;
+    try {
+      await els.video.play();
+    } catch {
+      logLine("鑷姩鎾斁琚祻瑙堝櫒闃绘锛岃鎵嬪姩鐐瑰嚮鎾斁");
+    }
+  }
+}
+
+function ensureCanvasSize() {
+  if (!els.video) return false;
+  const w = els.video.videoWidth || 0;
+  const h = els.video.videoHeight || 0;
+  if (!w || !h) return false;
+  if (els.canvas.width !== w) els.canvas.width = w;
+  if (els.canvas.height !== h) els.canvas.height = h;
+  return true;
+}
+
+function applyGrayscale(data) {
+  for (let i = 0; i < data.length; i += 4) {
+    const r = data[i];
+    const g = data[i + 1];
+    const b = data[i + 2];
+    const y = (r * 0.299 + g * 0.587 + b * 0.114) | 0;
+    data[i] = y;
+    data[i + 1] = y;
+    data[i + 2] = y;
+  }
+}
+
+function applyInvert(data) {
+  for (let i = 0; i < data.length; i += 4) {
+    data[i] = 255 - data[i];
+    data[i + 1] = 255 - data[i + 1];
+    data[i + 2] = 255 - data[i + 2];
+  }
+}
+
+function applyEdges(imageData) {
+  const { data, width, height } = imageData;
+  const gray = new Uint8ClampedArray(width * height);
+  for (let i = 0, p = 0; i < data.length; i += 4, p += 1) {
+    const r = data[i];
+    const g = data[i + 1];
+    const b = data[i + 2];
+    gray[p] = (r * 0.299 + g * 0.587 + b * 0.114) | 0;
+  }
+
+  const out = new Uint8ClampedArray(width * height);
+  const idx = (x, y) => y * width + x;
+
+  for (let y = 1; y < height - 1; y += 1) {
+    for (let x = 1; x < width - 1; x += 1) {
+      const gx =
+        -gray[idx(x - 1, y - 1)] +
+        gray[idx(x + 1, y - 1)] +
+        -2 * gray[idx(x - 1, y)] +
+        2 * gray[idx(x + 1, y)] +
+        -gray[idx(x - 1, y + 1)] +
+        gray[idx(x + 1, y + 1)];
+
+      const gy =
+        -gray[idx(x - 1, y - 1)] +
+        -2 * gray[idx(x, y - 1)] +
+        -gray[idx(x + 1, y - 1)] +
+        gray[idx(x - 1, y + 1)] +
+        2 * gray[idx(x, y + 1)] +
+        gray[idx(x + 1, y + 1)];
+
+      const m = Math.min(255, Math.hypot(gx, gy) | 0);
+      out[idx(x, y)] = m;
+    }
+  }
+
+  for (let i = 0, p = 0; i < data.length; i += 4, p += 1) {
+    const v = out[p];
+    data[i] = v;
+    data[i + 1] = v;
+    data[i + 2] = v;
+  }
+}
+
+function renderLoop() {
+  renderHandle = requestAnimationFrame(renderLoop);
+  if (!els.showProcessed || !els.processMode) return;
+  if (!els.showProcessed.checked) return;
+  if (!ensureCanvasSize()) return;
+
+  const ctx = els.canvas.getContext("2d", { willReadFrequently: true });
+  if (!ctx) return;
+
+  ctx.drawImage(els.video, 0, 0, els.canvas.width, els.canvas.height);
+
+  const mode = els.processMode.value;
+  if (mode === "none") return;
+
+  const imageData = ctx.getImageData(0, 0, els.canvas.width, els.canvas.height);
+
+  if (mode === "grayscale") applyGrayscale(imageData.data);
+  else if (mode === "invert") applyInvert(imageData.data);
+  else if (mode === "edges") applyEdges(imageData);
+
+  ctx.putImageData(imageData, 0, 0);
+}
+
+function updateCanvasVisibility() {
+  const visible = Boolean(els.showProcessed?.checked);
+  if (els.canvasWrap) els.canvasWrap.classList.toggle("visible", visible);
+}
+
+function downloadPngFromCanvas(canvas) {
+  const a = document.createElement("a");
+  a.download = `snapshot_${Date.now()}.png`;
+  a.href = canvas.toDataURL("image/png");
+  a.click();
+}
+
+function snapshot() {
+  if (!ensureCanvasSize()) return;
+  if (!els.processMode) return;
+  const tmp = document.createElement("canvas");
+  tmp.width = els.canvas.width;
+  tmp.height = els.canvas.height;
+  const ctx = tmp.getContext("2d", { willReadFrequently: true });
+  if (!ctx) return;
+
+  ctx.drawImage(els.video, 0, 0, tmp.width, tmp.height);
+  const mode = els.processMode.value;
+  if (mode !== "none") {
+    const imageData = ctx.getImageData(0, 0, tmp.width, tmp.height);
+    if (mode === "grayscale") applyGrayscale(imageData.data);
+    else if (mode === "invert") applyInvert(imageData.data);
+    else if (mode === "edges") applyEdges(imageData);
+    ctx.putImageData(imageData, 0, 0);
+  }
+
+  downloadPngFromCanvas(tmp);
+}
+
+els.discoverBtn.addEventListener("click", discover);
+els.connectBtn.addEventListener("click", connectAndPlay);
+els.stopBtn.addEventListener("click", stopStream);
+if (els.snapshotBtn) els.snapshotBtn.addEventListener("click", snapshot);
+if (els.clearLogBtn) {
+  els.clearLogBtn.addEventListener("click", () => {
+    if (els.log) els.log.textContent = "";
+  });
+}
+if (els.clearSerialLogBtn) {
+  els.clearSerialLogBtn.addEventListener("click", () => {
+    if (els.serialLog) els.serialLog.textContent = "";
+  });
+}
+if (els.showProcessed) els.showProcessed.addEventListener("change", updateCanvasVisibility);
+if (els.discoverIpList) {
+  els.discoverIpList.addEventListener("dblclick", () => {
+    const idx = els.discoverIpList.selectedIndex;
+    if (idx < 0) return;
+    const val = els.discoverIpList.options[idx]?.value || "";
+    const [host, portStr] = val.split(":");
+    if (host) {
+      const p = Number(portStr);
+      const port = Number.isFinite(p) && p > 0 ? p : 80;
+      els.hostInput.value = host;
+      els.portInput.value = String(port);
+      logLine(`已填入：${host}:${port}`);
+    }
+  });
+
+  els.discoverIpList.addEventListener("mousemove", (ev) => {
+    const target = ev.target;
+    if (!(target instanceof HTMLOptionElement)) {
+      hoverHostPortKey = "";
+      tooltip.hide();
+      return;
+    }
+    const key = String(target.value || "");
+    hoverHostPortKey = key;
+    const rtsp = rtspByHostPort.get(key) || "";
+    const err = rtspErrorByHostPort.get(key) || "";
+    if (rtsp) {
+      tooltip.show(rtsp, ev.clientX, ev.clientY);
+      return;
+    }
+    if (err) {
+      tooltip.show(err, ev.clientX, ev.clientY);
+      return;
+    }
+    if (rtspPendingByHostPort.has(key)) {
+      tooltip.show("RTSP 获取中...", ev.clientX, ev.clientY);
+      return;
+    }
+    tooltip.show("RTSP 未获取，正在尝试获取...", ev.clientX, ev.clientY);
+    ensureRtspCachedForKey(key).then(() => {
+      if (hoverHostPortKey !== key) return;
+      const v = rtspByHostPort.get(key) || rtspErrorByHostPort.get(key) || "";
+      if (v) tooltip.show(v, ev.clientX, ev.clientY);
+    });
+  });
+  els.discoverIpList.addEventListener("mouseleave", () => {
+    hoverHostPortKey = "";
+    tooltip.hide();
+  });
+}
+
+if (els.video) {
+  els.video.addEventListener("loadedmetadata", () => {
+    ensureCanvasSize();
+  });
+
+  els.video.addEventListener("playing", () => {
+    tryPersistConnectionOnce();
+  });
+}
+
+function initEventStream() {
+  const evtSource = new EventSource("/api/events/stream");
+  const handleLpr = async (data) => {
+    const plate = String(data?.plate || "").trim();
+    if (!plate) return;
+    logLine(`[杞︾墝璇嗗埆] 鏀跺埌杞︾墝鍙凤細${plate}`);
+
+    const id = String(data?.id || "") || `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    const receivedAt = Number(data?.receivedAt || Date.now()) || Date.now();
+    const eventAt = Number(data?.eventAt || 0) || (() => {
+      if (data?.timestamp) {
+        const t = new Date(data.timestamp).getTime();
+        if (Number.isFinite(t) && t > 0) return t;
+      }
+      return 0;
+    })();
+    const imageDataUrl =
+      typeof data?.image === "string" && data.image
+        ? data.image
+        : typeof data?.imageUrl === "string" && data.imageUrl
+        ? data.imageUrl
+        : "";
+
+    const record = {
+      id,
+      plate,
+      receivedAt,
+      eventAt,
+      imageDataUrl,
+      ftpRemotePath: typeof data?.ftpRemotePath === "string" ? data.ftpRemotePath : ""
+    };
+
+    plateById.set(record.id, record);
+    renderPlateCard(record, { prepend: true });
+    if (record.imageDataUrl) enrichRecordImageMeta(record.id, record.imageDataUrl);
+
+    if (serialState.forwardEnabled && !serialState.backendPort) {
+      logSerialLine(`[涓插彛鍙戦€乚 宸叉帴鏀惰溅鐗岋紝鍑嗗杞彂: ${plate}`);
+      const ok = await serialEnqueueSend(plate + "\r\n");
+      if (ok) {
+        const sentAt = Date.now();
+        updateRecordSerialSent(record.id, sentAt);
+        logSerialLine(`[涓插彛鍙戦€乚 宸茶浆鍙戣溅鐗? ${plate}`);
+      } else {
+        logSerialLine(`[涓插彛鍙戦€乚 杞彂澶辫触: ${plate}`);
+      }
+    }
+  };
+
+  evtSource.onmessage = (event) => {
+    let data;
+    try {
+      data = JSON.parse(event.data);
+    } catch {
+      return;
+    }
+    if (data?.type !== "lpr") return;
+    void handleLpr(data);
+  };
+}
+
+updateCanvasVisibility();
+setButtons({ streaming: false });
+renderLoop();
+loadFingerprint();
+initSidebarNav();
+initSystemUi();
+initSerialUi();
+initPlateModule();
+initEventStream();
+
+let wasStreaming = false;
+try {
+  wasStreaming = sessionStorage.getItem(SESSION_STREAMING_KEY) === "1";
+} catch {}
+
+(async () => {
+  const cfg = await loadDeviceConfig();
+  const conn = cfg?.connection || {};
+  const host = String(conn.host || "");
+  const port = Number(conn.port || 80) || 80;
+  const username = String(conn.username || "");
+  const password = String(conn.password || "");
+
+  const baudRate = Number(cfg?.serial?.baudRate || 115200) || 115200;
+  serialState.forwardEnabled = Boolean(cfg?.serial?.forwardEnabled);
+  serialState.backendPort = String(cfg?.serial?.backendPort || "").trim();
+  if (els.serialForwardEnabled instanceof HTMLInputElement) {
+    els.serialForwardEnabled.checked = serialState.forwardEnabled;
+  }
+  if (els.serialPortSelect instanceof HTMLSelectElement) {
+    await refreshSerialPortSelect({ desiredValue: serialState.backendPort });
+  }
+  if (host) {
+    if (els.hostInput) els.hostInput.value = host;
+    if (els.portInput) els.portInput.value = String(port);
+    if (els.userInput) els.userInput.value = username;
+    if (els.passInput) els.passInput.value = password;
+  }
+
+  applySerialBaudRateToUi(baudRate);
+  if (!host) {
+    const local = readLocalLastConnection();
+    if (local?.host) {
+      if (els.hostInput) els.hostInput.value = local.host;
+      if (els.portInput) els.portInput.value = String(local.port || 80);
+      if (els.userInput) els.userInput.value = local.username || "";
+      if (els.passInput) els.passInput.value = local.password || "";
+      persistConnectionToServer(local);
+    }
+  }
+
+  if ((host || readLocalLastConnection()?.host) && wasStreaming) {
+    logLine("检测到刷新前已有画面，已载入上次连接信息并尝试自动连接...");
+    setTimeout(() => {
+      if (!activeStreamId) connectAndPlay();
+    }, 200);
+  }
+})();
+
+
+window.addEventListener("beforeunload", () => {
+  cancelAnimationFrame(renderHandle);
+});
+
+

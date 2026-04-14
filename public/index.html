@@ -1,0 +1,339 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>综合管理平台</title>
+    <link rel="stylesheet" href="/style.css?v=50" />
+  </head>
+  <body class="app-page">
+    <div class="app-page-bg" aria-hidden="true"></div>
+    <div class="app">
+      <header class="header app-header">
+        <div class="app-header-brand">
+          <div class="app-header-mark" aria-hidden="true"></div>
+          <div class="app-header-text">
+            <h1 class="app-header-title">综合管理平台</h1>
+            <p class="app-header-subtitle">本地设备与数据控制台</p>
+          </div>
+        </div>
+      </header>
+
+      <div class="layout">
+        <nav class="sidebar" aria-label="导航条">
+          <div class="sideTitle">导航</div>
+          <button id="navHomeBtn" type="button" class="navBtn active" aria-current="page">主页</button>
+          <button id="navNetworkBtn" type="button" class="navBtn">网络设备</button>
+          <button id="navSerialBtn" type="button" class="navBtn">串口设置</button>
+          <button id="navSystemBtn" type="button" class="navBtn">系统设置</button>
+        </nav>
+        <div class="left">
+          <div id="homePage" class="mainPage">
+            <section class="panel plate-dashboard">
+              <div class="dashHeader">
+                <div class="dashTitle">仪表盘（实时统计）</div>
+                <div id="dashUpdatedAt" class="dashUpdatedAt"></div>
+              </div>
+              <div class="dashGrid">
+                <div class="dashCard">
+                  <div class="dashLabel">总记录</div>
+                  <div id="dashTotal" class="dashValue">0</div>
+                </div>
+                <div class="dashCard">
+                  <div class="dashLabel">今日记录</div>
+                  <div id="dashToday" class="dashValue">0</div>
+                </div>
+                <div class="dashCard">
+                  <div class="dashLabel">最近 1 小时</div>
+                  <div id="dashLastHour" class="dashValue">0</div>
+                </div>
+                <div class="dashCard">
+                  <div class="dashLabel">今日去重车牌</div>
+                  <div id="dashUniqueToday" class="dashValue">0</div>
+                </div>
+                <div class="dashCard">
+                  <div class="dashLabel">筛选结果</div>
+                  <div id="dashFiltered" class="dashValue">0</div>
+                </div>
+                <div class="dashCard">
+                  <div class="dashLabel">最近一条</div>
+                  <div id="dashLatest" class="dashValue dashLatest">—</div>
+                </div>
+              </div>
+            </section>
+
+            <div class="plate-header">
+              <h2>车牌接收列表</h2>
+              <div class="plate-viewToggle" role="tablist" aria-label="浏览模式">
+                <button id="plateViewCardsBtn" type="button" class="viewBtn active" aria-selected="true">卡片</button>
+                <button id="plateViewTableBtn" type="button" class="viewBtn" aria-selected="false">表格</button>
+              </div>
+            </div>
+            <div class="plate-actions">
+              <label class="plate-selectAll">
+                <input id="plateSelectAll" type="checkbox" />
+                全选
+              </label>
+              <input id="plateSearchInput" type="text" placeholder="查询车牌..." autocomplete="off" />
+              <input id="plateDateInput" type="date" />
+              <button id="plateQueryBtn" type="button">查询</button>
+              <button id="plateDeleteBtn" type="button" disabled>删除</button>
+              <button id="plateMockBtn" type="button">模拟数据</button>
+            </div>
+            <section class="plate-list-section">
+              <div id="plateList" class="plate-list">
+                <div class="empty-hint">暂无车牌数据，等待接收...</div>
+              </div>
+              <div id="plateTableWrap" class="plate-tableWrap view-hidden">
+                <div class="plate-tableToolbar">
+                  <div id="plateTableSummary" class="plate-tableSummary"></div>
+                  <div class="plate-tablePager">
+                    <label for="platePageSize" class="plate-pageLabel">每页</label>
+                    <select id="platePageSize" class="plate-pageSize">
+                      <option value="10">10</option>
+                      <option value="20" selected>20</option>
+                      <option value="50">50</option>
+                      <option value="100">100</option>
+                    </select>
+                    <button id="platePrevPageBtn" type="button">上一页</button>
+                    <div id="platePageInfo" class="plate-pageInfo">1 / 1</div>
+                    <button id="plateNextPageBtn" type="button">下一页</button>
+                  </div>
+                </div>
+                <div class="plate-tableScroll">
+                  <table class="plate-table" cellspacing="0" cellpadding="0">
+                    <thead>
+                      <tr>
+                        <th style="width: 42px;">选</th>
+                        <th><button class="thBtn" type="button" data-sort="plate">车牌号</button></th>
+                        <th style="width: 210px;"><button class="thBtn" type="button" data-sort="time">时间</button></th>
+                        <th style="width: 90px;"><button class="thBtn" type="button" data-sort="image">图片</button></th>
+                        <th style="width: 210px;"><button class="thBtn" type="button" data-sort="serial">串口发送</button></th>
+                      </tr>
+                    </thead>
+                    <tbody id="plateTableBody"></tbody>
+                  </table>
+                </div>
+              </div>
+            </section>
+          </div>
+
+          <div id="networkPage" class="mainPage view-hidden">
+            <section class="panel top-control-bar" style="margin:0;">
+              <div class="top-inputs">
+                <div class="field">
+                  <label for="hostInput">IP / Host</label>
+                  <input id="hostInput" type="text" placeholder="例如：192.168.1.64" autocomplete="off" />
+                </div>
+                <div class="field" style="flex: 0 0 80px;">
+                  <label for="portInput">端口</label>
+                  <input id="portInput" type="number" placeholder="80" value="80" />
+                </div>
+                <div class="field">
+                  <label for="userInput">用户名</label>
+                  <input id="userInput" type="text" autocomplete="off" />
+                </div>
+                <div class="field">
+                  <label for="passInput">密码</label>
+                  <input id="passInput" type="password" autocomplete="off" />
+                </div>
+                <div class="actions" style="align-self: flex-end; padding-bottom: 2px;">
+                  <button id="discoverBtn" type="button">搜索</button>
+                  <button id="connectBtn" type="button">连接</button>
+                  <button id="stopBtn" type="button" disabled>停止</button>
+                </div>
+              </div>
+            </section>
+            <section class="panel" id="discoverIpWrapSection">
+              <div id="discoverIpWrap">
+                <label>搜索结果 IP:端口 列表</label>
+                <select id="discoverIpList" multiple size="10" style="margin:6px 0; width:100%;"></select>
+              </div>
+            </section>
+
+            <section class="panel">
+              <div class="logHeader">
+                <div>状态</div>
+                <button id="clearLogBtn" type="button">清空</button>
+              </div>
+              <pre id="log" class="log"></pre>
+            </section>
+          </div>
+
+          <div id="serialPage" class="mainPage view-hidden">
+            <section class="panel">
+              <div class="logHeader">
+                <div>串口设置</div>
+                <div id="serialStatus" style="font-size:12px; color:#374151;">未连接</div>
+              </div>
+              <div class="grid">
+                <div class="field span-4">
+                  <label for="serialBaudRate">波特率</label>
+                  <select id="serialBaudRate">
+                    <option value="9600">9600</option>
+                    <option value="19200">19200</option>
+                    <option value="38400">38400</option>
+                    <option value="57600">57600</option>
+                    <option value="115200" selected>115200</option>
+                    <option value="230400">230400</option>
+                    <option value="460800">460800</option>
+                    <option value="921600">921600</option>
+                    <option value="custom">自定义…</option>
+                  </select>
+                  <input id="serialBaudRateInput" type="number" min="1" step="1" style="display:none;" />
+                </div>
+                <div class="field span-4">
+                  <label for="serialSendInput">发送数据</label>
+                  <input id="serialSendInput" type="text" autocomplete="off" placeholder="输入要发送的内容" />
+                </div>
+                <div class="field span-4">
+                  <label for="serialPortSelect">端口列表</label>
+                  <select id="serialPortSelect" style="max-width: 260px;"></select>
+                </div>
+                <div class="field span-4">
+                  <label for="serialForwardEnabled">串口转发</label>
+                  <label style="display:flex; align-items:center; gap:8px; margin-top:6px;">
+                    <input id="serialForwardEnabled" type="checkbox" />
+                    开启串口转发
+                  </label>
+                </div>
+              </div>
+              <div class="actions" style="margin-top:10px;">
+                <button id="serialConnectBtn" type="button">连接串口</button>
+                <button id="serialDisconnectBtn" type="button" disabled>断开</button>
+                <button id="serialSendBtn" type="button" disabled>发送</button>
+              </div>
+              <div id="serialHint" style="margin-top:10px; font-size:12px; color:#6b7280; display:none;">
+                当前浏览器不支持 Web Serial，无法使用串口功能。
+              </div>
+            </section>
+
+            <section class="panel">
+              <div class="logHeader">
+                <div>串口状态</div>
+                <button id="clearSerialLogBtn" type="button">清空</button>
+              </div>
+              <pre id="serialLog" class="log"></pre>
+            </section>
+          </div>
+
+          <div id="systemPage" class="mainPage view-hidden">
+            <section class="panel">
+              <div class="logHeader">
+                <div>系统设置</div>
+              </div>
+              <div class="grid">
+                <div class="field span-4">
+                  <label for="systemNameInput">设备名称</label>
+                  <input id="systemNameInput" type="text" autocomplete="off" placeholder="例如：门岗 1 号" />
+                </div>
+                <div class="field span-4">
+                  <label for="systemClientMode">客户端模式</label>
+                  <label style="display:flex; align-items:center; gap:8px; margin-top:6px;">
+                    <input id="systemClientMode" type="checkbox" />
+                    开启（可被服务端搜索/管理）
+                  </label>
+                </div>
+                <div class="field span-4">
+                  <label for="systemIpMode">IP 获取方式</label>
+                  <select id="systemIpMode" style="max-width: 180px;">
+                    <option value="auto" selected>自动获取</option>
+                    <option value="manual">手动配置</option>
+                  </select>
+                </div>
+                <div class="field span-4">
+                  <label for="systemIpInput">设备 IP（用于对外展示/注册）</label>
+                  <input id="systemIpInput" type="text" autocomplete="off" placeholder="例如：192.168.1.22" />
+                </div>
+                <div class="field span-4">
+                  <label for="systemOldPassword">当前密码</label>
+                  <input id="systemOldPassword" type="password" autocomplete="current-password" placeholder="请输入当前密码" />
+                </div>
+                <div class="field span-4">
+                  <label for="systemNewPassword">新密码</label>
+                  <input id="systemNewPassword" type="password" autocomplete="new-password" placeholder="请输入新密码" />
+                </div>
+              </div>
+              <div class="actions" style="margin-top:10px;">
+                <button id="systemSaveBtn" type="button">保存</button>
+              </div>
+              <div id="systemPassHint" style="margin-top:10px; font-size:12px; color:#6b7280;"></div>
+              <div id="fingerprintBox" class="fingerprintBox" style="margin-top:10px;">加载指纹码中...</div>
+              <div id="systemSaveHint" style="margin-top:10px; font-size:12px; color:#6b7280;"></div>
+            </section>
+
+            <section class="panel">
+              <div class="logHeader">
+                <div>接收设置</div>
+              </div>
+              <div class="grid">
+                <div class="field span-4">
+                  <label for="ftpServerEnabled">FTP 接收</label>
+                  <label style="display:flex; align-items:center; gap:8px; margin-top:6px;">
+                    <input id="ftpServerEnabled" type="checkbox" />
+                    开启 FTP 接收
+                  </label>
+                </div>
+                <div class="field span-4">
+                  <label for="ftpServerPort">FTP 端口</label>
+                  <input id="ftpServerPort" type="number" min="1" max="65535" step="1" value="21" style="max-width: 180px;" />
+                </div>
+                <div class="field span-4">
+                  <label for="ftpServerRootDir">保存路径</label>
+                  <input id="ftpServerRootDir" type="text" autocomplete="off" placeholder="留空默认：uploads/ftp" />
+                </div>
+                <div class="field span-4">
+                  <label for="ftpServerUser">FTP 用户名</label>
+                  <input id="ftpServerUser" type="text" autocomplete="off" placeholder="留空表示匿名" />
+                </div>
+                <div class="field span-4">
+                  <label for="ftpServerPass">FTP 密码</label>
+                  <input id="ftpServerPass" type="password" autocomplete="off" placeholder="留空表示无密码" />
+                </div>
+              </div>
+              <div class="actions" style="margin-top:10px;">
+                <button id="ftpServerSaveBtn" type="button">保存 FTP 设置</button>
+              </div>
+              <div id="ftpServerHint" style="margin-top:10px; font-size:12px; color:#6b7280;"></div>
+              <div style="margin-top:10px; font-size:12px; color:#6b7280;">
+                HTTP 接收地址：<span id="httpIngestUrl"></span>
+              </div>
+              <div style="margin-top:6px; font-size:12px; color:#6b7280;">
+                FTP 接收地址：<span id="ftpIngestUrl"></span>
+              </div>
+              <div style="margin-top:6px; font-size:12px; color:#6b7280;">
+                FTP 保存到：<span id="ftpIngestDir"></span>
+              </div>
+            </section>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="plateDetailModal" class="modal" aria-hidden="true">
+      <div class="modalBackdrop" data-close="1"></div>
+      <div class="modalPanel" role="dialog" aria-modal="true" aria-label="车牌详情">
+        <div class="modalHeader">
+          <div id="plateDetailTitle" class="modalTitle">车牌详情</div>
+          <button id="plateDetailCloseBtn" type="button" class="iconBtn" aria-label="关闭">×</button>
+        </div>
+        <div class="modalBody">
+          <div class="plateDetailGrid">
+            <div class="plateDetailImageWrap">
+              <img id="plateDetailImg" class="plateDetailImg" alt="车牌截图" />
+            </div>
+            <div class="plateDetailInfo">
+              <div class="kv"><div class="k">车牌号</div><div id="plateDetailPlate" class="v"></div></div>
+              <div class="kv"><div class="k">接收时间</div><div id="plateDetailReceivedAt" class="v"></div></div>
+              <div class="kv"><div class="k">图片大小</div><div id="plateDetailImageSize" class="v"></div></div>
+              <div class="kv"><div class="k">串口发送时间</div><div id="plateDetailSerialSentAt" class="v"></div></div>
+              <div class="kv"><div class="k">FTP 路径</div><div id="plateDetailFtpPath" class="v"></div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script type="module" src="/app.js?v=50"></script>
+  </body>
+</html>
