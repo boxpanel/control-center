@@ -8,6 +8,11 @@ tmp_hik_sdk_manual/
 tmp_hik_sdk_manual2/
 tmp_hik_sdk_manual7z/
 
+.export/
+export_repo/
+export_repo2/
+export_repo2_git/
+
 .device-info.json
 *.log
 

@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
+REPO_URL="${REPO_URL:-https://github.com/boxpanel/control-center.git}"
+INSTALL_DIR="${INSTALL_DIR:-$HOME/control-center}"
+
 START_APP=0
 ENABLE_SERVICE=0
 SERVICE_NAME="${SERVICE_NAME:-control-center}"
@@ -8,22 +11,69 @@ SERVICE_PORT="${SERVICE_PORT:-3000}"
 INSTALL_OK=0
 SERVICE_FILE=""
 SERVICE_CREATED=0
+BOOTSTRAP_MODE=0
+SKIP_BOOTSTRAP=0
+CLONED_FRESH=0
+BACKUP_DIR=""
 
+PASS_ARGS=()
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --start)
       START_APP=1
+      PASS_ARGS+=("$1")
       ;;
     --enable-service)
       ENABLE_SERVICE=1
+      PASS_ARGS+=("$1")
       ;;
     --service-name)
       shift
       SERVICE_NAME="${1:-control-center}"
+      PASS_ARGS+=("--service-name" "$SERVICE_NAME")
       ;;
     --service-port)
       shift
       SERVICE_PORT="${1:-3000}"
+      PASS_ARGS+=("--service-port" "$SERVICE_PORT")
+      ;;
+    --repo-url)
+      shift
+      REPO_URL="${1:-$REPO_URL}"
+      ;;
+    --install-dir)
+      shift
+      INSTALL_DIR="${1:-$INSTALL_DIR}"
+      ;;
+    --bootstrap)
+      BOOTSTRAP_MODE=1
+      ;;
+    --skip-bootstrap)
+      SKIP_BOOTSTRAP=1
+      ;;
+    -h|--help)
+      cat <<'EOF'
+Usage:
+  ./install.sh [options]
+
+Options:
+  --start                 Install then start app in foreground (npm start)
+  --enable-service        Install and register systemd service
+  --service-name NAME     systemd service name (default: control-center)
+  --service-port PORT     Service port (default: 3000)
+
+Bootstrap options (for one-click installs / running outside repo dir):
+  --bootstrap             Force clone/update repo then run installer
+  --repo-url URL          Repo git URL (default: https://github.com/boxpanel/control-center.git)
+  --install-dir PATH      Install directory (default: $HOME/control-center)
+
+Examples:
+  ./install.sh
+  ./install.sh --start
+  ./install.sh --enable-service --service-port 3000
+  curl -fsSL https://raw.githubusercontent.com/boxpanel/control-center/main/install.sh | bash
+EOF
+      exit 0
       ;;
     *)
       printf "Unknown option: %s\n" "$1" >&2
@@ -55,6 +105,21 @@ cleanup_service() {
   fi
 }
 
+rollback_bootstrap() {
+  local exit_code=$?
+  printf "\n[ERROR] Installation failed (exit code %s).\n" "$exit_code" >&2
+  cleanup_service
+  run_root systemctl stop "$SERVICE_NAME" >/dev/null 2>&1 || true
+  run_root systemctl disable "$SERVICE_NAME" >/dev/null 2>&1 || true
+  run_root rm -f "/etc/systemd/system/${SERVICE_NAME}.service" >/dev/null 2>&1 || true
+  run_root systemctl daemon-reload >/dev/null 2>&1 || true
+  if [[ "$CLONED_FRESH" -eq 1 && -d "$INSTALL_DIR" ]]; then
+    printf "[ROLLBACK] Removing incomplete install directory: %s\n" "$INSTALL_DIR" >&2
+    rm -rf "$INSTALL_DIR"
+  fi
+  exit "$exit_code"
+}
+
 on_error() {
   local exit_code=$?
   local line_no="${1:-unknown}"
@@ -76,6 +141,22 @@ install_apt_packages() {
   fi
   run_root apt-get update
   run_root apt-get install -y "${packages[@]}"
+}
+
+repair_git_index_if_needed() {
+  local repo_dir="$1"
+  if git -C "$repo_dir" status --porcelain >/dev/null 2>&1; then
+    return 0
+  fi
+  if git -C "$repo_dir" rev-parse --git-dir >/dev/null 2>&1; then
+    local git_dir
+    git_dir="$(git -C "$repo_dir" rev-parse --git-dir 2>/dev/null || true)"
+    if [[ -n "$git_dir" && -f "$repo_dir/$git_dir/index" ]]; then
+      printf "[WARN] Git index appears to be corrupt. Rebuilding repository index...\n"
+      rm -f "$repo_dir/$git_dir/index"
+      git -C "$repo_dir" reset --hard HEAD >/dev/null 2>&1 || true
+    fi
+  fi
 }
 
 ensure_base_packages() {
@@ -109,6 +190,50 @@ ensure_nodejs() {
     ensure_base_packages
     curl -fsSL https://deb.nodesource.com/setup_20.x | run_root bash
     run_root apt-get install -y nodejs
+  fi
+}
+
+bootstrap_repo_then_run() {
+  trap rollback_bootstrap ERR
+
+  step "Installing base packages"
+  install_apt_packages git curl ca-certificates gnupg
+
+  if [[ ! -d "$INSTALL_DIR/.git" ]]; then
+    step "Cloning repository into ${INSTALL_DIR}"
+    git clone "$REPO_URL" "$INSTALL_DIR"
+    CLONED_FRESH=1
+  else
+    step "Updating repository in ${INSTALL_DIR}"
+    repair_git_index_if_needed "$INSTALL_DIR"
+    if [[ -n "$(git -C "$INSTALL_DIR" status --porcelain 2>/dev/null || true)" ]]; then
+      BACKUP_DIR="$INSTALL_DIR/.upgrade-backup-$(date +%Y%m%d-%H%M%S)"
+      printf "[WARN] Local changes detected. Backing them up to:\n"
+      printf "       %s\n" "$BACKUP_DIR"
+      mkdir -p "$BACKUP_DIR"
+      git -C "$INSTALL_DIR" diff >"$BACKUP_DIR/local-changes.patch" || true
+      git -C "$INSTALL_DIR" status --short >"$BACKUP_DIR/status.txt" || true
+    fi
+    repair_git_index_if_needed "$INSTALL_DIR"
+    git -C "$INSTALL_DIR" fetch origin main
+    git -C "$INSTALL_DIR" reset --hard origin/main
+    git -C "$INSTALL_DIR" clean -fd
+  fi
+
+  step "Running application installer"
+
+  local args=("${PASS_ARGS[@]}")
+  if [[ "$START_APP" -eq 0 && "$ENABLE_SERVICE" -eq 0 ]]; then
+    args+=("--enable-service")
+  fi
+  args+=("--skip-bootstrap")
+
+  chmod +x "$INSTALL_DIR/install.sh"
+  "$INSTALL_DIR/install.sh" "${args[@]}"
+
+  if [[ -n "$BACKUP_DIR" ]]; then
+    printf "\n[INFO] Previous local changes were backed up to:\n"
+    printf "       %s\n" "$BACKUP_DIR"
   fi
 }
 
@@ -221,6 +346,13 @@ EOF
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$ROOT_DIR"
+
+if [[ "$SKIP_BOOTSTRAP" -eq 0 ]]; then
+  if [[ "$BOOTSTRAP_MODE" -eq 1 || ! -f "$ROOT_DIR/package.json" || ! -f "$ROOT_DIR/server.js" ]]; then
+    bootstrap_repo_then_run
+    exit 0
+  fi
+fi
 
 step "Preparing Ubuntu dependencies"
 ensure_base_packages

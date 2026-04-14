@@ -7,7 +7,7 @@ Local device control center for camera discovery, streaming, serial forwarding, 
 Run this single command on Ubuntu:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/boxpanel/control-center/main/bootstrap.sh | bash
+curl -fsSL https://raw.githubusercontent.com/boxpanel/control-center/main/install.sh | bash
 ```
 
 By default it installs to:
