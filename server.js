@@ -92,6 +92,7 @@ const stmtAuthInsert = plateDb.prepare(
 const stmtAuthUpdate = plateDb.prepare(
   `UPDATE auth_users SET salt = @salt, hash = @hash, iterations = @iterations, updatedAt = @ts WHERE username = @username`
 );
+const stmtAuthDeleteAll = plateDb.prepare(`DELETE FROM auth_users`);
 
 function rowToPlateDto(row) {
   if (!row) return null;
@@ -201,6 +202,53 @@ function isValidAuthRow(row) {
   return Boolean(u && s && h && it);
 }
 
+function getPendingAuthFromInfo(info) {
+  const auth = info?.auth && typeof info.auth === "object" ? info.auth : null;
+  if (!auth || auth.applyOnNextStart !== true) return null;
+  const row = {
+    username: String(auth.username || "").trim(),
+    salt: String(auth.salt || "").trim(),
+    hash: String(auth.hash || "").trim(),
+    iterations: toPositiveInt(auth.iterations, 0)
+  };
+  return isValidAuthRow(row) ? row : null;
+}
+
+async function applyPendingAuthFromInfo(info) {
+  const pending = getPendingAuthFromInfo(info);
+  if (!pending) return info;
+  const ts = Date.now();
+  try {
+    const tx = plateDb.transaction((row) => {
+      stmtAuthDeleteAll.run();
+      stmtAuthInsert.run({
+        username: row.username,
+        salt: row.salt,
+        hash: row.hash,
+        iterations: row.iterations,
+        ts
+      });
+    });
+    tx(pending);
+  } catch {}
+
+  const nextInfo = {
+    ...info,
+    auth: {
+      ...info.auth,
+      username: pending.username,
+      salt: pending.salt,
+      hash: pending.hash,
+      iterations: pending.iterations,
+      applyOnNextStart: false
+    }
+  };
+  try {
+    await fs.writeFile(deviceInfoPath, JSON.stringify(nextInfo), "utf8");
+  } catch {}
+  return nextInfo;
+}
+
 function ensureAuthUserInDb({ info, defaultUsername = "admin" }) {
   const fromDb = stmtAuthFirst.get();
   if (isValidAuthRow(fromDb)) return fromDb;
@@ -236,7 +284,8 @@ function ensureAuthUserInDb({ info, defaultUsername = "admin" }) {
 }
 
 async function readAuthConfig() {
-  const info = await loadOrInitDeviceInfo();
+  const loadedInfo = await loadOrInitDeviceInfo();
+  const info = await applyPendingAuthFromInfo(loadedInfo);
   const authRow = ensureAuthUserInDb({ info, defaultUsername: "admin" });
   return {
     secret: String(info?.secret || ""),

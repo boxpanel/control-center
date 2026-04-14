@@ -21,6 +21,7 @@ This command now:
 - installs required Ubuntu packages
 - installs Node.js 20 if missing
 - clones or updates the repository
+- prompts for the web port, admin username, and admin password
 - backs up local uncommitted changes before updating
 - repairs a corrupt local Git index before updating
 - installs npm dependencies
@@ -61,6 +62,13 @@ chmod +x ./install.sh
 ./install.sh --enable-service --service-port 3000
 ```
 
+Install non-interactively with explicit credentials:
+
+```bash
+chmod +x ./install.sh
+./install.sh --enable-service --service-port 3001 --admin-user boxpanel --admin-pass 'change-me'
+```
+
 ## Start
 
 After installation:
@@ -91,6 +99,5 @@ chmod +x ./manage.sh
 - The installer automatically installs required Ubuntu packages and Node.js 20 if missing.
 - The installer creates `data`, `uploads`, and `streams` automatically.
 - The bootstrap installer enables a `systemd` service by default.
-- Successful installation prints the base port, access URLs, default username, and default password.
-- Default credentials are `admin / admin`.
+- Successful installation prints the base port, access URLs, and the admin username/password you entered during setup.
 - Default web port is `3000`; if occupied, the app will try the next ports automatically.
