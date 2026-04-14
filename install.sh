@@ -159,6 +159,14 @@ repair_git_index_if_needed() {
   fi
 }
 
+is_control_center_root() {
+  local dir="$1"
+  [[ -f "$dir/server.js" ]] || return 1
+  [[ -f "$dir/package.json" ]] || return 1
+  [[ -f "$dir/public/index.html" ]] || return 1
+  grep -q '"name":[[:space:]]*"onvif-ipcam"' "$dir/package.json"
+}
+
 ensure_base_packages() {
   local missing=()
   local required=(curl ca-certificates gnupg build-essential python3 make g++ pkg-config libudev-dev ffmpeg)
@@ -348,7 +356,7 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$ROOT_DIR"
 
 if [[ "$SKIP_BOOTSTRAP" -eq 0 ]]; then
-  if [[ "$BOOTSTRAP_MODE" -eq 1 || ! -f "$ROOT_DIR/package.json" || ! -f "$ROOT_DIR/server.js" ]]; then
+  if [[ "$BOOTSTRAP_MODE" -eq 1 ]] || ! is_control_center_root "$ROOT_DIR"; then
     bootstrap_repo_then_run
     exit 0
   fi
