@@ -916,7 +916,23 @@ function randomFrom(arr) {
 }
 
 function randomPlate() {
-  const provinces = ["京", "沪", "浙", "苏", "粤", "鲁", "川", "渝", "鄂", "皖", "闽", "赣", "冀", "豫", "云"];
+  const provinces = [
+    "\u4eac",
+    "\u6caa",
+    "\u6d59",
+    "\u82cf",
+    "\u7ca4",
+    "\u9c81",
+    "\u5ddd",
+    "\u6e1d",
+    "\u9102",
+    "\u7696",
+    "\u95fd",
+    "\u8d63",
+    "\u5180",
+    "\u8c6b",
+    "\u4e91"
+  ];
   const letters = "ABCDEFGHJKLMNPQRSTUVWXYZ";
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ0123456789";
   const p = randomFrom(provinces);

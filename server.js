@@ -1919,7 +1919,14 @@ app.post("/api/plates/delete", (req, res) => {
 app.post("/api/plates/mock", (req, res) => {
   const count = Math.max(1, Math.min(2000, toPositiveInt(req.body?.count, 50)));
   const now = Date.now();
-  const plates = ["娴滅徆12345", "濞岀嫙23456", "缁棭34567", "濞存45678", "閼诲粛56789", "妞翠笚67890"];
+  const plates = [
+    "\u4eacA12345",
+    "\u6caaB23456",
+    "\u6d59C34567",
+    "\u82cfD45678",
+    "\u7ca4E56789",
+    "\u5dddF67890"
+  ];
   const tx = plateDb.transaction(() => {
     for (let i = 0; i < count; i += 1) {
       const receivedAt = now - (count - i) * 60_000;
