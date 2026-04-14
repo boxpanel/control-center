@@ -768,7 +768,9 @@ async function ingestFtpImageFile(absPath, rootDir, sidecarByStem) {
       backendSerialEnqueueWrite(plate + "\r\n").then((ok) => {
         if (ok) {
           try {
-            stmtPlateUpdateSerialSent.run(Date.now(), id);
+            const sentAt = Date.now();
+            stmtPlateUpdateSerialSent.run(sentAt, id);
+            broadcastSerialSent(id, sentAt);
           } catch {}
         }
       });
@@ -2273,6 +2275,13 @@ function broadcastEvent(data) {
   }
 }
 
+function broadcastSerialSent(id, sentAt) {
+  const key = String(id || "").trim();
+  const ts = Number(sentAt || 0);
+  if (!key || !Number.isFinite(ts) || ts <= 0) return;
+  broadcastEvent({ type: "serial-sent", id: key, sentAt: Math.floor(ts) });
+}
+
 function getFtpConfig() {
   const host = String(process.env.FTP_HOST || "").trim();
   const user = String(process.env.FTP_USER || "").trim();
@@ -2428,7 +2437,9 @@ app.post("/api/isapi/event", express.raw({ type: "*/*", limit: "50mb" }), async 
           backendSerialEnqueueWrite(plate + "\r\n").then((ok) => {
             if (ok) {
               try {
-                stmtPlateUpdateSerialSent.run(Date.now(), id);
+                const sentAt = Date.now();
+                stmtPlateUpdateSerialSent.run(sentAt, id);
+                broadcastSerialSent(id, sentAt);
               } catch {}
             }
           });

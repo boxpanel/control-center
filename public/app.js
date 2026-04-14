@@ -2374,6 +2374,7 @@ function initEventStream() {
       receivedAt,
       eventAt,
       imageDataUrl,
+      serialSentAt: Number(data?.serialSentAt || 0) || 0,
       ftpRemotePath: typeof data?.ftpRemotePath === "string" ? data.ftpRemotePath : ""
     };
 
@@ -2401,8 +2402,13 @@ function initEventStream() {
     } catch {
       return;
     }
-    if (data?.type !== "lpr") return;
-    void handleLpr(data);
+    if (data?.type === "lpr") {
+      void handleLpr(data);
+      return;
+    }
+    if (data?.type === "serial-sent") {
+      void updateRecordSerialSent(String(data?.id || ""), Number(data?.sentAt || 0));
+    }
   };
 }
 
