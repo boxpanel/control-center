@@ -437,6 +437,17 @@ function backendSerialEnqueueWrite(text) {
   return task;
 }
 
+function getBackendSerialStatus(cfg) {
+  const conf = normalizeBackendSerialConfig(cfg);
+  return {
+    enabled: conf.forwardEnabled,
+    configuredPort: conf.backendPort,
+    baudRate: conf.baudRate,
+    isOpen: Boolean(backendSerialPort?.isOpen),
+    activePort: backendSerialPort?.path || conf.backendPort || ""
+  };
+}
+
 function discoveryConfigKeyFromClientConfig(cfg, port) {
   const system = cfg?.system || {};
   const probe = cfg?.probe || {};
@@ -1747,6 +1758,63 @@ app.get("/api/serial/ports", async (req, res) => {
     res.json({ ports });
   } catch {
     res.json({ ports: [] });
+  }
+});
+
+app.get("/api/serial/status", async (req, res, next) => {
+  try {
+    const config = await getClientConfig();
+    res.json({ ok: true, backend: getBackendSerialStatus(config?.serial) });
+  } catch (err) {
+    next(err);
+  }
+});
+
+app.post("/api/serial/connect", async (req, res, next) => {
+  try {
+    const config = await getClientConfig();
+    await ensureBackendSerial(config?.serial);
+    res.json({ ok: true, backend: getBackendSerialStatus(config?.serial) });
+  } catch (err) {
+    next(err);
+  }
+});
+
+app.post("/api/serial/disconnect", async (req, res, next) => {
+  try {
+    await stopBackendSerial();
+    const config = await getClientConfig();
+    res.json({ ok: true, backend: getBackendSerialStatus(config?.serial) });
+  } catch (err) {
+    next(err);
+  }
+});
+
+app.post("/api/serial/send", async (req, res, next) => {
+  try {
+    const text = String(req.body?.text || "");
+    if (!text) {
+      res.status(400).json({ error: "Bad request" });
+      return;
+    }
+    const config = await getClientConfig();
+    const status = getBackendSerialStatus(config?.serial);
+    if (!status.enabled || !status.configuredPort) {
+      res.status(409).json({ error: "Backend serial is not configured" });
+      return;
+    }
+    if (!status.isOpen) {
+      await ensureBackendSerial(config?.serial);
+    }
+    const ok = await backendSerialEnqueueWrite(text);
+    if (!ok) {
+      res.status(502).json({ error: "Backend serial write failed" });
+      return;
+    }
+    const nextStatus = getBackendSerialStatus(config?.serial);
+    res.json({ ok: true, backend: nextStatus });
+  } catch (err) {
+    next(err);
   }
 });
 

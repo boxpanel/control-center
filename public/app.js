@@ -1366,13 +1366,25 @@ const serialState = {
   lastBaudRate: 115200,
   forwardEnabled: false,
   backendPort: "",
-  sendChain: Promise.resolve()
+  sendChain: Promise.resolve(),
+  mode: "backend",
+  backendOpen: false
 };
 
 const COMMON_BAUD_RATES = [9600, 19200, 38400, 57600, 115200, 230400, 460800, 921600];
 
 function isWebSerialSupported() {
   return typeof navigator !== "undefined" && Boolean(navigator.serial);
+}
+
+function shouldUseWebSerial() {
+  return isWebSerialSupported();
+}
+
+function setSerialHintText(text) {
+  if (!els.serialHint) return;
+  els.serialHint.textContent = String(text || "");
+  els.serialHint.style.display = text ? "block" : "none";
 }
 
 function isBaudInputMode() {
@@ -1450,6 +1462,15 @@ function setSerialUiState({ connected, statusText }) {
   if (els.serialSendBtn) els.serialSendBtn.disabled = !connected;
 }
 
+function applySerialModeUi() {
+  serialState.mode = shouldUseWebSerial() ? "web" : "backend";
+  if (serialState.mode === "web") {
+    setSerialHintText("");
+  } else {
+    setSerialHintText("当前浏览器不支持 Web Serial，已切换为后端串口模式。请选择后端串口并点击“连接串口”。");
+  }
+}
+
 async function loadSerialPorts() {
   try {
     const r = await fetchJsonGet("/api/serial/ports");
@@ -1489,7 +1510,49 @@ async function refreshSerialPortSelect({ desiredValue } = {}) {
   els.serialPortSelect.value = desired;
 }
 
+async function fetchBackendSerialStatus() {
+  const r = await fetchJsonGet("/api/serial/status");
+  return r?.backend || {};
+}
+
+async function syncBackendSerialUi() {
+  try {
+    const backend = await fetchBackendSerialStatus();
+    serialState.backendOpen = Boolean(backend?.isOpen);
+    serialState.backendPort = String(backend?.configuredPort || serialState.backendPort || "").trim();
+    if (Number.isFinite(Number(backend?.baudRate)) && Number(backend.baudRate) > 0) {
+      applySerialBaudRateToUi(Number(backend.baudRate));
+    }
+    if (els.serialPortSelect instanceof HTMLSelectElement) {
+      await refreshSerialPortSelect({ desiredValue: serialState.backendPort });
+    }
+    if (els.serialForwardEnabled instanceof HTMLInputElement) {
+      els.serialForwardEnabled.checked = Boolean(backend?.enabled);
+    }
+    const statusText = serialState.backendOpen
+      ? `后端已连接（${backend?.activePort || serialState.backendPort || "未知端口"}）`
+      : serialState.backendPort
+      ? `后端未连接（${serialState.backendPort}）`
+      : "后端未配置";
+    setSerialUiState({ connected: serialState.backendOpen, statusText });
+  } catch (e) {
+    setSerialUiState({ connected: false, statusText: "后端状态未知" });
+    logSerialLine(`读取后端串口状态失败：${e?.message || e}`);
+  }
+}
+
 async function serialDisconnect() {
+  if (!shouldUseWebSerial()) {
+    try {
+      await fetchJson("/api/serial/disconnect", {});
+      serialState.backendOpen = false;
+      await syncBackendSerialUi();
+      logSerialLine("后端串口已断开");
+    } catch (e) {
+      logSerialLine(`后端串口断开失败：${e?.message || e}`);
+    }
+    return;
+  }
   try {
     if (serialState.reader) {
       try {
@@ -1567,7 +1630,24 @@ async function serialReadLoop() {
 }
 
 async function serialConnect() {
-  if (!isWebSerialSupported()) return;
+  if (!shouldUseWebSerial()) {
+    try {
+      const baudRate = getSerialBaudRate();
+      const backendPort = String(els.serialPortSelect?.value || serialState.backendPort || "").trim();
+      serialState.lastBaudRate = baudRate;
+      serialState.backendPort = backendPort;
+      await persistSerialToServer({ baudRate, backendPort, forwardEnabled: true });
+      await fetchJson("/api/serial/connect", {});
+      serialState.backendOpen = true;
+      await syncBackendSerialUi();
+      logSerialLine(`后端串口已连接：${backendPort || "未命名端口"}`);
+    } catch (e) {
+      serialState.backendOpen = false;
+      await syncBackendSerialUi();
+      logSerialLine(`后端串口连接失败：${e?.message || e}`);
+    }
+    return;
+  }
   try {
     const baudRate = getSerialBaudRate();
     const port = await navigator.serial.requestPort();
@@ -1587,23 +1667,25 @@ async function serialConnect() {
 }
 
 async function serialSend() {
-  if (!serialState.port || !serialState.writer) return;
   const text = String(els.serialSendInput?.value || "");
   if (!text) return;
+  if (!shouldUseWebSerial()) {
+    try {
+      await fetchJson("/api/serial/send", { text });
+      logSerialLine(`[后端串口发送] ${text}`);
+    } catch (e) {
+      logSerialLine(`后端串口发送失败：${e?.message || e}`);
+    }
+    return;
+  }
+  if (!serialState.port || !serialState.writer) return;
   const ok = await serialEnqueueSend(text);
   if (ok) logSerialLine(`[串口发送] ${text}`);
 }
 
 function initSerialUi() {
   if (!els.serialConnectBtn || !els.serialDisconnectBtn || !els.serialSendBtn) return;
-  if (!isWebSerialSupported()) {
-    if (els.serialHint) els.serialHint.style.display = "block";
-    setSerialUiState({ connected: false, statusText: "不支持" });
-    if (els.serialConnectBtn) els.serialConnectBtn.disabled = true;
-    if (els.serialDisconnectBtn) els.serialDisconnectBtn.disabled = true;
-    if (els.serialSendBtn) els.serialSendBtn.disabled = true;
-    return;
-  }
+  applySerialModeUi();
   setSerialUiState({ connected: false, statusText: "未连接" });
   (async () => {
     try {
@@ -1615,6 +1697,7 @@ function initSerialUi() {
         els.serialForwardEnabled.checked = serialState.forwardEnabled;
       }
       await refreshSerialPortSelect({ desiredValue: serialState.backendPort });
+      if (!shouldUseWebSerial()) await syncBackendSerialUi();
     } catch {}
   })();
   if (els.serialForwardEnabled instanceof HTMLInputElement) {
@@ -1682,9 +1765,11 @@ function initSerialUi() {
   els.serialSendInput?.addEventListener("keydown", (ev) => {
     if (ev.key === "Enter") serialSend();
   });
-  navigator.serial.addEventListener("disconnect", () => {
-    serialDisconnect();
-  });
+  if (isWebSerialSupported()) {
+    navigator.serial.addEventListener("disconnect", () => {
+      serialDisconnect();
+    });
+  }
 }
 
 function parseHostFromXaddr(xaddr) {
