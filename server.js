@@ -406,7 +406,6 @@ async function ensureBackendSerial(cfg) {
 
   await stopBackendSerial();
   backendSerialKey = nextKey;
-  if (!conf.forwardEnabled) return;
   if (!conf.backendPort) return;
 
   const port = new SerialPort({ path: conf.backendPort, baudRate: conf.baudRate, autoOpen: false });
@@ -1894,14 +1893,15 @@ app.post("/api/serial/send", async (req, res, next) => {
       return;
     }
     if (!backendSerialPort?.isOpen) {
-      await ensureBackendSerial({ ...serialCfg, forwardEnabled: true });
+      res.status(409).json({ error: "Backend serial is not connected" });
+      return;
     }
     const ok = await backendSerialEnqueueWrite(text);
     if (!ok) {
       res.status(502).json({ error: "后端串口写入失败" });
       return;
     }
-    const nextStatus = getBackendSerialStatus({ ...serialCfg, forwardEnabled: true });
+    const nextStatus = getBackendSerialStatus(serialCfg);
     res.json({ ok: true, backend: nextStatus });
   } catch (err) {
     next(err);
@@ -2235,7 +2235,8 @@ app.post("/api/isapi/event", express.raw({ type: "*/*", limit: "50mb" }), async 
         imageUrl,
         ftpRemotePath: ftpPlan?.remotePath || ""
       });
-      if (backendSerialPort) {
+      const serialCfg = normalizeBackendSerialConfig((await getClientConfig())?.serial);
+      if (backendSerialPort && serialCfg.forwardEnabled) {
         setImmediate(() => {
           backendSerialEnqueueWrite(plate + "\r\n").then((ok) => {
             if (ok) {

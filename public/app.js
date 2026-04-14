@@ -1479,7 +1479,7 @@ function applySerialModeUi() {
   if (serialState.mode === "web") {
     setSerialHintText("");
   } else {
-    setSerialHintText(`固定串口为 ${getFixedBackendSerialPort()}，固定波特率为 ${DEFAULT_SERIAL_BAUD_RATE}。点击“发送”时会自动连接后端串口。`);
+    setSerialHintText(`固定串口为 ${getFixedBackendSerialPort()}，固定波特率为 ${DEFAULT_SERIAL_BAUD_RATE}。服务启动后会保持连接，点击“发送”会直接写入数据。`);
   }
 }
 
