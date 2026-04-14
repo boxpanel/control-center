@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "start": "node server.js",
-    "setup": "powershell -ExecutionPolicy Bypass -File .\\install.ps1"
+    "setup": "bash ./install.sh"
   },
   "dependencies": {
     "basic-ftp": "^5.0.5",

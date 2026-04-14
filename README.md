@@ -4,16 +4,18 @@ Local device control center for camera discovery, streaming, serial forwarding, 
 
 ## One-Click Install
 
-Run this in PowerShell from the project folder:
+Run this in the project folder:
 
-```powershell
-powershell -ExecutionPolicy Bypass -File .\install.ps1
+```bash
+chmod +x ./install.sh
+./install.sh
 ```
 
 Install and start in one step:
 
-```powershell
-powershell -ExecutionPolicy Bypass -File .\install.ps1 -Start
+```bash
+chmod +x ./install.sh
+./install.sh --start
 ```
 
 ## Start
