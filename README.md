@@ -2,7 +2,7 @@
 
 Local device control center for camera discovery, streaming, serial forwarding, plate event ingestion, and system configuration.
 
-## One-Click Install
+## Ubuntu Install
 
 Run this in the project folder:
 
@@ -20,20 +20,15 @@ chmod +x ./install.sh
 
 ## Start
 
-Command line:
+After installation:
 
-```powershell
+```bash
 npm start
-```
-
-Or double-click:
-
-```text
-start.cmd
 ```
 
 ## Notes
 
+- Target environment: Ubuntu
 - Requires Node.js 20 or newer.
 - The installer creates `data`, `uploads`, and `streams` automatically.
 - Default web port is `3000`; if occupied, the app will try the next ports automatically.

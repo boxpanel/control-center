@@ -26,6 +26,7 @@ step "Checking runtime"
 assert_command node "Please install Node.js 20+ from https://nodejs.org/"
 assert_command npm "Please install Node.js 20+ from https://nodejs.org/"
 printf "Node version: %s\n" "$(node -v)"
+printf "Platform: Ubuntu/Linux\n"
 
 step "Creating app folders"
 mkdir -p data uploads uploads/ftp uploads/plates streams
