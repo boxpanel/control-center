@@ -259,11 +259,11 @@ async function initSystemUi() {
     if (mode === "manual") {
       els.systemIpInput.readOnly = false;
       els.systemIpInput.value = manualIp || els.systemIpInput.value || "";
-      els.systemIpInput.placeholder = "渚嬪锛?92.168.1.22";
+      els.systemIpInput.placeholder = "例如：192.168.1.22";
     } else {
       els.systemIpInput.readOnly = true;
       els.systemIpInput.value = autoIp || "";
-      els.systemIpInput.placeholder = "鑷姩鑾峰彇";
+      els.systemIpInput.placeholder = "自动获取";
     }
   };
   els.systemIpMode.addEventListener("change", () => {
