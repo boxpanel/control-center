@@ -669,6 +669,13 @@ function getImgSrcOrFallback(imageDataUrl) {
   return 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="240" height="160"><rect width="100%25" height="100%25" fill="%23222"/><text x="50%25" y="50%25" font-size="14" text-anchor="middle" dominant-baseline="middle" fill="%23999">无图片</text></svg>';
 }
 
+function createPlateMetaTag({ className, text, muted }) {
+  const span = document.createElement("span");
+  span.className = `plate-metaTag ${className} ${muted ? "muted" : "ok"}`.trim();
+  span.textContent = text;
+  return span;
+}
+
 function updatePlateCardMeta(id) {
   const key = String(id || "");
   if (!key) return;
@@ -716,20 +723,35 @@ function renderPlateCard(record, { prepend, skipFilterApply } = {}) {
   const hasImage = Boolean(String(record.imageDataUrl || ""));
   const serialSent = Boolean(Number(record.serialSentAt || 0));
 
-  card.innerHTML = `
-    <div class="plate-checkWrap"><input class="plate-check" type="checkbox" aria-label="选择" /></div>
-    <img src="${imgSrc}" class="plate-img" alt="车牌截图" />
-    <div class="plate-info">
-      <div class="plate-text">${plateText}</div>
-      <div class="plate-metaRow">
-        <span class="plate-metaTime">${timeStr}</span>
-        <span class="plate-metaTag plate-metaImage ${hasImage ? "ok" : "muted"}">${hasImage ? "图片：有" : "图片：无"}</span>
-        <span class="plate-metaTag plate-metaSerial ${serialSent ? "ok" : "muted"}">${serialSent ? "串口：已发送" : "串口：未发送"}</span>
-      </div>
-    </div>
-  `;
+  const checkWrap = document.createElement("div");
+  checkWrap.className = "plate-checkWrap";
+  const checkbox = document.createElement("input");
+  checkbox.className = "plate-check";
+  checkbox.type = "checkbox";
+  checkbox.setAttribute("aria-label", "选择");
+  checkWrap.appendChild(checkbox);
 
-  const checkbox = card.querySelector(".plate-check");
+  const img = document.createElement("img");
+  img.src = imgSrc;
+  img.className = "plate-img";
+  img.alt = "车牌截图";
+
+  const info = document.createElement("div");
+  info.className = "plate-info";
+  const textEl = document.createElement("div");
+  textEl.className = "plate-text";
+  textEl.textContent = plateText;
+  const metaRow = document.createElement("div");
+  metaRow.className = "plate-metaRow";
+  const timeEl = document.createElement("span");
+  timeEl.className = "plate-metaTime";
+  timeEl.textContent = timeStr;
+  metaRow.appendChild(timeEl);
+  metaRow.appendChild(createPlateMetaTag({ className: "plate-metaImage", text: hasImage ? "图片：有" : "图片：无", muted: !hasImage }));
+  metaRow.appendChild(createPlateMetaTag({ className: "plate-metaSerial", text: serialSent ? "串口：已发送" : "串口：未发送", muted: !serialSent }));
+  info.append(textEl, metaRow);
+
+  card.replaceChildren(checkWrap, img, info);
   if (checkbox instanceof HTMLInputElement) {
     const id = String(card.dataset.recordId || "");
     checkbox.checked = plateSelectedIds.has(id);
@@ -1060,7 +1082,7 @@ function renderPlateTable() {
   const pageItems = filtered.slice(startIdx, startIdx + pageSize);
   plateTableVisibleIds = pageItems.map((r) => String(r.id || "")).filter(Boolean);
 
-  const rows = [];
+  els.plateTableBody.textContent = "";
   for (const rec of pageItems) {
     const id = String(rec?.id || "");
     if (!id) continue;
@@ -1069,23 +1091,42 @@ function renderPlateTable() {
     const timeText = formatDateTime(ts) || "";
     const hasImage = String(rec?.imageDataUrl || "") ? "有" : "无";
     const serialText = Number(rec?.serialSentAt || 0) ? formatDateTime(rec.serialSentAt) : "--";
-    const checked = plateSelectedIds.has(id) ? "checked" : "";
-    const selectedCls = plateSelectedIds.has(id) ? " selected" : "";
-    rows.push(
-      `<tr class="plate-row${selectedCls}" data-record-id="${id}">` +
-        `<td><input class="plate-row-check" data-record-id="${id}" type="checkbox" ${checked} /></td>` +
-        `<td>${plate}</td>` +
-        `<td>${timeText}</td>` +
-        `<td>${hasImage}</td>` +
-        `<td>${serialText}</td>` +
-      `</tr>`
-    );
+    const selected = plateSelectedIds.has(id);
+    const tr = document.createElement("tr");
+    tr.className = selected ? "plate-row selected" : "plate-row";
+    tr.dataset.recordId = id;
+
+    const tdCheck = document.createElement("td");
+    const input = document.createElement("input");
+    input.className = "plate-row-check";
+    input.dataset.recordId = id;
+    input.type = "checkbox";
+    input.checked = selected;
+    tdCheck.appendChild(input);
+
+    const tdPlate = document.createElement("td");
+    tdPlate.textContent = plate;
+    const tdTime = document.createElement("td");
+    tdTime.textContent = timeText;
+    const tdImage = document.createElement("td");
+    tdImage.textContent = hasImage;
+    const tdSerial = document.createElement("td");
+    tdSerial.textContent = serialText;
+
+    tr.append(tdCheck, tdPlate, tdTime, tdImage, tdSerial);
+    els.plateTableBody.appendChild(tr);
   }
 
-  if (!rows.length) {
-    els.plateTableBody.innerHTML = `<tr><td colspan="5" style="padding:18px; color:#6b7280; text-align:center;">暂无数据</td></tr>`;
-  } else {
-    els.plateTableBody.innerHTML = rows.join("");
+  if (!pageItems.length) {
+    const tr = document.createElement("tr");
+    const td = document.createElement("td");
+    td.colSpan = 5;
+    td.style.padding = "18px";
+    td.style.color = "#6b7280";
+    td.style.textAlign = "center";
+    td.textContent = "暂无数据";
+    tr.appendChild(td);
+    els.plateTableBody.appendChild(tr);
   }
 
   if (els.platePageInfo) els.platePageInfo.textContent = `${plateTableState.page} / ${totalPages}`;

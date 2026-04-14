@@ -23,6 +23,20 @@ const __dirname = path.dirname(__filename);
 const app = express();
 app.use(express.json({ limit: "1mb" }));
 
+app.use((req, res, next) => {
+  const url = String(req.path || "");
+  if (url.endsWith(".html")) {
+    res.type("text/html; charset=utf-8");
+  } else if (url.endsWith(".js")) {
+    res.type("application/javascript; charset=utf-8");
+  } else if (url.endsWith(".css")) {
+    res.type("text/css; charset=utf-8");
+  } else if (url.endsWith(".json")) {
+    res.type("application/json; charset=utf-8");
+  }
+  next();
+});
+
 const publicDir = path.join(__dirname, "public");
 const streamsDir = path.join(__dirname, "streams");
 const uploadsDir = path.join(__dirname, "uploads");
