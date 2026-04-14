@@ -22,6 +22,7 @@ This command now:
 - installs Node.js 20 if missing
 - clones or updates the repository
 - backs up local uncommitted changes before updating
+- repairs a corrupt local Git index before updating
 - installs npm dependencies
 - registers a `systemd` service
 - enables auto-start on boot

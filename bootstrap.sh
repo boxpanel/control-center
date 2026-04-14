@@ -16,6 +16,22 @@ run_root() {
   fi
 }
 
+repair_git_index_if_needed() {
+  local repo_dir="$1"
+  if git -C "$repo_dir" status --porcelain >/dev/null 2>&1; then
+    return 0
+  fi
+  if git -C "$repo_dir" rev-parse --git-dir >/dev/null 2>&1; then
+    local git_dir
+    git_dir="$(git -C "$repo_dir" rev-parse --git-dir 2>/dev/null || true)"
+    if [[ -n "$git_dir" && -f "$repo_dir/$git_dir/index" ]]; then
+      printf "[WARN] Git index appears to be corrupt. Rebuilding repository index...\n"
+      rm -f "$repo_dir/$git_dir/index"
+      git -C "$repo_dir" reset --hard HEAD >/dev/null 2>&1 || true
+    fi
+  fi
+}
+
 rollback() {
   local exit_code=$?
   printf "\n[ERROR] Bootstrap failed (exit code %s).\n" "$exit_code" >&2
@@ -42,7 +58,8 @@ if [[ ! -d "$INSTALL_DIR/.git" ]]; then
   CLONED_FRESH=1
 else
   printf "\n==> Updating repository in %s\n" "$INSTALL_DIR"
-  if [[ -n "$(git -C "$INSTALL_DIR" status --porcelain)" ]]; then
+  repair_git_index_if_needed "$INSTALL_DIR"
+  if [[ -n "$(git -C "$INSTALL_DIR" status --porcelain 2>/dev/null || true)" ]]; then
     BACKUP_DIR="$INSTALL_DIR/.upgrade-backup-$(date +%Y%m%d-%H%M%S)"
     printf "[WARN] Local changes detected. Backing them up to:\n"
     printf "       %s\n" "$BACKUP_DIR"
@@ -50,6 +67,7 @@ else
     git -C "$INSTALL_DIR" diff >"$BACKUP_DIR/local-changes.patch" || true
     git -C "$INSTALL_DIR" status --short >"$BACKUP_DIR/status.txt" || true
   fi
+  repair_git_index_if_needed "$INSTALL_DIR"
   git -C "$INSTALL_DIR" fetch origin main
   git -C "$INSTALL_DIR" reset --hard origin/main
   git -C "$INSTALL_DIR" clean -fd
