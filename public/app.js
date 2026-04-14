@@ -80,9 +80,8 @@
   serialLog: document.getElementById("serialLog")
 };
 
-let pc = null;
+let hlsPlayer = null;
 let activeStreamId = "";
-let activeWhepSessionUrl = "";
 let renderHandle = 0;
 const STORAGE_KEY = "onvif:lastConnection";
 const SESSION_STREAMING_KEY = "onvif:wasStreaming";
@@ -1924,13 +1923,12 @@ async function discover() {
 }
 
 function detachPlayer() {
-  if (pc) {
+  if (hlsPlayer) {
     try {
-      pc.close();
+      hlsPlayer.destroy();
     } catch {}
-    pc = null;
+    hlsPlayer = null;
   }
-  activeWhepSessionUrl = "";
   if (els.video) {
     els.video.removeAttribute("src");
     els.video.srcObject = null;
@@ -1942,12 +1940,6 @@ async function stopStream() {
   if (!activeStreamId) return;
   try {
     els.stopBtn.disabled = true;
-    if (activeWhepSessionUrl) {
-      try {
-        await fetch(activeWhepSessionUrl, { method: "DELETE" });
-      } catch {}
-      activeWhepSessionUrl = "";
-    }
     await fetchJson("/api/stream/stop", { streamId: activeStreamId });
   } catch (e) {
     logLine(`停止失败：${e.message}`);
@@ -1977,9 +1969,7 @@ async function connectAndPlay() {
     els.connectBtn.disabled = true;
     try {
       const appHealth = await fetchJson("/api/app/health");
-      logLine(
-        `服务信息：${appHealth?.platform || ""} ${appHealth?.node || ""} pid=${appHealth?.pid || ""} mediamtxApi=${appHealth?.mediamtx?.apiBase || ""}`
-      );
+      logLine(`服务信息：${appHealth?.platform || ""} ${appHealth?.node || ""} pid=${appHealth?.pid || ""}`);
     } catch {}
     logLine("通过 ONVIF 获取 RTSP URI...");
     const rtsp = await fetchJson("/api/onvif/stream-uri", {
@@ -1992,22 +1982,21 @@ async function connectAndPlay() {
 
     if (activeStreamId) await stopStream();
 
-    logLine("启动 MediaMTX WebRTC（低延迟）...");
     const rtspUriToUse = rtsp.rtspUriWithAuth || rtsp.rtspUri || "";
     if (host && port && rtspUriToUse) {
       const key = `${host}:${port}`;
       rtspByHostPort.set(key, String(rtspUriToUse));
       rtspErrorByHostPort.delete(key);
     }
+    logLine("启动 HLS 预览...");
     const started = await fetchJson("/api/stream/start", {
       rtspUri: rtspUriToUse || rtsp.rtspUri,
       transcode: false,
-      rtspTransport: (els.rtspTransport?.value || "tcp"),
-      backend: "mediamtx"
+      rtspTransport: els.rtspTransport?.value || "tcp"
     });
     activeStreamId = started.streamId;
     setButtons({ streaming: true });
-    await playWebrtc(started.whepUrl || `/webrtc/${encodeURIComponent(activeStreamId)}/whep`);
+    await playHls(started.playUrl || `/streams/${encodeURIComponent(activeStreamId)}/index.m3u8`);
 
     setTimeout(async () => {
       if (!activeStreamId) return;
@@ -2018,12 +2007,13 @@ async function connectAndPlay() {
     }, 2500);
   } catch (e) {
     logLine(`连接失败：${e.message}`);
-    try {
-      const h = await fetchJson("/api/mediamtx/health");
-      logLine(
-        `MediaMTX 鑷锛歛piBase=${h?.apiBase || ""} local=${h?.isLocalApi ? "yes" : "no"} apiOk=${h?.api?.ok ? "yes" : "no"} apiStatus=${h?.api?.status ?? ""} apiErr=${h?.api?.error || ""}`
-      );
-    } catch {}
+    if (activeStreamId) {
+      try {
+        await fetchJson("/api/stream/stop", { streamId: activeStreamId });
+      } catch {}
+    }
+    activeStreamId = "";
+    detachPlayer();
     setButtons({ streaming: false });
     try {
       sessionStorage.setItem(SESSION_STREAMING_KEY, "0");
@@ -2033,86 +2023,62 @@ async function connectAndPlay() {
   }
 }
 
-function waitIceGatheringComplete(peer, timeoutMs) {
-  return new Promise((resolve) => {
-    if (peer.iceGatheringState === "complete") {
-      resolve(true);
-      return;
-    }
-    const t = setTimeout(() => {
-      cleanup();
-      resolve(false);
-    }, timeoutMs);
-    const onChange = () => {
-      if (peer.iceGatheringState === "complete") {
-        cleanup();
-        resolve(true);
-      }
-    };
-    const cleanup = () => {
-      clearTimeout(t);
-      try {
-        peer.removeEventListener("icegatheringstatechange", onChange);
-      } catch {}
-    };
-    peer.addEventListener("icegatheringstatechange", onChange);
-  });
-}
-
-async function playWebrtc(whepUrl) {
+async function playHls(playUrl) {
   detachPlayer();
-
-  if (!window.RTCPeerConnection) {
-    throw new Error("当前浏览器不支持 WebRTC");
+  if (!els.video) {
+    throw new Error("找不到视频播放器");
+  }
+  const sourceUrl = String(playUrl || "").trim();
+  if (!sourceUrl) {
+    throw new Error("播放地址为空");
   }
 
-  pc = new RTCPeerConnection({});
-  const remoteStream = new MediaStream();
-
-  pc.addEventListener("track", (ev) => {
-    if (ev.track) remoteStream.addTrack(ev.track);
-  });
-  pc.addEventListener("connectionstatechange", () => {
-    const st = pc?.connectionState || "";
-    if (st) logLine(`WebRTC 鐘舵€侊細${st}`);
-  });
-
-  pc.addTransceiver("video", { direction: "recvonly" });
-  pc.addTransceiver("audio", { direction: "recvonly" });
-
-  const offer = await pc.createOffer();
-  await pc.setLocalDescription(offer);
-  await waitIceGatheringComplete(pc, 4000);
-
-  const local = pc.localDescription;
-  if (!local?.sdp) throw new Error("鐢熸垚 WebRTC Offer 澶辫触");
-
-  const res = await fetch(whepUrl, {
-    method: "POST",
-    headers: { "Content-Type": "application/sdp", Accept: "application/sdp" },
-    body: local.sdp
-  });
-  const answerSdp = await res.text();
-  if (!res.ok) {
-    throw new Error(answerSdp || `HTTP ${res.status}`);
+  if (window.Hls?.isSupported?.()) {
+    hlsPlayer = new window.Hls({
+      enableWorker: true,
+      lowLatencyMode: true,
+      backBufferLength: 30
+    });
+    hlsPlayer.on(window.Hls.Events.ERROR, (_event, data) => {
+      const detail = String(data?.details || data?.type || "unknown error");
+      if (data?.fatal) logLine(`HLS 播放错误：${detail}`);
+    });
+    hlsPlayer.loadSource(sourceUrl);
+    hlsPlayer.attachMedia(els.video);
+    await new Promise((resolve, reject) => {
+      const cleanup = () => {
+        try {
+          hlsPlayer?.off(window.Hls.Events.MANIFEST_PARSED, onParsed);
+          hlsPlayer?.off(window.Hls.Events.ERROR, onError);
+        } catch {}
+      };
+      const onParsed = async () => {
+        cleanup();
+        try {
+          await els.video.play();
+        } catch {}
+        resolve();
+      };
+      const onError = (_event, data) => {
+        if (!data?.fatal) return;
+        cleanup();
+        reject(new Error(String(data?.details || data?.type || "HLS fatal error")));
+      };
+      hlsPlayer.on(window.Hls.Events.MANIFEST_PARSED, onParsed);
+      hlsPlayer.on(window.Hls.Events.ERROR, onError);
+    });
+    return;
   }
 
-  const loc = res.headers.get("Location") || res.headers.get("location") || "";
-  if (loc) {
-    activeWhepSessionUrl = new URL(loc, window.location.origin).toString();
-  }
-
-  await pc.setRemoteDescription({ type: "answer", sdp: answerSdp });
-
-  if (els.video) {
-    els.video.srcObject = remoteStream;
-    els.video.muted = true;
+  if (els.video.canPlayType("application/vnd.apple.mpegurl")) {
+    els.video.src = sourceUrl;
     try {
       await els.video.play();
-    } catch {
-      logLine("鑷姩鎾斁琚祻瑙堝櫒闃绘锛岃鎵嬪姩鐐瑰嚮鎾斁");
-    }
+    } catch {}
+    return;
   }
+
+  throw new Error("当前浏览器不支持 HLS 播放");
 }
 
 function ensureCanvasSize() {

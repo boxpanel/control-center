@@ -36,8 +36,6 @@ await fs.mkdir(ftpUploadRootDir, { recursive: true });
 await fs.mkdir(dataDir, { recursive: true });
 await fs.mkdir(platesUploadDir, { recursive: true });
 
-const mediamtxStreams = new Map();
-
 const deviceInfoPath = path.join(__dirname, ".device-info.json");
 
 const plateDb = new Database(plateDbPath);
@@ -554,7 +552,7 @@ async function ensureFtpServer(cfg) {
   ftpServerKey = nextKey;
   if (!conf.enabled) return;
   if (conf.port < 1024 && typeof process.getuid === "function" && process.getuid() !== 0) {
-    throw new Error("FTP 端口小于 1024 需要 root 权限（建议改用 2121，或给 node 授予 cap_net_bind_service）");
+    throw new Error("FTP 端口小于 1024 需要 root 权限，建议改用 2121，或给 node 授予 cap_net_bind_service");
   }
 
   const url = `ftp://0.0.0.0:${conf.port}`;
@@ -1146,7 +1144,7 @@ async function startRegistryReporter({ port }) {
   let registerUrl = "";
   let heartbeatUrl = "";
 
-  const capabilities = ["onvif-viewer", "webrtc", "hls"];
+  const capabilities = ["onvif-viewer", "hls"];
 
   let token = "";
   let registered = false;
@@ -1491,117 +1489,6 @@ async function startProbeResponder({ port, reporter }) {
 
   return { stop };
 }
-async function proxyFetchToRes(url, res) {
-  let r;
-  try {
-    r = await fetch(url);
-  } catch {
-    res.status(502).end();
-    return;
-  }
-  res.status(r.status);
-  const ct = r.headers.get("content-type");
-  if (ct) res.setHeader("Content-Type", ct);
-  res.setHeader("Cache-Control", "no-store");
-  const reader = r.body?.getReader?.();
-  if (!reader) {
-    const buf = await r.arrayBuffer();
-    res.end(Buffer.from(buf));
-    return;
-  }
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    res.write(Buffer.from(value));
-  }
-  res.end();
-}
-
-async function readReqBody(req) {
-  const chunks = [];
-  for await (const chunk of req) chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
-  return Buffer.concat(chunks);
-}
-
-async function proxyReqToRes(req, res, url, { rewriteLocation } = {}) {
-  const headers = { ...req.headers };
-  delete headers.host;
-  delete headers.connection;
-  delete headers["content-length"];
-
-  const method = String(req.method || "GET").toUpperCase();
-  const body = method === "GET" || method === "HEAD" ? undefined : await readReqBody(req);
-
-  let r;
-  try {
-    r = await fetch(url, { method, headers, body });
-  } catch {
-    res.status(502).end();
-    return;
-  }
-
-  res.status(r.status);
-  const ct = r.headers.get("content-type");
-  if (ct) res.setHeader("Content-Type", ct);
-  const etag = r.headers.get("etag");
-  if (etag) res.setHeader("ETag", etag);
-  const loc = r.headers.get("location");
-  if (loc) res.setHeader("Location", typeof rewriteLocation === "function" ? rewriteLocation(loc) : loc);
-  res.setHeader("Cache-Control", "no-store");
-
-  const reader = r.body?.getReader?.();
-  if (!reader) {
-    const buf = await r.arrayBuffer();
-    res.end(Buffer.from(buf));
-    return;
-  }
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    res.write(Buffer.from(value));
-  }
-  res.end();
-}
-app.get("/streams/:id/:file", async (req, res, next) => {
-  const id = req.params.id;
-  const file = req.params.file;
-  if (!mediamtxStreams.has(id)) return next();
-  const base = process.env.MEDIAMTX_HLS_BASE || "http://127.0.0.1:8888/hls";
-  const url = `${base}/${encodeURIComponent(id)}/${encodeURIComponent(file)}`;
-  await proxyFetchToRes(url, res);
-});
-
-async function handleWhepProxy(req, res, { id, suffix }) {
-  if (!mediamtxStreams.has(id)) {
-    res.status(404).end();
-    return;
-  }
-  const base = process.env.MEDIAMTX_WEBRTC_BASE || "http://127.0.0.1:8889";
-  const url = `${base}/${encodeURIComponent(id)}/whep${suffix}`;
-  await proxyReqToRes(req, res, url, {
-    rewriteLocation(loc) {
-      try {
-        const u = new URL(loc, base);
-        const prefix = `/${id}/whep`;
-        const after = u.pathname.startsWith(prefix) ? u.pathname.slice(prefix.length) : "";
-        return `/webrtc/${encodeURIComponent(id)}/whep${after}${u.search || ""}`;
-      } catch {
-        return loc;
-      }
-    }
-  });
-}
-
-app.all("/webrtc/:id/whep", async (req, res) => {
-  const id = req.params.id;
-  await handleWhepProxy(req, res, { id, suffix: "" });
-});
-
-app.all("/webrtc/:id/whep/*", async (req, res) => {
-  const id = req.params.id;
-  const rest = req.params[0] ? `/${req.params[0]}` : "";
-  await handleWhepProxy(req, res, { id, suffix: rest });
-});
 app.use(
   "/streams",
   express.static(streamsDir, {
@@ -1969,7 +1856,7 @@ app.post("/api/plates/delete", (req, res) => {
 app.post("/api/plates/mock", (req, res) => {
   const count = Math.max(1, Math.min(2000, toPositiveInt(req.body?.count, 50)));
   const now = Date.now();
-  const plates = ["京A12345", "沪B23456", "粤C34567", "浙D45678", "苏E56789", "鲁F67890"];
+  const plates = ["娴滅徆12345", "濞岀嫙23456", "缁棭34567", "濞存45678", "閼诲粛56789", "妞翠笚67890"];
   const tx = plateDb.transaction(() => {
     for (let i = 0; i < count; i += 1) {
       const receivedAt = now - (count - i) * 60_000;
@@ -2048,7 +1935,7 @@ app.post("/api/device/config", async (req, res, next) => {
     try {
       await ensureBackendSerial(config?.serial);
     } catch (e) {
-      const err = new Error(`后台串口启动失败：${String(e?.message || e || "")}`);
+      const err = new Error(`后端串口启动失败：${String(e?.message || e || "")}`);
       err.statusCode = 502;
       throw err;
     }
@@ -2178,12 +2065,12 @@ app.post("/api/isapi/event", express.raw({ type: "*/*", limit: "50mb" }), async 
     const eventState = String(parsed.eventState || "").trim().toLowerCase();
     const isAnprLike = !eventType || eventType.includes("ANPR") || eventType.includes("PLATE");
     
-    // 支持 XML 或 JSON 格式的车牌号提取
+    // 閺€顖涘瘮 XML 閹?JSON 閺嶇厧绱￠惃鍕簠閻楀苯褰块幓鎰絿
     const imageBase64 = parsed.imageBase64;
     const jpegBuffer = parsed.jpegBuffer;
 
-    // 尝试解析 multipart 提取图片 (JPEG)
-    // 简单的二进制搜索查找 JPEG header (FF D8 FF) 和 footer (FF D9)
+    // 鐏忔繆鐦憴锝嗙€?multipart 閹绘劕褰囬崶鍓у (JPEG)
+    // 缁犫偓閸楁洜娈戞禍宀冪箻閸掕埖鎮崇槐銏＄叀閹?JPEG header (FF D8 FF) 閸?footer (FF D9)
     if (plate && isAnprLike && (!eventState || eventState === "active")) {
       if (parsed.sourceEventKey) {
         const existing = stmtPlateGetBySourceEventKey.get(parsed.sourceEventKey);
@@ -2192,7 +2079,7 @@ app.post("/api/isapi/event", express.raw({ type: "*/*", limit: "50mb" }), async 
           return;
         }
       }
-      console.log(`[ISAPI] 识别到车牌: ${plate}`);
+      console.log(`[ISAPI] 鐠囧棗鍩嗛崚鎷屾簠閻? ${plate}`);
       const eventDate = parsed.eventDate || new Date();
       const timestamp = eventDate.toISOString();
       const receivedAt = Date.now();
@@ -2252,7 +2139,7 @@ app.post("/api/isapi/event", express.raw({ type: "*/*", limit: "50mb" }), async 
       console.log(`[ISAPI] ignore event type=${shortType} state=${parsed.eventState || "unknown"} plate=${plate || "-"}`);
     }
 
-    // 必须给摄像头返回 200 OK，否则摄像头可能会认为发送失败并重试
+    // 韫囧懘銆忕紒娆愭啔閸嶅繐銇旀潻鏂挎礀 200 OK閿涘苯鎯侀崚娆愭啔閸嶅繐銇旈崣顖濆厴娴兼俺顓绘稉鍝勫絺闁礁銇戠拹銉ヨ嫙闁插秷鐦?
     res.status(200).send("OK");
   } catch (err) {
     console.error("ISAPI event parse error:", err);
@@ -2569,7 +2456,7 @@ async function startHlsStream(rtspUri, transcodeFlag, transport) {
     child.kill("SIGKILL");
   } catch {}
   await emptyDir(outDir).catch(() => undefined);
-  const err = new Error(record.lastError || "HLS 未就绪，可能无法连接 RTSP 或 ffmpeg 不可用");
+  const err = new Error(record.lastError || "HLS 尚未就绪，可能无法连接 RTSP 或 ffmpeg 不可用");
   err.statusCode = 502;
   throw err;
 }
@@ -2582,235 +2469,16 @@ async function stopHlsStream(streamId) {
   return { stopped: true };
 }
 
-function getMediaMtxApiHeaders() {
-  const user = process.env.MEDIAMTX_API_USER || "";
-  const pass = process.env.MEDIAMTX_API_PASS || "";
-  const headers = { "Content-Type": "application/json" };
-  if (user || pass) {
-    const token = Buffer.from(`${user}:${pass}`, "utf8").toString("base64");
-    headers.Authorization = `Basic ${token}`;
-  }
-  return headers;
-}
-
-async function mediaMtxApiFetch(pathname, init) {
-  const apiBase = process.env.MEDIAMTX_API || "http://127.0.0.1:9997/v3";
-  const url = `${apiBase}${pathname}`;
-  return fetch(url, { ...init, headers: { ...getMediaMtxApiHeaders(), ...(init?.headers || {}) } });
-}
-
-let mediamtxChild = null;
-let mediamtxLastOutput = "";
-
-function isLocalMediaMtxApi() {
-  const apiBase = process.env.MEDIAMTX_API || "http://127.0.0.1:9997/v3";
-  try {
-    const u = new URL(apiBase);
-    const host = String(u.hostname || "").toLowerCase();
-    return host === "127.0.0.1" || host === "localhost" || host === "::1";
-  } catch {
-    return true;
-  }
-}
-
-app.get("/api/mediamtx/health", async (req, res) => {
-  const apiBase = process.env.MEDIAMTX_API || "http://127.0.0.1:9997/v3";
-  const info = {
-    apiBase,
-    isLocalApi: isLocalMediaMtxApi(),
-    autostart: {
-      enabled: process.env.MEDIAMTX_DISABLE_AUTOSTART !== "1",
-      force: process.env.MEDIAMTX_AUTOSTART === "1",
-      bin: process.env.MEDIAMTX_BIN || "",
-      conf: process.env.MEDIAMTX_CONF || ""
-    },
-    process: {
-      running: Boolean(mediamtxChild && mediamtxChild.exitCode == null)
-    },
-    api: {
-      ok: false,
-      status: null,
-      error: ""
-    }
-  };
-  try {
-    const r = await mediaMtxApiFetch("/paths/list", { method: "GET" });
-    info.api.status = r.status;
-    info.api.ok = r.ok || r.status === 401;
-  } catch (e) {
-    info.api.error = String(e?.message || e || "");
-  }
-  res.json(info);
-});
-
 app.get("/api/app/health", (req, res) => {
-  const apiBase = process.env.MEDIAMTX_API || "http://127.0.0.1:9997/v3";
-  const webrtcBase = process.env.MEDIAMTX_WEBRTC_BASE || "http://127.0.0.1:8889";
   res.json({
     ok: true,
     time: new Date().toISOString(),
     pid: process.pid,
     node: process.version,
-    platform: process.platform,
-    mediamtx: { apiBase, webrtcBase }
+    platform: process.platform
   });
 });
 
-async function ensureMediaMtxRunning() {
-  if (process.env.MEDIAMTX_DISABLE_AUTOSTART === "1") return;
-  const force = process.env.MEDIAMTX_AUTOSTART === "1";
-  if (!force && !isLocalMediaMtxApi()) return;
-
-  if (mediamtxChild && mediamtxChild.exitCode == null) return;
-  mediamtxChild = null;
-
-  const defaultBin =
-    process.platform === "win32"
-      ? path.join(__dirname, "tools", "mediamtx", "mediamtx.exe")
-      : path.join(__dirname, "tools", "mediamtx", "mediamtx");
-  const bin = process.env.MEDIAMTX_BIN || defaultBin;
-  const defaultConf = path.join(__dirname, "tools", "mediamtx", "mediamtx.yml");
-  const conf = process.env.MEDIAMTX_CONF || defaultConf;
-
-  try {
-    const st = await fs.stat(bin);
-    if (!st.isFile()) throw new Error("not a file");
-  } catch {
-    const err = new Error(`找不到 MediaMTX 可执行文件：${bin}`);
-    err.statusCode = 502;
-    throw err;
-  }
-
-  try {
-    const st = await fs.stat(conf);
-    if (!st.isFile()) throw new Error("not a file");
-  } catch {
-    const err = new Error(`找不到 MediaMTX 配置文件：${conf}`);
-    err.statusCode = 502;
-    throw err;
-  }
-
-  mediamtxLastOutput = "";
-  try {
-    const cwd = path.dirname(bin);
-    mediamtxChild = spawn(bin, [conf], { cwd, stdio: ["ignore", "pipe", "pipe"] });
-    const onData = (buf) => {
-      mediamtxLastOutput += buf.toString("utf8");
-      if (mediamtxLastOutput.length > 8000) mediamtxLastOutput = mediamtxLastOutput.slice(-8000);
-    };
-    mediamtxChild.stdout?.on("data", onData);
-    mediamtxChild.stderr?.on("data", onData);
-    mediamtxChild.on("exit", () => {
-      mediamtxChild = null;
-    });
-  } catch (e) {
-    const msg = String(e?.message || e || "启动失败");
-    const err = new Error(`自动启动 MediaMTX 失败：${msg}`);
-    err.statusCode = 502;
-    throw err;
-  }
-
-  const deadline = Date.now() + 4500;
-  while (Date.now() < deadline) {
-    try {
-      const r = await mediaMtxApiFetch("/paths/list", { method: "GET" });
-      if (r.ok || r.status === 401) return;
-    } catch {}
-    await new Promise((r) => setTimeout(r, 150));
-  }
-
-  const tail = mediamtxLastOutput.trim();
-  const err = new Error(
-    `MediaMTX 已尝试自动启动，但 API 仍不可用（请检查端口 9997 是否监听）。${tail ? `\n${tail}` : ""}`.trim()
-  );
-  err.statusCode = 502;
-  throw err;
-}
-
-async function tryMediaMtxApiV3Add(pathName, conf) {
-  const r = await mediaMtxApiFetch(`/config/paths/add/${encodeURIComponent(pathName)}`, {
-    method: "POST",
-    body: JSON.stringify(conf)
-  });
-  if (!r.ok) {
-    const text = await r.text().catch(() => "");
-    throw new Error(`MediaMTX API ${r.status}${text ? ` ${text}` : ""}`.trim());
-  }
-}
-
-async function tryMediaMtxApiV3Patch(pathName, conf) {
-  const r = await mediaMtxApiFetch(`/config/paths/patch/${encodeURIComponent(pathName)}`, {
-    method: "PATCH",
-    body: JSON.stringify(conf)
-  });
-  if (!r.ok) {
-    const text = await r.text().catch(() => "");
-    throw new Error(`MediaMTX API ${r.status}${text ? ` ${text}` : ""}`.trim());
-  }
-}
-
-async function startMediaMtxStream(rtspUri, transport) {
-  await ensureMediaMtxRunning();
-  const streamId = crypto.randomUUID();
-  const pathName = streamId;
-  const transportNorm = String(transport || "")
-    .trim()
-    .toLowerCase();
-  const rtspTransport =
-    transportNorm === "auto" ? "automatic" : ["tcp", "udp", "automatic"].includes(transportNorm) ? transportNorm : "tcp";
-  const conf = {
-    source: rtspUri,
-    sourceOnDemand: true,
-    rtspTransport
-  };
-  let ok = false;
-  let lastApiErr = "";
-  try {
-    await tryMediaMtxApiV3Add(pathName, conf);
-    ok = true;
-  } catch (e) {
-    lastApiErr = String(e?.message || e || "");
-  }
-  if (!ok) {
-    try {
-      await tryMediaMtxApiV3Patch(pathName, conf);
-      ok = true;
-    } catch (e) {
-      lastApiErr = String(e?.message || e || "");
-    }
-  }
-  if (!ok) {
-    const apiBase = process.env.MEDIAMTX_API || "http://127.0.0.1:9997/v3";
-    let hint = `无法连接 MediaMTX API，请确保 MediaMTX 已运行并启用 API（${apiBase}）`;
-    try {
-      const r = await mediaMtxApiFetch("/paths/list", { method: "GET" });
-      if (r.status === 401) {
-        hint = "MediaMTX API 需要认证，请配置 MEDIAMTX_API_USER / MEDIAMTX_API_PASS";
-      } else if (r.status === 404) {
-        hint = "MediaMTX API 地址不对，请检查 MEDIAMTX_API（需要包含 /v3）";
-      } else if (!r.ok) {
-        hint = `MediaMTX API 返回 HTTP ${r.status}，请检查 API 配置`;
-      } else if (lastApiErr) {
-        hint = `MediaMTX API 可访问，但配置路径失败：${lastApiErr}`;
-      }
-    } catch (e) {
-      const msg = String(e?.message || e || "");
-      hint = `${hint}（${msg || lastApiErr || "请求失败"}）`;
-    }
-    const err = new Error(hint);
-    err.statusCode = 502;
-    throw err;
-  }
-  mediamtxStreams.set(streamId, { pathName });
-  const whepUrl = `/webrtc/${encodeURIComponent(streamId)}/whep`;
-  return { streamId, whepUrl };
-}
-
-async function stopMediaMtxStream(streamId) {
-  if (!mediamtxStreams.has(streamId)) return { stopped: false };
-  mediamtxStreams.delete(streamId);
-  return { stopped: true };
-}
 
 app.post("/api/onvif/discover", async (req, res, next) => {
   try {
@@ -2967,11 +2635,7 @@ app.post("/api/stream/start", async (req, res, next) => {
     const rtspUri = requireString(req.body?.rtspUri, "rtspUri");
     const transcode = Boolean(req.body?.transcode);
     const rtspTransport = requireOptionalString(req.body?.rtspTransport);
-    const backend = (requireOptionalString(req.body?.backend) || "ffmpeg").toLowerCase();
-    const started =
-      backend === "mediamtx"
-        ? await startMediaMtxStream(rtspUri, rtspTransport || "tcp")
-        : await startHlsStream(rtspUri, transcode, rtspTransport);
+    const started = await startHlsStream(rtspUri, transcode, rtspTransport);
     res.json(started);
   } catch (err) {
     next(err);
@@ -2981,7 +2645,7 @@ app.post("/api/stream/start", async (req, res, next) => {
 app.post("/api/stream/stop", async (req, res, next) => {
   try {
     const streamId = requireString(req.body?.streamId, "streamId");
-    const result = (await stopHlsStream(streamId)).stopped ? { stopped: true } : await stopMediaMtxStream(streamId);
+    const result = await stopHlsStream(streamId);
     res.json(result);
   } catch (err) {
     next(err);
