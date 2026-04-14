@@ -1,11 +1,13 @@
 import { spawn } from "node:child_process";
 import crypto from "node:crypto";
 import dgram from "node:dgram";
+import { watch as fsWatch } from "node:fs";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { Readable } from "node:stream";
 import { fileURLToPath } from "node:url";
 import os from "node:os";
+import { Worker } from "node:worker_threads";
 
 import Database from "better-sqlite3";
 import * as ftp from "basic-ftp";
@@ -435,12 +437,17 @@ app.use(express.static(publicDir));
 let ftpServer = null;
 let ftpServerKey = "";
 let ftpIngestTimer = null;
+let ftpIngestWatcher = null;
+let ftpIngestDebounceTimer = null;
+let ftpIngestRunning = false;
+let ftpIngestQueued = false;
 let ftpIngestKey = "";
 
 const FTP_PASV_MIN_PORT = 40000;
 const FTP_PASV_MAX_PORT = 40100;
-const FTP_INGEST_SETTLE_MS = 3000;
-const FTP_INGEST_SCAN_INTERVAL_MS = 5000;
+const FTP_INGEST_SETTLE_MS = 800;
+const FTP_INGEST_SCAN_INTERVAL_MS = 1500;
+const FTP_INGEST_TRIGGER_DELAY_MS = 250;
 const FTP_INGEST_ARCHIVE_DIRNAME = "_ingested";
 
 let backendSerialPort = null;
@@ -707,12 +714,53 @@ async function stopFtpServer() {
 
 function stopFtpIngestLoop() {
   if (ftpIngestTimer) clearInterval(ftpIngestTimer);
+  if (ftpIngestDebounceTimer) clearTimeout(ftpIngestDebounceTimer);
+  if (ftpIngestWatcher) {
+    try {
+      ftpIngestWatcher.close();
+    } catch {}
+  }
   ftpIngestTimer = null;
+  ftpIngestWatcher = null;
+  ftpIngestDebounceTimer = null;
+  ftpIngestRunning = false;
+  ftpIngestQueued = false;
   ftpIngestKey = "";
 }
 
-async function ingestFtpImageFile(absPath, rootDir, sidecarByStem) {
-  const relPath = path.relative(rootDir, absPath).split(path.sep).join("/");
+async function collectFtpIngestCandidatesInWorker(rootDir) {
+  return await new Promise((resolve, reject) => {
+    const worker = new Worker(new URL("./ftp-ingest-worker.js", import.meta.url), {
+      workerData: {
+        rootDir,
+        archiveDirName: FTP_INGEST_ARCHIVE_DIRNAME
+      }
+    });
+    let settled = false;
+    worker.once("message", (message) => {
+      settled = true;
+      if (message?.ok) {
+        resolve(Array.isArray(message.candidates) ? message.candidates : []);
+      } else {
+        reject(new Error(message?.error || "FTP ingest worker failed"));
+      }
+    });
+    worker.once("error", (err) => {
+      settled = true;
+      reject(err);
+    });
+    worker.once("exit", (code) => {
+      if (!settled && code !== 0) {
+        reject(new Error(`FTP ingest worker exited with code ${code}`));
+      }
+    });
+  });
+}
+
+async function ingestFtpImageFile(candidate, rootDir) {
+  const absPath = String(candidate?.absPath || "");
+  if (!absPath) return false;
+  const relPath = String(candidate?.relPath || path.relative(rootDir, absPath).split(path.sep).join("/"));
   const sourceEventKey = `ftp:${relPath}`;
   if (stmtPlateGetBySourceEventKey.get(sourceEventKey)) return false;
 
@@ -720,11 +768,10 @@ async function ingestFtpImageFile(absPath, rootDir, sidecarByStem) {
   if (!stat || !stat.isFile() || stat.size <= 0) return false;
   if (Date.now() - stat.mtimeMs < FTP_INGEST_SETTLE_MS) return false;
 
-  const stemKey = absPath.slice(0, absPath.length - path.extname(absPath).length).toLowerCase();
   let plate = "";
-  const metadataFiles = sidecarByStem.get(stemKey) || [];
-  for (const metaPath of metadataFiles) {
-    const text = await fs.readFile(metaPath, "utf8").catch(() => "");
+  const metadataTexts = Array.isArray(candidate?.metadataTexts) ? candidate.metadataTexts : [];
+  const metadataFiles = Array.isArray(candidate?.metadataPaths) ? candidate.metadataPaths : [];
+  for (const text of metadataTexts) {
     plate = extractPlateFromText(text);
     if (plate) break;
   }
@@ -784,25 +831,66 @@ async function ingestFtpImageFile(absPath, rootDir, sidecarByStem) {
 }
 
 async function runFtpIngestScan(conf) {
-  const resolvedRoot = resolveFtpRootDir(conf?.rootDir);
-  const files = await listFilesRecursive(resolvedRoot);
-  const sidecarByStem = new Map();
-  for (const absPath of files) {
-    if (isWithinFtpArchive(absPath, resolvedRoot)) continue;
-    if (!isFtpMetadataFile(absPath)) continue;
-    const stemKey = absPath.slice(0, absPath.length - path.extname(absPath).length).toLowerCase();
-    const arr = sidecarByStem.get(stemKey) || [];
-    arr.push(absPath);
-    sidecarByStem.set(stemKey, arr);
+  if (ftpIngestRunning) {
+    ftpIngestQueued = true;
+    return;
   }
-  for (const absPath of files) {
-    if (isWithinFtpArchive(absPath, resolvedRoot)) continue;
-    if (!isFtpImageFile(absPath)) continue;
-    try {
-      await ingestFtpImageFile(absPath, resolvedRoot, sidecarByStem);
-    } catch (err) {
-      console.error("[FTP] ingest scan failed:", err?.message || String(err));
+  ftpIngestRunning = true;
+  try {
+    const resolvedRoot = resolveFtpRootDir(conf?.rootDir);
+    const candidates = await collectFtpIngestCandidatesInWorker(resolvedRoot);
+    for (const candidate of candidates) {
+      try {
+        await ingestFtpImageFile(candidate, resolvedRoot);
+      } catch (err) {
+        console.error("[FTP] ingest scan failed:", err?.message || String(err));
+      }
     }
+  } finally {
+    ftpIngestRunning = false;
+    if (ftpIngestQueued) {
+      ftpIngestQueued = false;
+      queueMicrotask(() => {
+        runFtpIngestScan(conf).catch((err) => {
+          console.error("[FTP] ingest loop error:", err?.message || String(err));
+        });
+      });
+    }
+  }
+}
+
+function scheduleFtpIngestRun(conf, delayMs = FTP_INGEST_TRIGGER_DELAY_MS) {
+  if (!conf?.enabled) return;
+  if (ftpIngestDebounceTimer) clearTimeout(ftpIngestDebounceTimer);
+  ftpIngestDebounceTimer = setTimeout(() => {
+    ftpIngestDebounceTimer = null;
+    runFtpIngestScan(conf).catch((err) => {
+      console.error("[FTP] ingest loop error:", err?.message || String(err));
+    });
+  }, Math.max(0, delayMs));
+}
+
+function attachFtpIngestWatcher(conf) {
+  if (ftpIngestWatcher) return;
+  const resolvedRoot = resolveFtpRootDir(conf?.rootDir);
+  try {
+    ftpIngestWatcher = fsWatch(resolvedRoot, { persistent: false }, (_eventType, filename) => {
+      const relName = String(filename || "");
+      if (!relName || relName.startsWith(FTP_INGEST_ARCHIVE_DIRNAME)) return;
+      scheduleFtpIngestRun(conf);
+    });
+    ftpIngestWatcher.on("error", (err) => {
+      console.warn("[FTP] watcher disabled:", err?.message || String(err));
+      if (ftpIngestWatcher) {
+        try {
+          ftpIngestWatcher.close();
+        } catch {}
+      }
+      ftpIngestWatcher = null;
+    });
+  } catch (err) {
+    console.warn("[FTP] watcher unavailable:", err?.message || String(err));
+    ftpIngestWatcher = null;
   }
 }
 
@@ -820,8 +908,9 @@ function scheduleFtpIngestLoop(conf) {
       console.error("[FTP] ingest loop error:", err?.message || String(err));
     });
   };
-  run();
+  scheduleFtpIngestRun(conf, 0);
   ftpIngestTimer = setInterval(run, FTP_INGEST_SCAN_INTERVAL_MS);
+  attachFtpIngestWatcher(conf);
 }
 
 async function ensureFtpServer(cfg) {
@@ -1320,6 +1409,45 @@ function parseHikvisionIsapiEvent(rawBody, contentType) {
     isRetransmission: toBooleanLoose(isRetransmissionText),
     hasMultipart: parts.length > 0,
     xmlText
+  };
+}
+
+async function parseHikvisionIsapiEventInWorker(rawBody, contentType) {
+  const workerResult = await new Promise((resolve, reject) => {
+    const worker = new Worker(new URL("./isapi-event-worker.js", import.meta.url), {
+      workerData: {
+        rawBody,
+        contentType: String(contentType || "")
+      }
+    });
+    let settled = false;
+    worker.once("message", (message) => {
+      settled = true;
+      if (message?.ok) resolve(message.payload || {});
+      else reject(new Error(message?.error || "ISAPI parse worker failed"));
+    });
+    worker.once("error", (err) => {
+      settled = true;
+      reject(err);
+    });
+    worker.once("exit", (code) => {
+      if (!settled && code !== 0) reject(new Error(`ISAPI parse worker exited with code ${code}`));
+    });
+  });
+
+  const jpegBuffer = workerResult?.jpegBase64 ? Buffer.from(String(workerResult.jpegBase64 || ""), "base64") : null;
+  const eventDate = workerResult?.eventDateIso ? new Date(workerResult.eventDateIso) : null;
+  return {
+    plate: String(workerResult?.plate || ""),
+    eventType: String(workerResult?.eventType || "").trim(),
+    eventState: String(workerResult?.eventState || "").trim(),
+    eventDate: Number.isFinite(eventDate?.getTime()) ? eventDate : null,
+    jpegBuffer,
+    imageBase64: jpegBuffer ? `data:image/jpeg;base64,${jpegBuffer.toString("base64")}` : "",
+    sourceEventKey: String(workerResult?.sourceEventKey || ""),
+    isRetransmission: !!workerResult?.isRetransmission,
+    hasMultipart: !!workerResult?.hasMultipart,
+    xmlText: String(workerResult?.xmlText || "")
   };
 }
 
@@ -2368,7 +2496,13 @@ async function uploadPlateJpegToFtp({ jpegBuffer, remoteDir, remoteName }) {
 app.post("/api/isapi/event", express.raw({ type: "*/*", limit: "50mb" }), async (req, res) => {
   try {
     const rawBody = Buffer.isBuffer(req.body) ? req.body : Buffer.from(req.body || "");
-    const parsed = parseHikvisionIsapiEvent(rawBody, req.headers["content-type"] || "");
+    let parsed;
+    try {
+      parsed = await parseHikvisionIsapiEventInWorker(rawBody, req.headers["content-type"] || "");
+    } catch (workerErr) {
+      console.warn("[ISAPI] worker parse fallback:", workerErr?.message || String(workerErr));
+      parsed = parseHikvisionIsapiEvent(rawBody, req.headers["content-type"] || "");
+    }
     const plate = parsed.plate;
     const eventType = String(parsed.eventType || "").trim().toUpperCase();
     const eventState = String(parsed.eventState || "").trim().toLowerCase();
