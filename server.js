@@ -441,6 +441,7 @@ const FTP_PASV_MIN_PORT = 40000;
 const FTP_PASV_MAX_PORT = 40100;
 const FTP_INGEST_SETTLE_MS = 3000;
 const FTP_INGEST_SCAN_INTERVAL_MS = 5000;
+const FTP_INGEST_ARCHIVE_DIRNAME = "_ingested";
 
 let backendSerialPort = null;
 let backendSerialKey = "";
@@ -672,6 +673,27 @@ async function listFilesRecursive(rootDir) {
   return out;
 }
 
+function getFtpArchiveRoot(rootDir) {
+  return path.join(rootDir, FTP_INGEST_ARCHIVE_DIRNAME);
+}
+
+function isWithinFtpArchive(absPath, rootDir) {
+  const archiveRoot = getFtpArchiveRoot(rootDir);
+  const rel = path.relative(archiveRoot, absPath);
+  return rel === "" || (!rel.startsWith("..") && !path.isAbsolute(rel));
+}
+
+async function archiveFtpSourceFile(absPath, rootDir) {
+  if (isWithinFtpArchive(absPath, rootDir)) return;
+  const rel = path.relative(rootDir, absPath);
+  const archivePath = path.join(getFtpArchiveRoot(rootDir), rel);
+  await fs.mkdir(path.dirname(archivePath), { recursive: true });
+  await fs.rename(absPath, archivePath).catch(async () => {
+    await fs.copyFile(absPath, archivePath);
+    await fs.unlink(absPath).catch(() => {});
+  });
+}
+
 async function stopFtpServer() {
   stopFtpIngestLoop();
   if (!ftpServer) return;
@@ -752,6 +774,10 @@ async function ingestFtpImageFile(absPath, rootDir, sidecarByStem) {
       });
     });
   }
+  for (const metaPath of metadataFiles) {
+    await archiveFtpSourceFile(metaPath, rootDir).catch(() => {});
+  }
+  await archiveFtpSourceFile(absPath, rootDir).catch(() => {});
   return true;
 }
 
@@ -760,6 +786,7 @@ async function runFtpIngestScan(conf) {
   const files = await listFilesRecursive(resolvedRoot);
   const sidecarByStem = new Map();
   for (const absPath of files) {
+    if (isWithinFtpArchive(absPath, resolvedRoot)) continue;
     if (!isFtpMetadataFile(absPath)) continue;
     const stemKey = absPath.slice(0, absPath.length - path.extname(absPath).length).toLowerCase();
     const arr = sidecarByStem.get(stemKey) || [];
@@ -767,6 +794,7 @@ async function runFtpIngestScan(conf) {
     sidecarByStem.set(stemKey, arr);
   }
   for (const absPath of files) {
+    if (isWithinFtpArchive(absPath, resolvedRoot)) continue;
     if (!isFtpImageFile(absPath)) continue;
     try {
       await ingestFtpImageFile(absPath, resolvedRoot, sidecarByStem);
