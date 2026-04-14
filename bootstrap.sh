@@ -26,4 +26,4 @@ fi
 
 printf "\n==> Running application installer\n"
 chmod +x "$INSTALL_DIR/install.sh"
-"$INSTALL_DIR/install.sh" --start
+"$INSTALL_DIR/install.sh" --enable-service
