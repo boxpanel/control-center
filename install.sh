@@ -262,6 +262,21 @@ prompt_install_settings() {
   done
 }
 
+ensure_install_settings_present() {
+  if [[ -z "${SERVICE_PORT:-}" || ! "$SERVICE_PORT" =~ ^[0-9]+$ ]] || (( SERVICE_PORT < 1 || SERVICE_PORT > 65535 )); then
+    printf "Missing or invalid service port. Re-run the installer and enter a valid port, or pass --service-port.\n" >&2
+    exit 1
+  fi
+  if [[ -z "${ADMIN_USERNAME// }" ]]; then
+    printf "Missing admin username. Re-run the installer and enter a username, or pass --admin-user.\n" >&2
+    exit 1
+  fi
+  if [[ -z "${ADMIN_PASSWORD:-}" ]]; then
+    printf "Missing admin password. Re-run the installer and enter a password, or pass --admin-pass.\n" >&2
+    exit 1
+  fi
+}
+
 ensure_base_packages() {
   local missing=()
   local required=(curl ca-certificates gnupg build-essential python3 make g++ pkg-config libudev-dev ffmpeg)
@@ -329,6 +344,9 @@ bootstrap_repo_then_run() {
   if [[ "$START_APP" -eq 0 && "$ENABLE_SERVICE" -eq 0 ]]; then
     args+=("--enable-service")
   fi
+  args+=("--service-port" "$SERVICE_PORT")
+  args+=("--admin-user" "$ADMIN_USERNAME")
+  args+=("--admin-pass" "$ADMIN_PASSWORD")
   args+=("--skip-bootstrap" "--skip-prompts")
 
   chmod +x "$INSTALL_DIR/install.sh"
@@ -498,12 +516,14 @@ cd "$ROOT_DIR"
 if [[ "$SKIP_BOOTSTRAP" -eq 0 ]]; then
   if [[ "$BOOTSTRAP_MODE" -eq 1 ]] || ! is_control_center_root "$ROOT_DIR"; then
     prompt_install_settings
+    ensure_install_settings_present
     bootstrap_repo_then_run
     exit 0
   fi
 fi
 
 prompt_install_settings
+ensure_install_settings_present
 
 step "Preparing Ubuntu dependencies"
 ensure_base_packages
