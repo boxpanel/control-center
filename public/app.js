@@ -1404,7 +1404,10 @@ const serialState = {
   backendPort: "/dev/ttyAS5",
   sendChain: Promise.resolve(),
   mode: "backend",
-  backendOpen: false
+  backendOpen: false,
+  lastStatusBase: "",
+  lastTransferText: "",
+  lastTransferAt: 0
 };
 
 const DEFAULT_SERIAL_BAUD_RATE = 115200;
@@ -1505,9 +1508,25 @@ function applySerialBaudRateToUi(baudRate) {
   syncFixedSerialBaudRateUi();
 }
 
+function formatSerialTransferSuffix() {
+  const text = String(serialState.lastTransferText || "").trim();
+  const ts = Number(serialState.lastTransferAt || 0);
+  if (!text || !Number.isFinite(ts) || ts <= 0) return "";
+  return ` | 最近转发：${text} @ ${formatTime(ts)}`;
+}
+
 function setSerialUiState({ connected, statusText }) {
-  if (els.serialStatus) els.serialStatus.textContent = statusText || (connected ? "已连接" : "未连接");
+  serialState.lastStatusBase = statusText || (connected ? "已连接" : "未连接");
+  if (els.serialStatus) els.serialStatus.textContent = `${serialState.lastStatusBase}${formatSerialTransferSuffix()}`;
   if (els.serialSendBtn) els.serialSendBtn.disabled = false;
+}
+
+function markSerialTransfer(text, sentAt = Date.now()) {
+  const cleanText = String(text || "").trim();
+  const ts = Number(sentAt || Date.now()) || Date.now();
+  serialState.lastTransferText = cleanText;
+  serialState.lastTransferAt = ts;
+  setSerialUiState({ connected: serialState.backendOpen, statusText: serialState.lastStatusBase });
 }
 
 function applySerialModeUi() {
@@ -2368,6 +2387,7 @@ function initEventStream() {
       if (ok) {
         const sentAt = Date.now();
         updateRecordSerialSent(record.id, sentAt);
+        markSerialTransfer(plate, sentAt);
         logSerialLine(`[串口发送] 已转发车牌: ${plate}`);
       } else {
         logSerialLine(`[串口发送] 转发失败: ${plate}`);
@@ -2387,7 +2407,15 @@ function initEventStream() {
       return;
     }
     if (data?.type === "serial-sent") {
-      void updateRecordSerialSent(String(data?.id || ""), Number(data?.sentAt || 0));
+      const recordId = String(data?.id || "");
+      const sentAt = Number(data?.sentAt || 0);
+      void updateRecordSerialSent(recordId, sentAt);
+      const record = plateById.get(recordId);
+      const plate = String(record?.plate || "").trim();
+      if (plate && Number.isFinite(sentAt) && sentAt > 0) {
+        markSerialTransfer(plate, sentAt);
+        logSerialLine(`[串口发送] 已转发车牌: ${plate}`);
+      }
     }
   };
 }
