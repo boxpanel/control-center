@@ -1,9 +1,13 @@
 #!/usr/bin/env bash
-set -euo pipefail
+set -Eeuo pipefail
 
 START_APP=0
 ENABLE_SERVICE=0
 SERVICE_NAME="${SERVICE_NAME:-control-center}"
+SERVICE_PORT="${SERVICE_PORT:-3000}"
+INSTALL_OK=0
+SERVICE_FILE=""
+SERVICE_CREATED=0
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -16,6 +20,10 @@ while [[ $# -gt 0 ]]; do
     --service-name)
       shift
       SERVICE_NAME="${1:-control-center}"
+      ;;
+    --service-port)
+      shift
+      SERVICE_PORT="${1:-3000}"
       ;;
     *)
       printf "Unknown option: %s\n" "$1" >&2
@@ -36,6 +44,29 @@ run_root() {
     sudo "$@"
   fi
 }
+
+cleanup_service() {
+  if [[ "$SERVICE_CREATED" -eq 1 && -n "$SERVICE_FILE" ]]; then
+    step "Rolling back systemd service"
+    run_root systemctl stop "$SERVICE_NAME" >/dev/null 2>&1 || true
+    run_root systemctl disable "$SERVICE_NAME" >/dev/null 2>&1 || true
+    run_root rm -f "$SERVICE_FILE" >/dev/null 2>&1 || true
+    run_root systemctl daemon-reload >/dev/null 2>&1 || true
+  fi
+}
+
+on_error() {
+  local exit_code=$?
+  local line_no="${1:-unknown}"
+  printf "\n[ERROR] Installation failed at line %s (exit code %s).\n" "$line_no" "$exit_code" >&2
+  if [[ "$INSTALL_OK" -eq 0 ]]; then
+    cleanup_service
+    printf "[ROLLBACK] Partial service installation has been reverted.\n" >&2
+  fi
+  exit "$exit_code"
+}
+
+trap 'on_error $LINENO' ERR
 
 install_apt_packages() {
   local packages=("$@")
@@ -81,11 +112,30 @@ ensure_nodejs() {
   fi
 }
 
+print_access_info() {
+  local base_port="$1"
+  local local_ips
+  printf "\n==== Installation Summary ====\n"
+  printf "Service name        : %s\n" "$SERVICE_NAME"
+  printf "Install path        : %s\n" "$ROOT_DIR"
+  printf "Base port           : %s\n" "$base_port"
+  printf "Default username    : admin\n"
+  printf "Default password    : admin\n"
+  printf "Local access        : http://127.0.0.1:%s/login.html\n" "$base_port"
+  local_ips="$(hostname -I 2>/dev/null || true)"
+  for ip in $local_ips; do
+    [[ -n "$ip" ]] && printf "LAN access          : http://%s:%s/login.html\n" "$ip" "$base_port"
+  done
+  printf "Manage service      : ./manage.sh status|restart|stop|start|logs|info|uninstall\n"
+  printf "systemd status      : sudo systemctl status %s\n" "$SERVICE_NAME"
+  printf "==============================\n"
+}
+
 write_systemd_service() {
-  local node_bin service_user service_file
+  local node_bin service_user
   node_bin="$(command -v node)"
   service_user="${SUDO_USER:-$(id -un)}"
-  service_file="/etc/systemd/system/${SERVICE_NAME}.service"
+  SERVICE_FILE="/etc/systemd/system/${SERVICE_NAME}.service"
 
   step "Installing systemd service"
   cat <<EOF >/tmp/${SERVICE_NAME}.service
@@ -101,12 +151,14 @@ ExecStart=${node_bin} ${ROOT_DIR}/server.js
 Restart=always
 RestartSec=5
 Environment=NODE_ENV=production
+Environment=PORT=${SERVICE_PORT}
 
 [Install]
 WantedBy=multi-user.target
 EOF
 
-  run_root mv "/tmp/${SERVICE_NAME}.service" "$service_file"
+  run_root mv "/tmp/${SERVICE_NAME}.service" "$SERVICE_FILE"
+  SERVICE_CREATED=1
   run_root systemctl daemon-reload
   run_root systemctl enable "$SERVICE_NAME"
   run_root systemctl restart "$SERVICE_NAME"
@@ -133,16 +185,18 @@ else
   npm install --omit=dev
 fi
 
-step "Installation complete"
-printf "Start command: npm start\n"
-printf "Quick start   : ./install.sh --start\n"
-printf "Auto start    : ./install.sh --enable-service\n"
-
-if [[ "$ENABLE_SERVICE" == "1" ]]; then
+if [[ "$ENABLE_SERVICE" -eq 1 ]]; then
   write_systemd_service
 fi
 
-if [[ "$START_APP" == "1" ]]; then
+INSTALL_OK=1
+
+step "Installation complete"
+printf "Foreground start   : ./install.sh --start\n"
+printf "Enable auto-start  : ./install.sh --enable-service\n"
+print_access_info "$SERVICE_PORT"
+
+if [[ "$START_APP" -eq 1 ]]; then
   step "Starting application"
   npm start
 fi

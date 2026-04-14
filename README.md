@@ -24,6 +24,7 @@ This command now:
 - installs npm dependencies
 - registers a `systemd` service
 - enables auto-start on boot
+- rolls back the service and incomplete install directory if setup fails
 
 ## Manual Install
 
@@ -48,6 +49,13 @@ chmod +x ./install.sh
 ./install.sh --enable-service
 ```
 
+Install with a custom service port:
+
+```bash
+chmod +x ./install.sh
+./install.sh --enable-service --service-port 3000
+```
+
 ## Start
 
 After installation:
@@ -59,10 +67,14 @@ npm start
 ## Service Management
 
 ```bash
-sudo systemctl status control-center
-sudo systemctl restart control-center
-sudo systemctl stop control-center
-sudo journalctl -u control-center -f
+chmod +x ./manage.sh
+./manage.sh info
+./manage.sh status
+./manage.sh restart
+./manage.sh stop
+./manage.sh start
+./manage.sh logs
+./manage.sh uninstall
 ```
 
 ## Notes
@@ -72,4 +84,6 @@ sudo journalctl -u control-center -f
 - The installer automatically installs required Ubuntu packages and Node.js 20 if missing.
 - The installer creates `data`, `uploads`, and `streams` automatically.
 - The bootstrap installer enables a `systemd` service by default.
+- Successful installation prints the base port, access URLs, default username, and default password.
+- Default credentials are `admin / admin`.
 - Default web port is `3000`; if occupied, the app will try the next ports automatically.
