@@ -666,7 +666,7 @@ function applyPlateFiltersFromUi() {
 function getImgSrcOrFallback(imageDataUrl) {
   const v = String(imageDataUrl || "");
   if (v) return v;
-  return 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="240" height="160"><rect width="100%25" height="100%25" fill="%23222"/><text x="50%25" y="50%25" font-size="14" text-anchor="middle" dominant-baseline="middle" fill="%23999">鏃犲浘鐗?/text></svg>';
+  return 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="240" height="160"><rect width="100%25" height="100%25" fill="%23222"/><text x="50%25" y="50%25" font-size="14" text-anchor="middle" dominant-baseline="middle" fill="%23999">无图片</text></svg>';
 }
 
 function updatePlateCardMeta(id) {
@@ -936,7 +936,7 @@ async function generateMockPlates(count = 18) {
     await loadPlateHistoryToUi();
     logLine(`已生成 ${n} 条模拟车牌记录`);
   } catch {
-    logLine("鐢熸垚妯℃嫙鏁版嵁澶辫触");
+    logLine("生成模拟数据失败");
   }
 }
 
