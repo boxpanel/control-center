@@ -214,7 +214,7 @@ is_control_center_root() {
 }
 
 prompt_install_settings() {
-  if [[ "$SKIP_PROMPTS" -eq 1 ]]; then
+  if [[ "$SKIP_PROMPTS" -eq 1 && -n "${ADMIN_PASSWORD:-}" && -n "${ADMIN_USERNAME// }" ]]; then
     return
   fi
   local current_port="${SERVICE_PORT:-3000}"
@@ -277,6 +277,12 @@ ensure_install_settings_present() {
   fi
 }
 
+ensure_upgrade_backup_dir() {
+  local parent_dir
+  parent_dir="$(dirname "$INSTALL_DIR")"
+  printf "%s/.control-center-upgrade-backup-%s\n" "$parent_dir" "$(date +%Y%m%d-%H%M%S)"
+}
+
 ensure_base_packages() {
   local missing=()
   local required=(curl ca-certificates gnupg build-essential python3 make g++ pkg-config libudev-dev ffmpeg)
@@ -325,7 +331,7 @@ bootstrap_repo_then_run() {
     step "Updating repository in ${INSTALL_DIR}"
     repair_git_index_if_needed "$INSTALL_DIR"
     if [[ -n "$(git -C "$INSTALL_DIR" status --porcelain 2>/dev/null || true)" ]]; then
-      BACKUP_DIR="$INSTALL_DIR/.upgrade-backup-$(date +%Y%m%d-%H%M%S)"
+      BACKUP_DIR="$(ensure_upgrade_backup_dir)"
       printf "[WARN] Local changes detected. Backing them up to:\n"
       printf "       %s\n" "$BACKUP_DIR"
       mkdir -p "$BACKUP_DIR"
