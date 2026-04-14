@@ -1693,6 +1693,26 @@ function parseSadpDiscoveryXml(xmlText, rinfo = {}) {
   };
 }
 
+async function getLinuxSerialByIdMap() {
+  const out = new Map();
+  if (process.platform !== "linux") return out;
+  const baseDir = "/dev/serial/by-id";
+  try {
+    const entries = await fs.readdir(baseDir, { withFileTypes: true });
+    for (const entry of entries) {
+      const name = String(entry?.name || "").trim();
+      if (!name) continue;
+      const aliasPath = path.posix.join(baseDir, name);
+      try {
+        const target = await fs.readlink(aliasPath);
+        const resolved = path.posix.resolve(baseDir, target);
+        out.set(resolved, aliasPath);
+      } catch {}
+    }
+  } catch {}
+  return out;
+}
+
 async function sadpDiscover({ timeoutMs = 2500, port = 37020 } = {}) {
   const waitMs = Math.max(500, Math.min(10_000, toPositiveInt(timeoutMs, 2500)));
   const udpPort = toPort(port, 37020);
@@ -1752,11 +1772,18 @@ app.get("/api/net/ifaces", (req, res) => {
 
 app.get("/api/serial/ports", async (req, res) => {
   try {
+    const byIdMap = await getLinuxSerialByIdMap();
     const list = await SerialPort.list();
     const ports = Array.isArray(list)
       ? list.map((p) => ({
           path: p.path || p.comName || "",
-          friendlyName: p.friendlyName || p.manufacturer || p.pnpId || ""
+          byIdPath: byIdMap.get(String(p.path || p.comName || "").trim()) || "",
+          friendlyName: p.friendlyName || "",
+          manufacturer: p.manufacturer || "",
+          serialNumber: p.serialNumber || "",
+          vendorId: p.vendorId || "",
+          productId: p.productId || "",
+          pnpId: p.pnpId || ""
         }))
       : [];
     res.json({ ports });

@@ -1494,10 +1494,25 @@ async function refreshSerialPortSelect({ desiredValue } = {}) {
   for (const p of ports) {
     const path = String(p?.path || p?.comName || "").trim();
     if (!path) continue;
-    const label = String(p?.friendlyName || p?.manufacturer || p?.pnpId || "").trim();
+    const byIdPath = String(p?.byIdPath || "").trim();
+    const friendlyName = String(p?.friendlyName || "").trim();
+    const manufacturer = String(p?.manufacturer || "").trim();
+    const serialNumber = String(p?.serialNumber || "").trim();
+    const vendorId = String(p?.vendorId || "").trim();
+    const productId = String(p?.productId || "").trim();
+    const pnpId = String(p?.pnpId || "").trim();
+    const labelParts = [];
+    if (byIdPath) labelParts.push(byIdPath);
+    else if (friendlyName) labelParts.push(friendlyName);
+    if (manufacturer && !labelParts.includes(manufacturer)) labelParts.push(manufacturer);
+    if (serialNumber) labelParts.push(`SN:${serialNumber}`);
+    if (vendorId || productId) labelParts.push(`VID:PID ${vendorId || "?"}:${productId || "?"}`);
+    else if (pnpId) labelParts.push(pnpId);
+    const label = labelParts.join(" | ");
     const opt = document.createElement("option");
     opt.value = path;
     opt.textContent = label ? `${path}（${label}）` : path;
+    opt.title = label ? `${path}\n${label}` : path;
     els.serialPortSelect.appendChild(opt);
   }
 
