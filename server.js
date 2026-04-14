@@ -410,7 +410,11 @@ async function ensureBackendSerial(cfg) {
   const port = new SerialPort({ path: conf.backendPort, baudRate: conf.baudRate, autoOpen: false });
   await new Promise((resolve, reject) => {
     port.open((err) => {
-      if (err) reject(err);
+      if (err) {
+        const openErr = new Error(`打开后端串口失败：${conf.backendPort} @ ${conf.baudRate}，${String(err.message || err || "unknown error")}`);
+        openErr.statusCode = 502;
+        reject(openErr);
+      }
       else resolve();
     });
   });
@@ -1773,6 +1777,17 @@ app.get("/api/serial/status", async (req, res, next) => {
 app.post("/api/serial/connect", async (req, res, next) => {
   try {
     const config = await getClientConfig();
+    const serial = normalizeBackendSerialConfig(config?.serial);
+    if (!serial.forwardEnabled) {
+      const err = new Error("后端串口转发未开启");
+      err.statusCode = 409;
+      throw err;
+    }
+    if (!serial.backendPort) {
+      const err = new Error("未配置后端串口端口");
+      err.statusCode = 409;
+      throw err;
+    }
     await ensureBackendSerial(config?.serial);
     res.json({ ok: true, backend: getBackendSerialStatus(config?.serial) });
   } catch (err) {
@@ -1808,7 +1823,7 @@ app.post("/api/serial/send", async (req, res, next) => {
     }
     const ok = await backendSerialEnqueueWrite(text);
     if (!ok) {
-      res.status(502).json({ error: "Backend serial write failed" });
+      res.status(502).json({ error: "后端串口写入失败" });
       return;
     }
     const nextStatus = getBackendSerialStatus(config?.serial);

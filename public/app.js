@@ -1645,6 +1645,7 @@ async function serialConnect() {
       serialState.backendOpen = false;
       await syncBackendSerialUi();
       logSerialLine(`后端串口连接失败：${e?.message || e}`);
+      logSerialLine("请检查串口端口名、设备是否存在，以及当前服务用户是否有串口访问权限。");
     }
     return;
   }
