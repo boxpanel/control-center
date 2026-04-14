@@ -47,7 +47,6 @@
   plateDateInput: document.getElementById("plateDateInput"),
   plateQueryBtn: document.getElementById("plateQueryBtn"),
   plateDeleteBtn: document.getElementById("plateDeleteBtn"),
-  plateMockBtn: document.getElementById("plateMockBtn"),
   plateViewCardsBtn: document.getElementById("plateViewCardsBtn"),
   plateViewTableBtn: document.getElementById("plateViewTableBtn"),
   plateTableWrap: document.getElementById("plateTableWrap"),
@@ -971,17 +970,6 @@ function makePlateSvgDataUrl({ width, height, plate, seedText }) {
   return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
 }
 
-async function generateMockPlates(count = 18) {
-  const n = Math.max(1, Math.min(2000, Math.floor(Number(count) || 0)));
-  try {
-    await fetchJson("/api/plates/mock", { count: n });
-    await loadPlateHistoryToUi();
-    logLine(`已生成 ${n} 条模拟车牌记录`);
-  } catch {
-    logLine("生成模拟数据失败");
-  }
-}
-
 function setPlateView(view) {
   const v = view === "table" ? "table" : "cards";
   plateUiState.view = v;
@@ -1272,18 +1260,6 @@ function initPlateModule() {
         logLine("删除记录失败");
       } finally {
         updatePlateBulkUi();
-      }
-    });
-  }
-  if (els.plateMockBtn) {
-    els.plateMockBtn.addEventListener("click", async () => {
-      if (els.plateMockBtn) els.plateMockBtn.disabled = true;
-      try {
-        await generateMockPlates(24);
-      } catch {
-        logLine("鐢熸垚妯℃嫙鏁版嵁澶辫触");
-      } finally {
-        if (els.plateMockBtn) els.plateMockBtn.disabled = false;
       }
     });
   }

@@ -2277,41 +2277,6 @@ app.post("/api/plates/delete", (req, res) => {
   res.json({ ok: true, deleted: changes });
 });
 
-app.post("/api/plates/mock", (req, res) => {
-  const count = Math.max(1, Math.min(2000, toPositiveInt(req.body?.count, 50)));
-  const now = Date.now();
-  const plates = [
-    "\u4eacA12345",
-    "\u6caaB23456",
-    "\u6d59C34567",
-    "\u82cfD45678",
-    "\u7ca4E56789",
-    "\u5dddF67890"
-  ];
-  const tx = plateDb.transaction(() => {
-    for (let i = 0; i < count; i += 1) {
-      const receivedAt = now - (count - i) * 60_000;
-      const id = newPlateId(receivedAt);
-      const plate = plates[i % plates.length];
-      const rec = {
-        id,
-        plate,
-        receivedAt,
-        eventAt: receivedAt,
-        imagePath: "",
-        sourceEventKey: "",
-        ftpRemotePath: "",
-        serialSentAt: 0
-      };
-      stmtPlateInsert.run(rec);
-    }
-  });
-  try {
-    tx();
-  } catch {}
-  res.json({ ok: true });
-});
-
 app.get("/api/device/fingerprint", async (req, res, next) => {
   try {
     res.json(await computeDeviceFingerprint());
