@@ -4,7 +4,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "setup": "powershell -ExecutionPolicy Bypass -File .\\install.ps1"
   },
   "dependencies": {
     "basic-ftp": "^5.0.5",
