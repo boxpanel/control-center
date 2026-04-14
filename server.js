@@ -369,7 +369,7 @@ let discoveryReporter = null;
 let discoveryProbe = null;
 let discoveryKey = "";
 let currentHttpPort = 0;
-const DEFAULT_SERIAL_BAUD_RATE = 9600;
+const DEFAULT_SERIAL_BAUD_RATE = 115200;
 const DEFAULT_FIXED_LINUX_BOARD_SERIAL_PORT = "/dev/ttyAS5";
 
 function normalizeBackendSerialConfig(raw) {
@@ -715,6 +715,11 @@ function shouldMigrateLinuxSerialPort(port, boardPorts) {
   return current !== preferred;
 }
 
+function shouldMigrateLinuxSerialBaud(baudRate, boardPorts) {
+  if (!Array.isArray(boardPorts) || boardPorts.length === 0) return false;
+  return toPositiveInt(baudRate, DEFAULT_SERIAL_BAUD_RATE) !== DEFAULT_SERIAL_BAUD_RATE;
+}
+
 async function loadOrInitDeviceInfo() {
   try {
     const raw = await fs.readFile(deviceInfoPath, "utf8");
@@ -748,10 +753,13 @@ async function loadOrInitDeviceInfo() {
           !Object.prototype.hasOwnProperty.call(s, "forwardEnabled") ||
           !Object.prototype.hasOwnProperty.call(s, "backendPort");
         const mergedSerial = { ...serialDefaults, ...s };
-        if (shouldMigrateLinuxSerialPort(mergedSerial.backendPort, linuxBoardPorts)) {
+        if (
+          shouldMigrateLinuxSerialPort(mergedSerial.backendPort, linuxBoardPorts) ||
+          shouldMigrateLinuxSerialBaud(mergedSerial.baudRate, linuxBoardPorts)
+        ) {
           patch.serial = {
             ...mergedSerial,
-            baudRate: Number(mergedSerial.baudRate || DEFAULT_SERIAL_BAUD_RATE) || DEFAULT_SERIAL_BAUD_RATE,
+            baudRate: DEFAULT_SERIAL_BAUD_RATE,
             backendPort: preferredBoardSerialPort
           };
         } else if (needs) {
@@ -1880,20 +1888,20 @@ app.post("/api/serial/send", async (req, res, next) => {
       return;
     }
     const config = await getClientConfig();
-    const status = getBackendSerialStatus(config?.serial);
-    if (!status.enabled || !status.configuredPort) {
+    const serialCfg = normalizeBackendSerialConfig(config?.serial);
+    if (!serialCfg.backendPort) {
       res.status(409).json({ error: "Backend serial is not configured" });
       return;
     }
-    if (!status.isOpen) {
-      await ensureBackendSerial(config?.serial);
+    if (!backendSerialPort?.isOpen) {
+      await ensureBackendSerial({ ...serialCfg, forwardEnabled: true });
     }
     const ok = await backendSerialEnqueueWrite(text);
     if (!ok) {
       res.status(502).json({ error: "后端串口写入失败" });
       return;
     }
-    const nextStatus = getBackendSerialStatus(config?.serial);
+    const nextStatus = getBackendSerialStatus({ ...serialCfg, forwardEnabled: true });
     res.json({ ok: true, backend: nextStatus });
   } catch (err) {
     next(err);

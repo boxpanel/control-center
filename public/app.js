@@ -38,8 +38,6 @@
   serialSendInput: document.getElementById("serialSendInput"),
   serialPortSelect: document.getElementById("serialPortSelect"),
   serialFixedPort: document.getElementById("serialFixedPort"),
-  serialConnectBtn: document.getElementById("serialConnectBtn"),
-  serialDisconnectBtn: document.getElementById("serialDisconnectBtn"),
   serialSendBtn: document.getElementById("serialSendBtn"),
   serialStatus: document.getElementById("serialStatus"),
   serialHint: document.getElementById("serialHint"),
@@ -1365,7 +1363,7 @@ const serialState = {
   writer: null,
   reading: false,
   readBuffer: "",
-  lastBaudRate: 9600,
+  lastBaudRate: 115200,
   forwardEnabled: false,
   backendPort: "/dev/ttyAS5",
   sendChain: Promise.resolve(),
@@ -1373,7 +1371,7 @@ const serialState = {
   backendOpen: false
 };
 
-const DEFAULT_SERIAL_BAUD_RATE = 9600;
+const DEFAULT_SERIAL_BAUD_RATE = 115200;
 const FIXED_BACKEND_SERIAL_PORT = "/dev/ttyAS5";
 const COMMON_BAUD_RATES = [9600, 19200, 38400, 57600, 115200, 230400, 460800, 921600];
 
@@ -1382,7 +1380,7 @@ function isWebSerialSupported() {
 }
 
 function shouldUseWebSerial() {
-  return isWebSerialSupported();
+  return false;
 }
 
 function getFixedBackendSerialPort() {
@@ -1473,9 +1471,7 @@ function applySerialBaudRateToUi(baudRate) {
 
 function setSerialUiState({ connected, statusText }) {
   if (els.serialStatus) els.serialStatus.textContent = statusText || (connected ? "已连接" : "未连接");
-  if (els.serialConnectBtn) els.serialConnectBtn.disabled = connected;
-  if (els.serialDisconnectBtn) els.serialDisconnectBtn.disabled = !connected;
-  if (els.serialSendBtn) els.serialSendBtn.disabled = !connected;
+  if (els.serialSendBtn) els.serialSendBtn.disabled = false;
 }
 
 function applySerialModeUi() {
@@ -1483,7 +1479,7 @@ function applySerialModeUi() {
   if (serialState.mode === "web") {
     setSerialHintText("");
   } else {
-    setSerialHintText(`当前浏览器不支持 Web Serial，已切换为后端串口模式。固定端口为 ${getFixedBackendSerialPort()}，默认波特率为 ${DEFAULT_SERIAL_BAUD_RATE}。`);
+    setSerialHintText(`固定串口为 ${getFixedBackendSerialPort()}，固定波特率为 ${DEFAULT_SERIAL_BAUD_RATE}。点击“发送”时会自动连接后端串口。`);
   }
 }
 
@@ -1722,8 +1718,10 @@ async function serialSend() {
   if (!shouldUseWebSerial()) {
     try {
       await fetchJson("/api/serial/send", { text });
+      await syncBackendSerialUi();
       logSerialLine(`[后端串口发送] ${text}`);
     } catch (e) {
+      await syncBackendSerialUi();
       logSerialLine(`后端串口发送失败：${e?.message || e}`);
     }
     return;
@@ -1734,7 +1732,7 @@ async function serialSend() {
 }
 
 function initSerialUi() {
-  if (!els.serialConnectBtn || !els.serialDisconnectBtn || !els.serialSendBtn) return;
+  if (!els.serialSendBtn) return;
   applySerialModeUi();
   syncFixedSerialPortUi();
   syncFixedSerialBaudRateUi();
@@ -1744,7 +1742,7 @@ function initSerialUi() {
     try {
       const cfg = await loadDeviceConfig();
       const serialCfg = cfg?.serial || {};
-      const baudRate = Number(serialCfg?.baudRate || DEFAULT_SERIAL_BAUD_RATE) || DEFAULT_SERIAL_BAUD_RATE;
+      const baudRate = DEFAULT_SERIAL_BAUD_RATE;
       serialState.forwardEnabled = Boolean(serialCfg?.forwardEnabled);
       serialState.backendPort = getFixedBackendSerialPort();
       serialState.lastBaudRate = baudRate;
@@ -1752,8 +1750,11 @@ function initSerialUi() {
       if (els.serialForwardEnabled instanceof HTMLInputElement) {
         els.serialForwardEnabled.checked = serialState.forwardEnabled;
       }
-      if (String(serialCfg?.backendPort || "").trim() !== getFixedBackendSerialPort()) {
-        await persistSerialToServer({ backendPort: getFixedBackendSerialPort() });
+      if (
+        String(serialCfg?.backendPort || "").trim() !== getFixedBackendSerialPort() ||
+        Number(serialCfg?.baudRate || 0) !== DEFAULT_SERIAL_BAUD_RATE
+      ) {
+        await persistSerialToServer({ backendPort: getFixedBackendSerialPort(), baudRate: DEFAULT_SERIAL_BAUD_RATE });
       }
       if (!shouldUseWebSerial()) await syncBackendSerialUi();
     } catch {}
@@ -1765,12 +1766,6 @@ function initSerialUi() {
       logSerialLine(serialState.forwardEnabled ? "串口转发已开启" : "串口转发已关闭");
     });
   }
-  els.serialConnectBtn.addEventListener("click", () => {
-    serialConnect();
-  });
-  els.serialDisconnectBtn.addEventListener("click", () => {
-    serialDisconnect();
-  });
   els.serialSendBtn.addEventListener("click", () => {
     serialSend();
   });
@@ -2411,7 +2406,7 @@ try {
   const username = String(conn.username || "");
   const password = String(conn.password || "");
 
-  const baudRate = Number(cfg?.serial?.baudRate || DEFAULT_SERIAL_BAUD_RATE) || DEFAULT_SERIAL_BAUD_RATE;
+  const baudRate = DEFAULT_SERIAL_BAUD_RATE;
   serialState.forwardEnabled = Boolean(cfg?.serial?.forwardEnabled);
   serialState.backendPort = getFixedBackendSerialPort();
   if (els.serialForwardEnabled instanceof HTMLInputElement) {

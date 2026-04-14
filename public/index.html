@@ -169,7 +169,7 @@
               <div class="grid">
                 <div class="field span-4">
                   <label>固定波特率</label>
-                  <div id="serialFixedBaudRate" style="margin-top:6px; min-height:38px; display:flex; align-items:center; padding:0 12px; border:1px solid rgba(148,163,184,0.35); border-radius:12px; background:#f8fafc; color:#0f172a; font-family:Consolas,'Courier New',monospace;">9600</div>
+                  <div id="serialFixedBaudRate" style="margin-top:6px; min-height:38px; display:flex; align-items:center; padding:0 12px; border:1px solid rgba(148,163,184,0.35); border-radius:12px; background:#f8fafc; color:#0f172a; font-family:Consolas,'Courier New',monospace;">115200</div>
                 </div>
                 <div class="field span-4">
                   <label for="serialSendInput">发送数据</label>
@@ -188,9 +188,7 @@
                 </div>
               </div>
               <div class="actions" style="margin-top:10px;">
-                <button id="serialConnectBtn" type="button">连接串口</button>
-                <button id="serialDisconnectBtn" type="button" disabled>断开</button>
-                <button id="serialSendBtn" type="button" disabled>发送</button>
+                <button id="serialSendBtn" type="button">发送</button>
               </div>
               <div id="serialHint" style="margin-top:10px; font-size:12px; color:#6b7280; display:none;">
                 当前浏览器不支持 Web Serial，无法使用串口功能。
@@ -323,9 +321,10 @@
       </div>
     </div>
 
-    <script type="module" src="/app.js?v=55"></script>
+    <script type="module" src="/app.js?v=57"></script>
   </body>
 </html>
+
 
 
 

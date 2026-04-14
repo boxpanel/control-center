@@ -141,13 +141,13 @@ const parsed = JSON.parse(raw);
 const serial = parsed && typeof parsed.serial === "object" ? parsed.serial : null;
 const backendPort = String(serial?.backendPort || "").trim();
 
-if (backendPort === preferredPort && Number(serial?.baudRate || 0) === 9600) {
+if (backendPort === preferredPort && Number(serial?.baudRate || 0) === 115200) {
   process.stdout.write("unchanged");
   process.exit(0);
 }
 
 parsed.serial = {
-  baudRate: 9600,
+  baudRate: 115200,
   forwardEnabled: Boolean(serial?.forwardEnabled),
   backendPort: preferredPort
 };
@@ -161,7 +161,7 @@ EOF
     step "Applying board serial defaults"
     printf "Updated backend serial port: %s\n" "${result#set:}"
     printf "Detected board serial ports: %s\n" "${board_ports[*]}"
-    printf "Default baud rate         : 9600\n"
+    printf "Default baud rate         : 115200\n"
   fi
 }
 
