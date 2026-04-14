@@ -34,8 +34,10 @@
   discoverIpList: document.getElementById("discoverIpList"),
   serialBaudRate: document.getElementById("serialBaudRate"),
   serialBaudRateInput: document.getElementById("serialBaudRateInput"),
+  serialFixedBaudRate: document.getElementById("serialFixedBaudRate"),
   serialSendInput: document.getElementById("serialSendInput"),
   serialPortSelect: document.getElementById("serialPortSelect"),
+  serialFixedPort: document.getElementById("serialFixedPort"),
   serialConnectBtn: document.getElementById("serialConnectBtn"),
   serialDisconnectBtn: document.getElementById("serialDisconnectBtn"),
   serialSendBtn: document.getElementById("serialSendBtn"),
@@ -1315,7 +1317,7 @@ async function persistConnectionToServer({ host, port, username, password }) {
 
 async function persistSerialToServer({ baudRate, usbVendorId, usbProductId, forwardEnabled, backendPort }) {
   const serial = {};
-  if (baudRate != null) serial.baudRate = Number(baudRate) || 115200;
+  if (baudRate != null) serial.baudRate = Number(baudRate) || DEFAULT_SERIAL_BAUD_RATE;
   const vId = Number(usbVendorId);
   if (Number.isFinite(vId) && vId >= 0 && vId <= 65535) serial.usbVendorId = Math.floor(vId);
   const pId = Number(usbProductId);
@@ -1363,14 +1365,16 @@ const serialState = {
   writer: null,
   reading: false,
   readBuffer: "",
-  lastBaudRate: 115200,
+  lastBaudRate: 9600,
   forwardEnabled: false,
-  backendPort: "",
+  backendPort: "/dev/ttyAS5",
   sendChain: Promise.resolve(),
   mode: "backend",
   backendOpen: false
 };
 
+const DEFAULT_SERIAL_BAUD_RATE = 9600;
+const FIXED_BACKEND_SERIAL_PORT = "/dev/ttyAS5";
 const COMMON_BAUD_RATES = [9600, 19200, 38400, 57600, 115200, 230400, 460800, 921600];
 
 function isWebSerialSupported() {
@@ -1379,6 +1383,18 @@ function isWebSerialSupported() {
 
 function shouldUseWebSerial() {
   return isWebSerialSupported();
+}
+
+function getFixedBackendSerialPort() {
+  return FIXED_BACKEND_SERIAL_PORT;
+}
+
+function syncFixedSerialPortUi() {
+  if (els.serialFixedPort) els.serialFixedPort.textContent = getFixedBackendSerialPort();
+}
+
+function syncFixedSerialBaudRateUi() {
+  if (els.serialFixedBaudRate) els.serialFixedBaudRate.textContent = String(DEFAULT_SERIAL_BAUD_RATE);
 }
 
 function setSerialHintText(text) {
@@ -1400,7 +1416,7 @@ function removeInsertedCustomBaudOptions() {
 function ensureCustomBaudOption(baudRate) {
   if (!els.serialBaudRate) return;
   const n = Number(baudRate);
-  const v = Number.isFinite(n) && n > 0 ? Math.floor(n) : 115200;
+  const v = Number.isFinite(n) && n > 0 ? Math.floor(n) : DEFAULT_SERIAL_BAUD_RATE;
   if (COMMON_BAUD_RATES.includes(v)) return;
   removeInsertedCustomBaudOptions();
   const opt = document.createElement("option");
@@ -1417,7 +1433,7 @@ function showBaudSelect(value) {
   if (els.serialBaudRateInput) els.serialBaudRateInput.style.display = "none";
   if (!els.serialBaudRate) return;
   const n = Number(value);
-  const v = Number.isFinite(n) && n > 0 ? Math.floor(n) : 115200;
+  const v = Number.isFinite(n) && n > 0 ? Math.floor(n) : DEFAULT_SERIAL_BAUD_RATE;
   if (COMMON_BAUD_RATES.includes(v)) {
     removeInsertedCustomBaudOptions();
   } else {
@@ -1441,18 +1457,18 @@ function showBaudInput(value) {
 function getSerialBaudRate() {
   if (isBaudInputMode()) {
     const x = Number(els.serialBaudRateInput?.value || "");
-    return Number.isFinite(x) && x > 0 ? Math.floor(x) : 115200;
+    return Number.isFinite(x) && x > 0 ? Math.floor(x) : DEFAULT_SERIAL_BAUD_RATE;
   }
   const selected = String(els.serialBaudRate?.value || "").trim();
   const n = Number(selected);
-  return Number.isFinite(n) && n > 0 ? Math.floor(n) : 115200;
+  return Number.isFinite(n) && n > 0 ? Math.floor(n) : DEFAULT_SERIAL_BAUD_RATE;
 }
 
 function applySerialBaudRateToUi(baudRate) {
   const n = Number(baudRate);
-  const v = Number.isFinite(n) && n > 0 ? Math.floor(n) : 115200;
+  const v = Number.isFinite(n) && n > 0 ? Math.floor(n) : DEFAULT_SERIAL_BAUD_RATE;
   serialState.lastBaudRate = v;
-  showBaudSelect(v);
+  syncFixedSerialBaudRateUi();
 }
 
 function setSerialUiState({ connected, statusText }) {
@@ -1467,7 +1483,7 @@ function applySerialModeUi() {
   if (serialState.mode === "web") {
     setSerialHintText("");
   } else {
-    setSerialHintText("当前浏览器不支持 Web Serial，已切换为后端串口模式。请选择后端串口并点击“连接串口”。");
+    setSerialHintText(`当前浏览器不支持 Web Serial，已切换为后端串口模式。固定端口为 ${getFixedBackendSerialPort()}，默认波特率为 ${DEFAULT_SERIAL_BAUD_RATE}。`);
   }
 }
 
@@ -1551,24 +1567,22 @@ async function syncBackendSerialUi() {
   try {
     const backend = await fetchBackendSerialStatus();
     serialState.backendOpen = Boolean(backend?.isOpen);
-    serialState.backendPort = String(backend?.configuredPort || serialState.backendPort || "").trim();
+    serialState.backendPort = getFixedBackendSerialPort();
     if (Number.isFinite(Number(backend?.baudRate)) && Number(backend.baudRate) > 0) {
       applySerialBaudRateToUi(Number(backend.baudRate));
+    } else {
+      applySerialBaudRateToUi(DEFAULT_SERIAL_BAUD_RATE);
     }
-    if (els.serialPortSelect instanceof HTMLSelectElement) {
-      const portSelectState = await refreshSerialPortSelect({ desiredValue: serialState.backendPort });
-      if (serialState.backendPort && portSelectState?.hasDesired === false && !serialState.backendOpen) {
-        setSerialHintText(`已保存的串口 ${serialState.backendPort} 在当前系统中不存在，请重新选择有效端口。`);
-      }
+    syncFixedSerialPortUi();
+    if (backend?.configuredPort && String(backend.configuredPort).trim() !== getFixedBackendSerialPort()) {
+      setSerialHintText(`检测到旧串口配置 ${String(backend.configuredPort).trim()}，当前已固定使用 ${getFixedBackendSerialPort()}。`);
     }
     if (els.serialForwardEnabled instanceof HTMLInputElement) {
       els.serialForwardEnabled.checked = Boolean(backend?.enabled);
     }
     const statusText = serialState.backendOpen
-      ? `后端已连接（${backend?.activePort || serialState.backendPort || "未知端口"}）`
-      : serialState.backendPort
-      ? `后端未连接（${serialState.backendPort}）`
-      : "后端未配置";
+      ? `后端已连接（${backend?.activePort || getFixedBackendSerialPort()}）`
+      : `后端未连接（${getFixedBackendSerialPort()}）`;
     setSerialUiState({ connected: serialState.backendOpen, statusText });
   } catch (e) {
     setSerialUiState({ connected: false, statusText: "后端状态未知" });
@@ -1668,7 +1682,7 @@ async function serialConnect() {
   if (!shouldUseWebSerial()) {
     try {
       const baudRate = getSerialBaudRate();
-      const backendPort = String(els.serialPortSelect?.value || serialState.backendPort || "").trim();
+      const backendPort = getFixedBackendSerialPort();
       serialState.lastBaudRate = baudRate;
       serialState.backendPort = backendPort;
       await persistSerialToServer({ baudRate, backendPort, forwardEnabled: true });
@@ -1722,19 +1736,24 @@ async function serialSend() {
 function initSerialUi() {
   if (!els.serialConnectBtn || !els.serialDisconnectBtn || !els.serialSendBtn) return;
   applySerialModeUi();
+  syncFixedSerialPortUi();
+  syncFixedSerialBaudRateUi();
+  serialState.backendPort = getFixedBackendSerialPort();
   setSerialUiState({ connected: false, statusText: "未连接" });
   (async () => {
     try {
       const cfg = await loadDeviceConfig();
       const serialCfg = cfg?.serial || {};
+      const baudRate = Number(serialCfg?.baudRate || DEFAULT_SERIAL_BAUD_RATE) || DEFAULT_SERIAL_BAUD_RATE;
       serialState.forwardEnabled = Boolean(serialCfg?.forwardEnabled);
-      serialState.backendPort = String(serialCfg?.backendPort || "").trim();
+      serialState.backendPort = getFixedBackendSerialPort();
+      serialState.lastBaudRate = baudRate;
+      applySerialBaudRateToUi(baudRate);
       if (els.serialForwardEnabled instanceof HTMLInputElement) {
         els.serialForwardEnabled.checked = serialState.forwardEnabled;
       }
-      const portSelectState = await refreshSerialPortSelect({ desiredValue: serialState.backendPort });
-      if (serialState.backendPort && portSelectState?.hasDesired === false) {
-        setSerialHintText(`已保存的串口 ${serialState.backendPort} 在当前系统中不存在，请重新选择有效端口。`);
+      if (String(serialCfg?.backendPort || "").trim() !== getFixedBackendSerialPort()) {
+        await persistSerialToServer({ backendPort: getFixedBackendSerialPort() });
       }
       if (!shouldUseWebSerial()) await syncBackendSerialUi();
     } catch {}
@@ -1744,52 +1763,6 @@ function initSerialUi() {
       serialState.forwardEnabled = Boolean(els.serialForwardEnabled.checked);
       persistSerialToServer({ forwardEnabled: serialState.forwardEnabled });
       logSerialLine(serialState.forwardEnabled ? "串口转发已开启" : "串口转发已关闭");
-    });
-  }
-  if (els.serialPortSelect instanceof HTMLSelectElement) {
-    els.serialPortSelect.addEventListener("change", () => {
-      serialState.backendPort = String(els.serialPortSelect.value || "").trim();
-      persistSerialToServer({ backendPort: serialState.backendPort });
-      logSerialLine(serialState.backendPort ? `串口后端端口已设置：${serialState.backendPort}` : "串口后端端口已清空");
-    });
-    els.serialPortSelect.addEventListener("mousedown", () => {
-      refreshSerialPortSelect({ desiredValue: serialState.backendPort });
-    });
-    els.serialPortSelect.addEventListener("focus", () => {
-      refreshSerialPortSelect({ desiredValue: serialState.backendPort });
-    });
-  }
-  if (els.serialBaudRate) {
-    els.serialBaudRate.addEventListener("change", () => {
-      if (els.serialBaudRate.value === "custom") {
-        showBaudInput(serialState.lastBaudRate || 115200);
-      } else {
-        const baudRate = getSerialBaudRate();
-        serialState.lastBaudRate = baudRate;
-        persistSerialToServer({ baudRate });
-      }
-    });
-  }
-  if (els.serialBaudRateInput) {
-    els.serialBaudRateInput.addEventListener("change", () => {
-      const baudRate = getSerialBaudRate();
-      serialState.lastBaudRate = baudRate;
-      persistSerialToServer({ baudRate });
-      showBaudSelect(baudRate);
-    });
-    els.serialBaudRateInput.addEventListener("keydown", (ev) => {
-      if (ev.key === "Enter") {
-        const baudRate = getSerialBaudRate();
-        serialState.lastBaudRate = baudRate;
-        persistSerialToServer({ baudRate });
-        showBaudSelect(baudRate);
-      }
-    });
-    els.serialBaudRateInput.addEventListener("blur", () => {
-      const baudRate = getSerialBaudRate();
-      serialState.lastBaudRate = baudRate;
-      persistSerialToServer({ baudRate });
-      showBaudSelect(baudRate);
     });
   }
   els.serialConnectBtn.addEventListener("click", () => {
@@ -2438,15 +2411,14 @@ try {
   const username = String(conn.username || "");
   const password = String(conn.password || "");
 
-  const baudRate = Number(cfg?.serial?.baudRate || 115200) || 115200;
+  const baudRate = Number(cfg?.serial?.baudRate || DEFAULT_SERIAL_BAUD_RATE) || DEFAULT_SERIAL_BAUD_RATE;
   serialState.forwardEnabled = Boolean(cfg?.serial?.forwardEnabled);
-  serialState.backendPort = String(cfg?.serial?.backendPort || "").trim();
+  serialState.backendPort = getFixedBackendSerialPort();
   if (els.serialForwardEnabled instanceof HTMLInputElement) {
     els.serialForwardEnabled.checked = serialState.forwardEnabled;
   }
-  if (els.serialPortSelect instanceof HTMLSelectElement) {
-    await refreshSerialPortSelect({ desiredValue: serialState.backendPort });
-  }
+  syncFixedSerialPortUi();
+  applySerialBaudRateToUi(baudRate);
   if (host) {
     if (els.hostInput) els.hostInput.value = host;
     if (els.portInput) els.portInput.value = String(port);

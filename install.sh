@@ -124,38 +124,44 @@ sanitize_legacy_serial_config() {
   if [[ "${#board_ports[@]}" -eq 0 ]]; then
     return
   fi
+  local preferred_port="/dev/ttyAS5"
+  if [[ ! -e "$preferred_port" ]]; then
+    preferred_port="${board_ports[0]}"
+  fi
 
   local result
   result="$(
-    node --input-type=module - "$config_path" <<'EOF'
+    node --input-type=module - "$config_path" "$preferred_port" <<'EOF'
 import fs from "node:fs";
 
 const configPath = process.argv[2];
+const preferredPort = process.argv[3];
 const raw = fs.readFileSync(configPath, "utf8");
 const parsed = JSON.parse(raw);
 const serial = parsed && typeof parsed.serial === "object" ? parsed.serial : null;
 const backendPort = String(serial?.backendPort || "").trim();
 
-if (!/^\/dev\/ttyS\d+$/i.test(backendPort)) {
+if (backendPort === preferredPort && Number(serial?.baudRate || 0) === 9600) {
   process.stdout.write("unchanged");
   process.exit(0);
 }
 
 parsed.serial = {
-  baudRate: Number(serial?.baudRate || 115200) || 115200,
-  forwardEnabled: false,
-  backendPort: ""
+  baudRate: 9600,
+  forwardEnabled: Boolean(serial?.forwardEnabled),
+  backendPort: preferredPort
 };
 
 fs.writeFileSync(configPath, JSON.stringify(parsed), "utf8");
-process.stdout.write(`cleared:${backendPort}`);
+process.stdout.write(`set:${backendPort}->${preferredPort}`);
 EOF
   )"
 
-  if [[ "$result" == cleared:* ]]; then
-    step "Clearing stale serial port configuration"
-    printf "Cleared legacy backend serial port: %s\n" "${result#cleared:}"
+  if [[ "$result" == set:* ]]; then
+    step "Applying board serial defaults"
+    printf "Updated backend serial port: %s\n" "${result#set:}"
     printf "Detected board serial ports: %s\n" "${board_ports[*]}"
+    printf "Default baud rate         : 9600\n"
   fi
 }
 

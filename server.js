@@ -369,9 +369,11 @@ let discoveryReporter = null;
 let discoveryProbe = null;
 let discoveryKey = "";
 let currentHttpPort = 0;
+const DEFAULT_SERIAL_BAUD_RATE = 9600;
+const DEFAULT_FIXED_LINUX_BOARD_SERIAL_PORT = "/dev/ttyAS5";
 
 function normalizeBackendSerialConfig(raw) {
-  const baudRate = toPositiveInt(raw?.baudRate, 115200);
+  const baudRate = toPositiveInt(raw?.baudRate, DEFAULT_SERIAL_BAUD_RATE);
   const forwardEnabled = Boolean(raw?.forwardEnabled);
   const backendPort = String(raw?.backendPort || "").trim();
   return { baudRate, forwardEnabled, backendPort };
@@ -699,9 +701,18 @@ async function listLinuxBoardSerialPorts() {
   }
 }
 
-function shouldClearLegacyLinuxSerialPort(port, boardPorts) {
+function getPreferredLinuxBoardSerialPort(boardPorts) {
+  if (!Array.isArray(boardPorts) || boardPorts.length === 0) return "";
+  return boardPorts.includes(DEFAULT_FIXED_LINUX_BOARD_SERIAL_PORT) ? DEFAULT_FIXED_LINUX_BOARD_SERIAL_PORT : boardPorts[0];
+}
+
+function shouldMigrateLinuxSerialPort(port, boardPorts) {
   const current = String(port || "").trim();
-  return /^\/dev\/ttyS\d+$/i.test(current) && Array.isArray(boardPorts) && boardPorts.length > 0;
+  const preferred = getPreferredLinuxBoardSerialPort(boardPorts);
+  if (!preferred) return false;
+  if (!current) return true;
+  if (/^\/dev\/ttyS\d+$/i.test(current)) return true;
+  return current !== preferred;
 }
 
 async function loadOrInitDeviceInfo() {
@@ -710,6 +721,7 @@ async function loadOrInitDeviceInfo() {
     const parsed = JSON.parse(raw);
     if (parsed?.installDate && parsed?.secret) {
       const linuxBoardPorts = await listLinuxBoardSerialPorts();
+      const preferredBoardSerialPort = getPreferredLinuxBoardSerialPort(linuxBoardPorts);
       const patch = {};
       if (!parsed.connection || typeof parsed.connection !== "object") {
         patch.connection = { host: "", port: 80, username: "", password: "" };
@@ -726,7 +738,7 @@ async function loadOrInitDeviceInfo() {
           Number(p.port) === 3702 || Number(p.port) === 37020;
         if (needs) patch.probe = { ...probeDefaults, ...p, port: Number(p.port) === 3702 || Number(p.port) === 37020 ? 10086 : p.port };
       }
-      const serialDefaults = { baudRate: 115200, forwardEnabled: false, backendPort: "" };
+      const serialDefaults = { baudRate: DEFAULT_SERIAL_BAUD_RATE, forwardEnabled: false, backendPort: preferredBoardSerialPort };
       if (!parsed.serial || typeof parsed.serial !== "object") {
         patch.serial = serialDefaults;
       } else {
@@ -736,8 +748,12 @@ async function loadOrInitDeviceInfo() {
           !Object.prototype.hasOwnProperty.call(s, "forwardEnabled") ||
           !Object.prototype.hasOwnProperty.call(s, "backendPort");
         const mergedSerial = { ...serialDefaults, ...s };
-        if (shouldClearLegacyLinuxSerialPort(mergedSerial.backendPort, linuxBoardPorts)) {
-          patch.serial = { ...mergedSerial, forwardEnabled: false, backendPort: "" };
+        if (shouldMigrateLinuxSerialPort(mergedSerial.backendPort, linuxBoardPorts)) {
+          patch.serial = {
+            ...mergedSerial,
+            baudRate: Number(mergedSerial.baudRate || DEFAULT_SERIAL_BAUD_RATE) || DEFAULT_SERIAL_BAUD_RATE,
+            backendPort: preferredBoardSerialPort
+          };
         } else if (needs) {
           patch.serial = mergedSerial;
         }
@@ -782,7 +798,7 @@ async function loadOrInitDeviceInfo() {
     createdAtMs: Date.now(),
     connection: { host: "", port: 80, username: "", password: "" },
     probe: { enabled: true, group: "239.255.255.250", port: 10086 },
-    serial: { baudRate: 115200, forwardEnabled: false, backendPort: "" },
+    serial: { baudRate: DEFAULT_SERIAL_BAUD_RATE, forwardEnabled: false, backendPort: getPreferredLinuxBoardSerialPort(await listLinuxBoardSerialPorts()) },
     system: { name: "", clientMode: false, ipMode: "auto", preferredIp: "", manualIp: "" },
     ingest: { ftpServer: { enabled: false, port: 21, rootDir: "", username: "", password: "" } }
   };
@@ -1243,7 +1259,7 @@ function toUInt16OrUndefined(v) {
 }
 
 function normalizeSerialConfig(raw) {
-  const baudRate = toPositiveInt(raw?.baudRate, 115200);
+  const baudRate = toPositiveInt(raw?.baudRate, DEFAULT_SERIAL_BAUD_RATE);
   const usbVendorId = toUInt16OrUndefined(raw?.usbVendorId);
   const usbProductId = toUInt16OrUndefined(raw?.usbProductId);
   const forwardEnabled = Boolean(raw?.forwardEnabled);
@@ -1258,7 +1274,7 @@ function normalizeSerialPatch(raw) {
   if (!raw || typeof raw !== "object") return null;
   const out = {};
   if (Object.prototype.hasOwnProperty.call(raw, "baudRate")) {
-    out.baudRate = toPositiveInt(raw.baudRate, 115200);
+    out.baudRate = toPositiveInt(raw.baudRate, DEFAULT_SERIAL_BAUD_RATE);
   }
   if (Object.prototype.hasOwnProperty.call(raw, "forwardEnabled")) {
     out.forwardEnabled = Boolean(raw.forwardEnabled);

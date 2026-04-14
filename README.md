@@ -29,6 +29,7 @@ This command now:
 - rolls back the service and incomplete install directory if setup fails
 - stores local change backups under `.upgrade-backup-*` inside the install directory during upgrades
 - clears stale `/dev/ttyS*` serial settings on Linux boards that expose `ttyAS*` ports
+- defaults board serial configuration to `/dev/ttyAS5` at `9600`
 
 ## Manual Install
 
