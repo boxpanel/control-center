@@ -69,6 +69,16 @@ chmod +x ./install.sh
 ./install.sh --enable-service --service-port 3001 --admin-user boxpanel --admin-pass 'change-me'
 ```
 
+## Obfuscated Delivery
+
+Generate an obfuscated delivery directory from the source workspace:
+
+```bash
+npm run build:release
+```
+
+This writes a deployable `release/` folder. Use `release/install.sh` for customer installs and keep the original source workspace for maintenance.
+
 ## Start
 
 After installation:

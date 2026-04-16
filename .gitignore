@@ -17,3 +17,4 @@ export_repo2_git/
 *.log
 
 .cursor/
+release/
