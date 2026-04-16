@@ -2086,7 +2086,7 @@ function formatSerialTransferSuffix() {
   const text = String(serialState.lastTransferText || "").trim();
   const ts = Number(serialState.lastTransferAt || 0);
   if (!text || !Number.isFinite(ts) || ts <= 0) return "";
-  return ` | 最近转发：${text} @ ${formatTime(ts)}`;
+  return ` | 最近转发：${text} @ ${formatTimeOnly(ts)}`;
 }
 
 function setSerialUiState({ connected, statusText }) {
