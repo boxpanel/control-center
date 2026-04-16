@@ -3,6 +3,7 @@ import crypto from "node:crypto";
 import dgram from "node:dgram";
 import { watch as fsWatch } from "node:fs";
 import fs from "node:fs/promises";
+import net from "node:net";
 import path from "node:path";
 import { Readable } from "node:stream";
 import { fileURLToPath } from "node:url";
@@ -11,6 +12,7 @@ import { Worker } from "node:worker_threads";
 
 import Database from "better-sqlite3";
 import * as ftp from "basic-ftp";
+import DigestClient from "digest-fetch";
 import express from "express";
 import FtpSrv from "ftp-srv";
 import { SerialPort } from "serialport";
@@ -65,7 +67,8 @@ plateDb.exec(`
     imagePath TEXT NOT NULL DEFAULT '',
     sourceEventKey TEXT NOT NULL DEFAULT '',
     ftpRemotePath TEXT NOT NULL DEFAULT '',
-    serialSentAt INTEGER NOT NULL DEFAULT 0
+    serialSentAt INTEGER NOT NULL DEFAULT 0,
+    parsedMetaJson TEXT NOT NULL DEFAULT ''
   );
   CREATE INDEX IF NOT EXISTS idx_plate_records_receivedAt ON plate_records(receivedAt);
   CREATE INDEX IF NOT EXISTS idx_plate_records_plate ON plate_records(plate);
@@ -83,20 +86,23 @@ const plateTableColumns = plateDb.prepare(`PRAGMA table_info(plate_records)`).al
 if (!plateTableColumns.some((col) => String(col?.name || "") === "sourceEventKey")) {
   plateDb.exec(`ALTER TABLE plate_records ADD COLUMN sourceEventKey TEXT NOT NULL DEFAULT ''`);
 }
+if (!plateTableColumns.some((col) => String(col?.name || "") === "parsedMetaJson")) {
+  plateDb.exec(`ALTER TABLE plate_records ADD COLUMN parsedMetaJson TEXT NOT NULL DEFAULT ''`);
+}
 plateDb.exec(`CREATE INDEX IF NOT EXISTS idx_plate_records_sourceEventKey ON plate_records(sourceEventKey)`);
 
 const stmtPlateInsert = plateDb.prepare(`
-  INSERT INTO plate_records (id, plate, receivedAt, eventAt, imagePath, sourceEventKey, ftpRemotePath, serialSentAt)
-  VALUES (@id, @plate, @receivedAt, @eventAt, @imagePath, @sourceEventKey, @ftpRemotePath, @serialSentAt)
+  INSERT INTO plate_records (id, plate, receivedAt, eventAt, imagePath, sourceEventKey, ftpRemotePath, serialSentAt, parsedMetaJson)
+  VALUES (@id, @plate, @receivedAt, @eventAt, @imagePath, @sourceEventKey, @ftpRemotePath, @serialSentAt, @parsedMetaJson)
 `);
 const stmtPlateGet = plateDb.prepare(
-  `SELECT id, plate, receivedAt, eventAt, imagePath, ftpRemotePath, serialSentAt FROM plate_records WHERE id = ?`
+  `SELECT id, plate, receivedAt, eventAt, imagePath, ftpRemotePath, serialSentAt, parsedMetaJson FROM plate_records WHERE id = ?`
 );
 const stmtPlateGetBySourceEventKey = plateDb.prepare(
-  `SELECT id, plate, receivedAt, eventAt, imagePath, ftpRemotePath, serialSentAt FROM plate_records WHERE sourceEventKey = ? LIMIT 1`
+  `SELECT id, plate, receivedAt, eventAt, imagePath, ftpRemotePath, serialSentAt, parsedMetaJson FROM plate_records WHERE sourceEventKey = ? LIMIT 1`
 );
 const stmtPlateListLatest = plateDb.prepare(
-  `SELECT id, plate, receivedAt, eventAt, imagePath, ftpRemotePath, serialSentAt FROM plate_records ORDER BY receivedAt DESC LIMIT ?`
+  `SELECT id, plate, receivedAt, eventAt, imagePath, ftpRemotePath, serialSentAt, parsedMetaJson FROM plate_records ORDER BY receivedAt DESC LIMIT ?`
 );
 const stmtPlateUpdateSerialSent = plateDb.prepare(`UPDATE plate_records SET serialSentAt = ? WHERE id = ?`);
 
@@ -114,6 +120,13 @@ function rowToPlateDto(row) {
   if (!row) return null;
   const id = String(row.id || "");
   const imagePath = String(row.imagePath || "");
+  let parsedMeta = null;
+  try {
+    const raw = String(row.parsedMetaJson || "").trim();
+    parsedMeta = raw ? JSON.parse(raw) : null;
+  } catch {
+    parsedMeta = null;
+  }
   return {
     id,
     plate: String(row.plate || ""),
@@ -121,7 +134,8 @@ function rowToPlateDto(row) {
     eventAt: Number(row.eventAt || 0) || 0,
     imageDataUrl: imagePath ? `/api/plates/image/${encodeURIComponent(id)}` : "",
     ftpRemotePath: String(row.ftpRemotePath || ""),
-    serialSentAt: Number(row.serialSentAt || 0) || 0
+    serialSentAt: Number(row.serialSentAt || 0) || 0,
+    parsedMeta
   };
 }
 
@@ -130,15 +144,41 @@ function newPlateId(receivedAtMs) {
   return `${t}-${crypto.randomBytes(6).toString("hex")}`;
 }
 
-async function savePlateJpegToDisk({ jpegBuffer, eventDate, plate, id }) {
+function planPlateBufferSave({ eventDate, plate, id, ext = ".jpg" }) {
   const { y, m, day } = formatDateFolderParts(eventDate);
   const safePlate = sanitizeNamePart(plate);
+  const safeExt = String(ext || ".jpg").trim().toLowerCase();
+  const finalExt = /^\.[a-z0-9]+$/i.test(safeExt) ? safeExt : ".jpg";
   const dir = path.join(platesUploadDir, y, m, day);
-  await fs.mkdir(dir, { recursive: true });
-  const file = `${formatTimestampForFile(eventDate)}_${safePlate}_${String(id || "").slice(-6)}.jpg`;
+  const file = `${formatTimestampForFile(eventDate)}_${safePlate}_${String(id || "").slice(-6)}${finalExt}`;
   const abs = path.join(dir, file);
-  await fs.writeFile(abs, jpegBuffer);
-  return path.relative(uploadsDir, abs).split(path.sep).join("/");
+  return {
+    absPath: abs,
+    imagePath: path.relative(uploadsDir, abs).split(path.sep).join("/")
+  };
+}
+
+async function writePlateBufferToDiskInWorker({ imageBuffer, absPath }) {
+  await new Promise((resolve, reject) => {
+    const worker = new Worker(new URL("./plate-image-worker.js", import.meta.url), {
+      workerData: {
+        absPath: String(absPath || ""),
+        imageBuffer
+      }
+    });
+    let settled = false;
+    worker.once("message", (message) => {
+      settled = true;
+      if (message?.ok) resolve();
+      else reject(new Error(message?.error || "plate image worker failed"));
+    });
+    worker.once("error", (err) => {
+      if (!settled) reject(err);
+    });
+    worker.once("exit", (code) => {
+      if (!settled && code !== 0) reject(new Error(`plate image worker exited with code ${code}`));
+    });
+  });
 }
 
 async function savePlateImageFileToDisk({ srcPath, eventDate, plate, id, ext }) {
@@ -460,6 +500,19 @@ let discoveryKey = "";
 let currentHttpPort = 0;
 const DEFAULT_SERIAL_BAUD_RATE = 115200;
 const DEFAULT_FIXED_LINUX_BOARD_SERIAL_PORT = "/dev/ttyAS5";
+const ALLOWED_DEVICE_PROTOCOLS = new Set([
+  "gb28181",
+  "ehome",
+  "jt1078-terminal",
+  "jt1078-platform",
+  "onvif",
+  "hikvision-isapi",
+  "hikvision-private",
+  "dahua-http",
+  "dahua-private",
+  "grid-platform",
+  "custom-rtmp-rtsp"
+]);
 
 function normalizeBackendSerialConfig(raw) {
   const baudRate = toPositiveInt(raw?.baudRate, DEFAULT_SERIAL_BAUD_RATE);
@@ -495,7 +548,12 @@ async function ensureBackendSerial(cfg) {
 
   await stopBackendSerial();
   backendSerialKey = nextKey;
+  if (!conf.forwardEnabled) return;
   if (!conf.backendPort) return;
+  // On non-Linux platforms, Linux-style device paths are not valid.
+  // This prevents unrelated config saves (e.g. adding cameras) from failing on Windows/macOS
+  // when a legacy/default `/dev/...` port is present in the persisted config.
+  if (process.platform !== "linux" && /^\/dev\//i.test(conf.backendPort)) return;
 
   const port = new SerialPort({ path: conf.backendPort, baudRate: conf.baudRate, autoOpen: false });
   await new Promise((resolve, reject) => {
@@ -540,6 +598,19 @@ function getBackendSerialStatus(cfg) {
     isOpen: Boolean(backendSerialPort?.isOpen),
     activePort: backendSerialPort?.path || conf.backendPort || ""
   };
+}
+
+function canForwardPlateToBackendSerial() {
+  return Boolean(backendSerialPort?.isOpen);
+}
+
+function startPlateSerialForward(plate) {
+  const safePlate = String(plate || "").trim();
+  if (!safePlate || !canForwardPlateToBackendSerial()) return null;
+  return backendSerialEnqueueWrite(`${safePlate}\r\n`).then((ok) => {
+    if (!ok) return null;
+    return Date.now();
+  });
 }
 
 function discoveryConfigKeyFromClientConfig(cfg, port) {
@@ -662,6 +733,190 @@ function extractPlateFromFilename(filePath) {
   return extractPlateFromText(base.replace(/[_-]+/g, " "));
 }
 
+function parseCompactTimestampToMs(text) {
+  const digits = String(text || "").replace(/\D+/g, "");
+  if (digits.length < 14) return 0;
+  const yyyy = Number(digits.slice(0, 4));
+  const mm = Number(digits.slice(4, 6));
+  const dd = Number(digits.slice(6, 8));
+  const hh = Number(digits.slice(8, 10));
+  const mi = Number(digits.slice(10, 12));
+  const ss = Number(digits.slice(12, 14));
+  const ms = digits.length >= 17 ? Number(digits.slice(14, 17)) : 0;
+  if (!yyyy || mm < 1 || mm > 12 || dd < 1 || dd > 31 || hh > 23 || mi > 59 || ss > 59) return 0;
+  const dt = new Date(yyyy, mm - 1, dd, hh, mi, ss, ms);
+  const ts = dt.getTime();
+  return Number.isFinite(ts) && ts > 0 ? ts : 0;
+}
+
+function normalizeFtpMetaToken(token) {
+  return String(token || "").trim().replace(/\s+/g, "");
+}
+
+function splitFtpFilenameTokens(filePath) {
+  const base = path.basename(String(filePath || ""), path.extname(String(filePath || ""))).trim();
+  if (!base) return [];
+  if (base.includes("_")) return base.split(/_+/).map(normalizeFtpMetaToken).filter(Boolean);
+  if (base.includes("-")) return base.split(/-+/).map(normalizeFtpMetaToken).filter(Boolean);
+  return base.split(/\s+/).map(normalizeFtpMetaToken).filter(Boolean);
+}
+
+function parseFtpFilenameStructuredMeta(filePath) {
+  const baseName = path.basename(String(filePath || ""), path.extname(String(filePath || ""))).trim();
+  const tokens = splitFtpFilenameTokens(filePath);
+  const meta = {
+    source: "ftp-filename",
+    baseName,
+    tokens
+  };
+  if (!baseName) return meta;
+
+  const plate = extractPlateFromFilename(filePath);
+  if (plate) meta.plate = plate;
+
+  const plateColorMatchers = [
+    [/^(?:\u84dd|\u84dd\u724c)$/u, "\u84dd"],
+    [/^(?:\u9ec4|\u9ec4\u724c)$/u, "\u9ec4"],
+    [/^(?:\u767d|\u767d\u724c)$/u, "\u767d"],
+    [/^(?:\u9ed1|\u9ed1\u724c)$/u, "\u9ed1"],
+    [/^(?:\u7eff|\u7eff\u724c)$/u, "\u7eff"],
+    [/^(?:\u9ec4\u7eff|\u9ec4\u7eff\u724c)$/u, "\u9ec4\u7eff"],
+    [/^(?:\u6e10\u53d8\u7eff|\u6e10\u53d8\u7eff\u724c)$/u, "\u6e10\u53d8\u7eff"]
+  ];
+  const vehicleColorMatchers = [
+    [/^\u9ed1\u8272?$/u, "\u9ed1"],
+    [/^\u767d\u8272?$/u, "\u767d"],
+    [/^\u94f6\u8272?$/u, "\u94f6"],
+    [/^\u7070\u8272?$/u, "\u7070"],
+    [/^\u7ea2\u8272?$/u, "\u7ea2"],
+    [/^\u84dd\u8272?$/u, "\u84dd"],
+    [/^\u9ec4\u8272?$/u, "\u9ec4"],
+    [/^\u68d5\u8272?$/u, "\u68d5"],
+    [/^\u7eff\u8272?$/u, "\u7eff"],
+    [/^\u91d1\u8272?$/u, "\u91d1"]
+  ];
+  const vehicleTypeMatchers = [
+    /\bSUV\b/i,
+    /\bMPV\b/i,
+    /\u5c0f\u578b\u8f66/u,
+    /\u5927\u578b\u8f66/u,
+    /\u4e2d\u578b\u8f66/u,
+    /\u8f7f\u8d27\u6c7d\u8f66/u,
+    /\u8d27\u8f66/u,
+    /\u5ba2\u8f66/u,
+    /\u8f7f\u5ba2\u6c7d\u8f66/u,
+    /\u8f7f\u8d27\u6c7d\u8f66/u,
+    /\u8f7f\u5ba2/u,
+    /\u8f7f\u8d27/u,
+    /\u8f7f\u4eba/u,
+    /\u9762\u5305\u8f66/u,
+    /\u8f7f\u8f66/u,
+    /\u8f7f\u7535\u52a8\u8f66/u,
+    /\u6469\u6258/u
+  ];
+  const violationMatchers = [
+    /\u8fdd\u505c/u,
+    /\u95ef\u7ea2\u706f/u,
+    /\u538b\u7ebf/u,
+    /\u9006\u884c/u,
+    /\u8d85\u901f/u,
+    /\u8fdd\u6cd5/u,
+    /\u5360\u9053/u
+  ];
+
+  for (const token of tokens) {
+    if (!token) continue;
+    if (!meta.deviceIp) {
+      const ipMatch = token.match(/\b((?:\d{1,3}\.){3}\d{1,3})\b/);
+      if (ipMatch?.[1]) meta.deviceIp = ipMatch[1];
+    }
+    if (!meta.eventAt) {
+      const ts = parseCompactTimestampToMs(token);
+      if (ts > 0) meta.eventAt = ts;
+    }
+    if (!meta.plate && extractPlateFromText(token)) {
+      meta.plate = extractPlateFromText(token);
+    }
+    if (!meta.plateColor) {
+      const hit = plateColorMatchers.find(([re]) => re.test(token));
+      if (hit) meta.plateColor = hit[1];
+    }
+    if (!meta.vehicleColor) {
+      const hit = vehicleColorMatchers.find(([re]) => re.test(token));
+      if (hit) meta.vehicleColor = hit[1];
+    }
+    if (!meta.vehicleType) {
+      const hit = vehicleTypeMatchers.find((re) => re.test(token));
+      if (hit) meta.vehicleType = token;
+    }
+    if (!meta.violationType) {
+      const hit = violationMatchers.find((re) => re.test(token));
+      if (hit) meta.violationType = token;
+    }
+    if (!meta.plateCoords) {
+      const coordMatch = token.match(/^(\d{1,4},){3}\d{1,4}$/);
+      if (coordMatch) meta.plateCoords = token;
+    }
+    if (!meta.laneNo) {
+      const m = token.match(/^(?:lane|ln|cd|chedao|[\u8f66\u9053]{1,2})[-_ ]?(\d{1,2})$/i);
+      if (m?.[1]) meta.laneNo = Number(m[1]);
+    }
+    if (!meta.channelNo) {
+      const m = token.match(/^(?:ch|channel|td|[\u901a\u9053]{1,2})[-_ ]?(\d{1,2})$/i);
+      if (m?.[1]) meta.channelNo = Number(m[1]);
+    }
+    if (!meta.directionNo) {
+      const m = token.match(/^(?:dir|fx|[\u65b9\u5411]{1,2})[-_ ]?(\d{1,2})$/i);
+      if (m?.[1]) meta.directionNo = Number(m[1]);
+    }
+    if (!meta.intersectionNo) {
+      const m = token.match(/^(?:cross|road|lk|[\u8def\u53e3]{1,2})[-_ ]?(\d{1,3})$/i);
+      if (m?.[1]) meta.intersectionNo = Number(m[1]);
+    }
+    if (!meta.imageSeq) {
+      const m = token.match(/^(?:img|image|pic|tp|[\u56fe\u7247]{1,2})[-_ ]?(\d{1,4})$/i);
+      if (m?.[1]) meta.imageSeq = Number(m[1]);
+    }
+    if (!meta.vehicleSeq) {
+      const m = token.match(/^(?:veh|car|vehicle|cl|[\u8f66\u8f86\u5e8f\u53f7]{1,4})[-_ ]?(\d{1,6})$/i);
+      if (m?.[1]) meta.vehicleSeq = Number(m[1]);
+    }
+    if (!meta.speed) {
+      const m = token.match(/^(?:spd|speed|v|[\u901f\u5ea6]{1,2})[-_ ]?(\d{1,3})(?:kmh|km\/h|kph)?$/i);
+      if (m?.[1]) meta.speed = Number(m[1]);
+    }
+    if (!meta.deviceNo) {
+      const m = token.match(/^(?:dev|device|sn|[\u8bbe\u5907\u53f7]{1,3})[-_ ]?([A-Z0-9]{2,})$/i);
+      if (m?.[1]) meta.deviceNo = m[1];
+    }
+  }
+
+  const leftovers = tokens.filter((token) => {
+    if (!token) return false;
+    if (token === meta.plate) return false;
+    if (token === meta.deviceIp) return false;
+    if (token === meta.plateColor) return false;
+    if (token === meta.vehicleColor) return false;
+    if (token === meta.vehicleType) return false;
+    if (token === meta.violationType) return false;
+    if (token === meta.plateCoords) return false;
+    if (meta.eventAt && parseCompactTimestampToMs(token) === meta.eventAt) return false;
+    return true;
+  });
+  if (leftovers.length) meta.unmatchedTokens = leftovers;
+
+  return meta;
+}
+
+function safeStringifyParsedMeta(meta) {
+  if (!meta || typeof meta !== "object") return "";
+  try {
+    return JSON.stringify(meta);
+  } catch {
+    return "";
+  }
+}
+
 async function listFilesRecursive(rootDir) {
   const out = [];
   const stack = [rootDir];
@@ -768,6 +1023,7 @@ async function ingestFtpImageFile(candidate, rootDir) {
   if (!stat || !stat.isFile() || stat.size <= 0) return false;
   if (Date.now() - stat.mtimeMs < FTP_INGEST_SETTLE_MS) return false;
 
+  const filenameMeta = parseFtpFilenameStructuredMeta(absPath);
   let plate = "";
   const metadataTexts = Array.isArray(candidate?.metadataTexts) ? candidate.metadataTexts : [];
   const metadataFiles = Array.isArray(candidate?.metadataPaths) ? candidate.metadataPaths : [];
@@ -775,12 +1031,21 @@ async function ingestFtpImageFile(candidate, rootDir) {
     plate = extractPlateFromText(text);
     if (plate) break;
   }
+  if (!plate) plate = String(filenameMeta.plate || "");
   if (!plate) plate = extractPlateFromFilename(absPath);
   if (!plate) plate = path.basename(absPath, path.extname(absPath));
 
   const receivedAt = Date.now();
-  const eventAt = stat.mtimeMs > 0 ? stat.mtimeMs : receivedAt;
+  const eventAt = Number(filenameMeta.eventAt || 0) || (stat.mtimeMs > 0 ? stat.mtimeMs : receivedAt);
   const id = newPlateId(receivedAt);
+  const parsedMeta = {
+    ...filenameMeta,
+    plate,
+    ftpRemotePath: relPath,
+    metadataFiles,
+    metadataCount: metadataFiles.length
+  };
+  const serialForwardTask = startPlateSerialForward(plate);
   const imagePath = await savePlateImageFileToDisk({
     srcPath: absPath,
     eventDate: new Date(eventAt),
@@ -796,7 +1061,8 @@ async function ingestFtpImageFile(candidate, rootDir) {
     imagePath,
     sourceEventKey,
     ftpRemotePath: relPath,
-    serialSentAt: 0
+    serialSentAt: 0,
+    parsedMetaJson: safeStringifyParsedMeta(parsedMeta)
   });
   broadcastEvent({
     type: "lpr",
@@ -807,20 +1073,16 @@ async function ingestFtpImageFile(candidate, rootDir) {
     eventAt,
     image: "",
     imageUrl: `/api/plates/image/${encodeURIComponent(id)}`,
-    ftpRemotePath: relPath
+    ftpRemotePath: relPath,
+    parsedMeta
   });
-  const serialCfg = normalizeBackendSerialConfig((await getClientConfig())?.serial);
-  if (backendSerialPort && serialCfg.forwardEnabled) {
-    setImmediate(() => {
-      backendSerialEnqueueWrite(plate + "\r\n").then((ok) => {
-        if (ok) {
-          try {
-            const sentAt = Date.now();
-            stmtPlateUpdateSerialSent.run(sentAt, id);
-            broadcastSerialSent(id, sentAt);
-          } catch {}
-        }
-      });
+  if (serialForwardTask) {
+    void serialForwardTask.then((sentAt) => {
+      if (!sentAt) return;
+      try {
+        stmtPlateUpdateSerialSent.run(sentAt, id);
+        broadcastSerialSent(id, sentAt);
+      } catch {}
     });
   }
   for (const metaPath of metadataFiles) {
@@ -1112,6 +1374,9 @@ async function loadOrInitDeviceInfo() {
       if (!parsed.connection || typeof parsed.connection !== "object") {
         patch.connection = { host: "", port: 80, username: "", password: "" };
       }
+      if (!Array.isArray(parsed.devices)) {
+        patch.devices = [];
+      }
       const probeDefaults = { enabled: true, group: "239.255.255.250", port: 10086 };
       if (!parsed.probe || typeof parsed.probe !== "object") {
         patch.probe = probeDefaults;
@@ -1186,6 +1451,7 @@ async function loadOrInitDeviceInfo() {
     secret: crypto.randomBytes(32).toString("base64"),
     createdAtMs: Date.now(),
     connection: { host: "", port: 80, username: "", password: "" },
+    devices: [],
     probe: { enabled: true, group: "239.255.255.250", port: 10086 },
     serial: { baudRate: DEFAULT_SERIAL_BAUD_RATE, forwardEnabled: false, backendPort: getPreferredLinuxBoardSerialPort(await listLinuxBoardSerialPorts()) },
     system: { name: "", clientMode: false, ipMode: "auto", preferredIp: "", manualIp: "" },
@@ -1312,8 +1578,72 @@ function extractJsonStringValue(text, keys) {
   return "";
 }
 
+function extractJsonScalarValue(text, keys) {
+  const source = String(text || "");
+  const list = Array.isArray(keys) ? keys : [keys];
+  for (const key of list) {
+    const safe = String(key || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const re = new RegExp(`"${safe}"\\s*:\\s*(true|false|null|-?\\d+(?:\\.\\d+)?|"([^"]*)")`, "i");
+    const match = source.match(re);
+    if (!match) continue;
+    if (typeof match[2] === "string") return match[2];
+    return String(match[1] || "").trim();
+  }
+  return "";
+}
+
 function normalizePlateText(value) {
-  return String(value || "").replace(/\s+/g, "").trim();
+  const raw = String(value || "")
+    .replace(/&nbsp;|&#160;/gi, " ")
+    .replace(/[\uFF1A:]/g, "")
+    .replace(/[\u0000-\u001f]/g, "")
+    .trim();
+  if (!raw) return "";
+  const compact = raw
+    .toUpperCase()
+    .replace(/[\u00B7\u2022.]/g, "")
+    .replace(/[\s_-]+/g, "");
+  const cnMatch = compact.match(/([\u4E00-\u9FFF][A-Z][A-Z0-9]{4,7})/u);
+  if (cnMatch?.[1]) return cnMatch[1];
+  const enMatch = compact.match(/\b([A-Z]{1,3}[A-Z0-9]{4,7})\b/);
+  if (enMatch?.[1]) return enMatch[1];
+  return compact;
+}
+
+function pickFirstScalarFromStructuredText({ xmlText, jsonText, xmlKeys = [], jsonKeys = [], fallbackKeys = [] }) {
+  const xmlValue = extractXmlTagValue(xmlText, xmlKeys.length ? xmlKeys : fallbackKeys);
+  if (xmlValue) return xmlValue;
+  return extractJsonScalarValue(jsonText, jsonKeys.length ? jsonKeys : fallbackKeys);
+}
+
+function inferImageExtension(contentType, filename) {
+  const type = String(contentType || "").toLowerCase();
+  const lowerFile = String(filename || "").toLowerCase();
+  if (type.includes("png") || lowerFile.endsWith(".png")) return ".png";
+  if (type.includes("bmp") || lowerFile.endsWith(".bmp")) return ".bmp";
+  if (type.includes("webp") || lowerFile.endsWith(".webp")) return ".webp";
+  if (type.includes("jpeg") || type.includes("jpg") || lowerFile.endsWith(".jpg") || lowerFile.endsWith(".jpeg")) return ".jpg";
+  return ".jpg";
+}
+
+function inferImageMime(contentType, ext) {
+  const type = String(contentType || "").toLowerCase();
+  if (type.startsWith("image/")) return type;
+  switch (String(ext || "").toLowerCase()) {
+    case ".png":
+      return "image/png";
+    case ".bmp":
+      return "image/bmp";
+    case ".webp":
+      return "image/webp";
+    default:
+      return "image/jpeg";
+  }
+}
+
+function looksLikePlateEvent(eventType, eventCode, xmlText, jsonText) {
+  const merged = [eventType, eventCode, xmlText, jsonText].map((x) => String(x || "").toUpperCase()).join(" ");
+  return /ANPR|PLATE|TRAFFIC|ITS|SNAP|LICENSE/i.test(merged);
 }
 
 function pickPreferredJpegPart(imageParts) {
@@ -1323,6 +1653,7 @@ function pickPreferredJpegPart(imageParts) {
     if (headerText.includes("license") || headerText.includes("plate")) return 0;
     if (headerText.includes("detection")) return 1;
     if (headerText.includes("scene") || headerText.includes("vehicle") || headerText.includes("overview")) return 2;
+    if (headerText.includes("closeup") || headerText.includes("snapshot")) return 2;
     return 3;
   };
   return imageParts
@@ -1361,7 +1692,14 @@ function parseHikvisionIsapiEvent(rawBody, contentType) {
       jsonTexts.push(decodeBufferText(part.body));
       continue;
     }
-    if (type.includes("image/jpeg") || type.includes("image/jpg") || filename.endsWith(".jpg") || filename.endsWith(".jpeg")) {
+    if (
+      type.startsWith("image/") ||
+      filename.endsWith(".jpg") ||
+      filename.endsWith(".jpeg") ||
+      filename.endsWith(".png") ||
+      filename.endsWith(".bmp") ||
+      filename.endsWith(".webp")
+    ) {
       imageParts.push(part);
     }
   }
@@ -1373,40 +1711,109 @@ function parseHikvisionIsapiEvent(rawBody, contentType) {
   const xmlText = xmlTexts.find((text) => /<(?:\w+:)?ANPR[\s>]/i.test(text) || /<(?:\w+:)?EventNotificationAlert[\s>]/i.test(text)) || xmlTexts[0] || "";
   const jsonText = jsonTexts[0] || "";
   const plate = normalizePlateText(
-    extractXmlTagValue(xmlText, ["licensePlate", "plateNumber", "plate"]) ||
-      extractJsonStringValue(jsonText, ["licensePlate", "plateNumber", "plate"])
+    pickFirstScalarFromStructuredText({
+      xmlText,
+      jsonText,
+      fallbackKeys: ["licensePlate", "plateNumber", "plate", "plateNo", "plateNum", "vehPlate", "vehPlateNo", "license", "licence"]
+    })
   );
-  const eventType = extractXmlTagValue(xmlText, "eventType") || extractJsonStringValue(jsonText, "eventType");
-  const eventState = extractXmlTagValue(xmlText, "eventState") || extractJsonStringValue(jsonText, "eventState");
-  const eventTimeText = extractXmlTagValue(xmlText, ["dateTime", "eventTime", "time"]) || extractJsonStringValue(jsonText, ["dateTime", "eventTime", "time"]);
-  const uuid =
-    extractXmlTagValue(xmlText, ["UUID", "uuid", "eventID", "eventId"]) ||
-    extractJsonStringValue(jsonText, ["UUID", "uuid", "eventID", "eventId"]);
-  const channelId = extractXmlTagValue(xmlText, ["channelID", "channelId"]) || extractJsonStringValue(jsonText, ["channelID", "channelId"]);
-  const ipAddress = extractXmlTagValue(xmlText, "ipAddress") || extractJsonStringValue(jsonText, "ipAddress");
-  const isRetransmissionText =
-    extractXmlTagValue(xmlText, "isDataRetransmission") || extractJsonStringValue(jsonText, "isDataRetransmission");
+  const eventType = pickFirstScalarFromStructuredText({
+    xmlText,
+    jsonText,
+    fallbackKeys: ["eventType", "type", "eventName", "eventDescription", "majorEventType", "minorEventType"]
+  });
+  const eventCode = pickFirstScalarFromStructuredText({
+    xmlText,
+    jsonText,
+    fallbackKeys: ["eventCode", "alarmType", "ruleType", "ruleID"]
+  });
+  const eventState = pickFirstScalarFromStructuredText({
+    xmlText,
+    jsonText,
+    fallbackKeys: ["eventState", "state", "status"]
+  });
+  const eventTimeText = pickFirstScalarFromStructuredText({
+    xmlText,
+    jsonText,
+    fallbackKeys: ["dateTime", "eventTime", "time", "absTime", "captureTime", "snapTime", "utcTime"]
+  });
+  const uuid = pickFirstScalarFromStructuredText({
+    xmlText,
+    jsonText,
+    fallbackKeys: ["UUID", "uuid", "eventID", "eventId", "taskID", "taskId", "snapID", "snapId", "serialNO"]
+  });
+  const channelId = pickFirstScalarFromStructuredText({
+    xmlText,
+    jsonText,
+    fallbackKeys: ["channelID", "channelId", "ivmsChannel", "cameraID", "cameraId", "deviceID", "deviceId"]
+  });
+  const ipAddress = pickFirstScalarFromStructuredText({
+    xmlText,
+    jsonText,
+    fallbackKeys: ["ipAddress", "ipv4Address", "deviceAddress", "srcIP", "srcIp"]
+  });
+  const laneNo = pickFirstScalarFromStructuredText({
+    xmlText,
+    jsonText,
+    fallbackKeys: ["laneNo", "lane", "laneNumber"]
+  });
+  const plateColor = pickFirstScalarFromStructuredText({
+    xmlText,
+    jsonText,
+    fallbackKeys: ["plateColor", "licensePlateColor", "vehPlateColor"]
+  });
+  const vehicleColor = pickFirstScalarFromStructuredText({
+    xmlText,
+    jsonText,
+    fallbackKeys: ["vehicleColor", "vehColor", "carColor"]
+  });
+  const vehicleType = pickFirstScalarFromStructuredText({
+    xmlText,
+    jsonText,
+    fallbackKeys: ["vehicleType", "vehType", "carType"]
+  });
+  const confidenceText = pickFirstScalarFromStructuredText({
+    xmlText,
+    jsonText,
+    fallbackKeys: ["confidence", "accurate", "credibility"]
+  });
+  const isRetransmissionText = pickFirstScalarFromStructuredText({
+    xmlText,
+    jsonText,
+    fallbackKeys: ["isDataRetransmission", "retransmission", "isRetransmission"]
+  });
   const eventDate = eventTimeText ? new Date(eventTimeText) : null;
   const preferredJpeg = pickPreferredJpegPart(imageParts);
-  const jpegBuffer = Buffer.isBuffer(preferredJpeg?.body) && preferredJpeg.body.length ? preferredJpeg.body : null;
+  const imageBuffer = Buffer.isBuffer(preferredJpeg?.body) && preferredJpeg.body.length ? preferredJpeg.body : null;
+  const imageExt = inferImageExtension(preferredJpeg?.headers?.["content-type"], parseContentDisposition(preferredJpeg?.headers?.["content-disposition"]).filename);
+  const imageMime = inferImageMime(preferredJpeg?.headers?.["content-type"], imageExt);
   const sourceEventKey = buildSourceEventKey({
     uuid,
     plate,
-    eventType,
+    eventType: `${eventType}|${eventCode}`,
     eventAt: Number.isFinite(eventDate?.getTime()) ? eventDate.toISOString() : "",
-    channelId,
+    channelId: `${channelId}|${laneNo}`,
     ipAddress
   });
 
   return {
     plate,
     eventType: String(eventType || "").trim(),
+    eventCode: String(eventCode || "").trim(),
     eventState: String(eventState || "").trim(),
     eventDate: Number.isFinite(eventDate?.getTime()) ? eventDate : null,
-    jpegBuffer,
-    imageBase64: jpegBuffer ? `data:image/jpeg;base64,${jpegBuffer.toString("base64")}` : "",
+    laneNo: String(laneNo || "").trim(),
+    plateColor: String(plateColor || "").trim(),
+    vehicleColor: String(vehicleColor || "").trim(),
+    vehicleType: String(vehicleType || "").trim(),
+    confidence: Number(confidenceText || 0) || 0,
+    imageBuffer,
+    imageExt,
+    imageMime,
+    imageBase64: imageBuffer ? `data:${imageMime};base64,${imageBuffer.toString("base64")}` : "",
     sourceEventKey,
     isRetransmission: toBooleanLoose(isRetransmissionText),
+    isPlateEvent: looksLikePlateEvent(eventType, eventCode, xmlText, jsonText),
     hasMultipart: parts.length > 0,
     xmlText
   };
@@ -1435,17 +1842,26 @@ async function parseHikvisionIsapiEventInWorker(rawBody, contentType) {
     });
   });
 
-  const jpegBuffer = workerResult?.jpegBase64 ? Buffer.from(String(workerResult.jpegBase64 || ""), "base64") : null;
+  const imageBuffer = workerResult?.imageBase64 ? Buffer.from(String(workerResult.imageBase64 || ""), "base64") : null;
   const eventDate = workerResult?.eventDateIso ? new Date(workerResult.eventDateIso) : null;
   return {
     plate: String(workerResult?.plate || ""),
     eventType: String(workerResult?.eventType || "").trim(),
+    eventCode: String(workerResult?.eventCode || "").trim(),
     eventState: String(workerResult?.eventState || "").trim(),
     eventDate: Number.isFinite(eventDate?.getTime()) ? eventDate : null,
-    jpegBuffer,
-    imageBase64: jpegBuffer ? `data:image/jpeg;base64,${jpegBuffer.toString("base64")}` : "",
+    laneNo: String(workerResult?.laneNo || "").trim(),
+    plateColor: String(workerResult?.plateColor || "").trim(),
+    vehicleColor: String(workerResult?.vehicleColor || "").trim(),
+    vehicleType: String(workerResult?.vehicleType || "").trim(),
+    confidence: Number(workerResult?.confidence || 0) || 0,
+    imageBuffer,
+    imageExt: String(workerResult?.imageExt || ".jpg"),
+    imageMime: String(workerResult?.imageMime || "image/jpeg"),
+    imageBase64: imageBuffer ? `data:${String(workerResult?.imageMime || "image/jpeg")};base64,${imageBuffer.toString("base64")}` : "",
     sourceEventKey: String(workerResult?.sourceEventKey || ""),
     isRetransmission: !!workerResult?.isRetransmission,
+    isPlateEvent: !!workerResult?.isPlateEvent,
     hasMultipart: !!workerResult?.hasMultipart,
     xmlText: String(workerResult?.xmlText || "")
   };
@@ -1490,6 +1906,9 @@ async function saveDeviceInfoPatch(patch) {
   if (patch.serial && typeof patch.serial === "object") {
     const base = info.serial && typeof info.serial === "object" ? info.serial : {};
     next.serial = { ...base, ...patch.serial };
+  }
+  if (Array.isArray(patch.devices)) {
+    next.devices = normalizeManagedDeviceList(patch.devices);
   }
   if (patch.system && typeof patch.system === "object") {
     const base = info.system && typeof info.system === "object" ? info.system : {};
@@ -1678,6 +2097,297 @@ function normalizeConnectionConfig(raw) {
   return { host, port: port || 80, username, password };
 }
 
+function newManagedDeviceId() {
+  return `${Date.now()}-${crypto.randomBytes(4).toString("hex")}`;
+}
+
+function normalizeManagedDevice(raw, fallback = {}) {
+  const base = normalizeConnectionConfig({
+    host: raw?.host ?? fallback.host,
+    port: raw?.port ?? fallback.port,
+    username: raw?.username ?? fallback.username,
+    password: raw?.password ?? fallback.password
+  });
+  const protocolRaw = String(raw?.protocol ?? fallback.protocol ?? "hikvision-isapi").trim().toLowerCase();
+  const protocol = ALLOWED_DEVICE_PROTOCOLS.has(protocolRaw) ? protocolRaw : "hikvision-isapi";
+  const id = String(raw?.id ?? fallback.id ?? newManagedDeviceId()).trim() || newManagedDeviceId();
+  const deviceId = String(raw?.deviceId ?? fallback.deviceId ?? "").trim().slice(0, 20);
+  const nameRaw = String(raw?.name ?? fallback.name ?? "").trim();
+  const name = nameRaw || `${base.host || "未命名设备"}:${base.port || 80}`;
+  const summary = raw?.summary && typeof raw.summary === "object" ? raw.summary : fallback.summary && typeof fallback.summary === "object" ? fallback.summary : {};
+  const onlineState = String(raw?.onlineState ?? fallback.onlineState ?? "unknown").trim().toLowerCase();
+  const checkedAt = Number(raw?.checkedAt ?? fallback.checkedAt ?? 0) || 0;
+  return {
+    id,
+    deviceId,
+    name: name.slice(0, 80),
+    protocol,
+    host: base.host,
+    port: base.port,
+    username: base.username,
+    password: base.password,
+    onlineState: onlineState === "online" || onlineState === "offline" ? onlineState : "unknown",
+    checkedAt,
+    summary: {
+      deviceName: String(summary?.deviceName || ""),
+      model: String(summary?.model || ""),
+      firmwareVersion: String(summary?.firmwareVersion || ""),
+      manufacturer: String(summary?.manufacturer || ""),
+      serialNumber: String(summary?.serialNumber || ""),
+      ipv4Address: String(summary?.ipv4Address || "")
+    }
+  };
+}
+
+function normalizeManagedDeviceList(rawList) {
+  const seen = new Set();
+  const out = [];
+  for (const item of Array.isArray(rawList) ? rawList : []) {
+    const normalized = normalizeManagedDevice(item);
+    if (!normalized.host) continue;
+    if (seen.has(normalized.id)) continue;
+    seen.add(normalized.id);
+    out.push(normalized);
+  }
+  return out;
+}
+
+function buildIsapiDeviceUrl({ host, port, pathname = "/ISAPI/System/deviceInfo" }) {
+  const safeHost = String(host || "").trim();
+  const safePort = toPort(port, 80) || 80;
+  const safePath = String(pathname || "/ISAPI/System/deviceInfo").trim() || "/ISAPI/System/deviceInfo";
+  const pathWithSlash = safePath.startsWith("/") ? safePath : `/${safePath}`;
+  return `http://${safeHost}:${safePort}${pathWithSlash}`;
+}
+
+function summarizeIsapiDeviceInfo(xmlText) {
+  const xml = String(xmlText || "");
+  return {
+    deviceName: extractXmlTagValue(xml, ["deviceName", "DeviceName"]) || "",
+    model: extractXmlTagValue(xml, ["model", "Model", "deviceModel", "DeviceModel"]) || "",
+    firmwareVersion: extractXmlTagValue(xml, ["firmwareVersion", "firmwareVersionInfo", "FirmwareVersion"]) || "",
+    firmwareReleasedDate: extractXmlTagValue(xml, ["firmwareReleasedDate", "FirmwareReleasedDate"]) || "",
+    manufacturer: extractXmlTagValue(xml, ["manufacturer", "Manufacturer"]) || "",
+    serialNumber: extractXmlTagValue(xml, ["serialNumber", "subSerialNumber", "deviceSN", "DeviceSN", "SerialNumber"]) || "",
+    macAddress: extractXmlTagValue(xml, ["macAddress", "MACAddress"]) || "",
+    ipv4Address: extractXmlTagValue(xml, ["ipAddress", "IPv4Address"]) || ""
+  };
+}
+
+function summarizeDahuaHttpInfo(text) {
+  const source = String(text || "");
+  const pick = (key) => {
+    const m = source.match(new RegExp(`(?:^|\\n)${key}=([^\\n]+)`, "i"));
+    return m ? String(m[1] || "").trim() : "";
+  };
+  return {
+    deviceName: pick("deviceName") || pick("name"),
+    model: pick("model") || pick("deviceType"),
+    firmwareVersion: pick("version") || pick("firmwareVersion"),
+    manufacturer: "Dahua",
+    serialNumber: pick("serialNumber") || pick("sn"),
+    ipv4Address: pick("eth0\\.IPAddress") || pick("IPAddress") || ""
+  };
+}
+
+function formatProtocolSummary(summary = {}) {
+  const parts = [];
+  if (summary.protocolLabel) parts.push(summary.protocolLabel);
+  if (summary.testMode) parts.push(summary.testMode);
+  if (summary.deviceName) parts.push(summary.deviceName);
+  if (summary.model) parts.push(summary.model);
+  if (summary.serialNumber) parts.push(summary.serialNumber);
+  if (summary.message) parts.push(summary.message);
+  return parts.filter(Boolean).join(" | ");
+}
+
+function getProtocolLabel(protocol) {
+  switch (String(protocol || "").trim()) {
+    case "gb28181":
+      return "国标GB28181（2016/2022）";
+    case "ehome":
+      return "国家电网B接口";
+    case "jt1078-terminal":
+      return "交通部JT1078终端设备";
+    case "jt1078-platform":
+      return "交通部JT1078下级平台";
+    case "onvif":
+      return "ONVIF 2.0";
+    case "hikvision-private":
+      return "海康私有协议";
+    case "dahua-http":
+      return "大华HTTP";
+    case "dahua-private":
+      return "大华私有协议";
+    case "hikvision-isapi":
+    default:
+      return "海康ISAPI";
+  }
+}
+
+async function testTcpReachability({ host, port, timeoutMs = 2500 }) {
+  const conn = normalizeConnectionConfig({ host, port });
+  if (!conn.host) throw new Error("请填写设备 IP / Host");
+  return await new Promise((resolve, reject) => {
+    const socket = new net.Socket();
+    let settled = false;
+    const finish = (err, payload) => {
+      if (settled) return;
+      settled = true;
+      socket.destroy();
+      if (err) reject(err);
+      else resolve(payload);
+    };
+    socket.setTimeout(timeoutMs);
+    socket.once("connect", () => {
+      finish(null, {
+        protocolLabel: "TCP",
+        testMode: "端口探测",
+        message: `${conn.host}:${conn.port} 可达`
+      });
+    });
+    socket.once("timeout", () => finish(new Error(`TCP 连接超时：${conn.host}:${conn.port}`)));
+    socket.once("error", (err) => finish(err));
+    socket.connect(conn.port, conn.host);
+  });
+}
+
+async function testOnvifConnection({ host, port, username, password }) {
+  const conn = normalizeConnectionConfig({ host, port, username, password });
+  if (!conn.host) throw new Error("请填写设备 IP / Host");
+  return await new Promise((resolve, reject) => {
+    const device = new Cam(
+      {
+        hostname: conn.host,
+        port: conn.port,
+        username: conn.username,
+        password: conn.password,
+        timeout: 5000
+      },
+      function onConnect(err) {
+        if (err) return reject(err);
+        const info = this?.deviceInformation || {};
+        resolve({
+          protocolLabel: getProtocolLabel("onvif"),
+          testMode: "ONVIF 握手",
+          deviceName: String(info?.Manufacturer || ""),
+          model: String(info?.Model || ""),
+          firmwareVersion: String(info?.FirmwareVersion || ""),
+          serialNumber: String(info?.SerialNumber || ""),
+          message: `${conn.host}:${conn.port} ONVIF 可连接`
+        });
+      }
+    );
+    setTimeout(() => {
+      try {
+        device?.removeAllListeners?.();
+      } catch {}
+      reject(new Error(`ONVIF 连接超时：${conn.host}:${conn.port}`));
+    }, 5200);
+  });
+}
+
+async function requestDahuaHttp({ host, port, username, password, pathname = "/cgi-bin/magicBox.cgi?action=getSystemInfo" }) {
+  const conn = normalizeConnectionConfig({ host, port, username, password });
+  if (!conn.host) throw new Error("请填写设备 IP / Host");
+  if (!conn.username) throw new Error("请填写摄像头用户名");
+  if (!conn.password) throw new Error("请填写摄像头密码");
+  const safePath = String(pathname || "/cgi-bin/magicBox.cgi?action=getSystemInfo").trim() || "/cgi-bin/magicBox.cgi?action=getSystemInfo";
+  const url = `http://${conn.host}:${conn.port}${safePath.startsWith("/") ? "" : "/"}${safePath}`;
+  const requestOptions = { method: "GET", headers: { Accept: "text/plain, */*;q=0.8" } };
+  const digestClient = new DigestClient(conn.username, conn.password);
+  let res = await digestClient.fetch(url, requestOptions);
+  if (res.status === 401 || res.status === 403) {
+    const basicClient = new DigestClient(conn.username, conn.password, { basic: true });
+    res = await basicClient.fetch(url, requestOptions);
+  }
+  const text = await res.text();
+  if (!res.ok) {
+    throw new Error(`HTTP 请求失败：${res.status}${text ? ` - ${text.slice(0, 180)}` : ""}`);
+  }
+  return { url, status: res.status, text };
+}
+
+async function testDeviceConnectionByProtocol({ protocol, host, port, username, password }) {
+  const normalizedProtocol = ALLOWED_DEVICE_PROTOCOLS.has(String(protocol || "").trim()) ? String(protocol).trim() : "hikvision-isapi";
+  if (normalizedProtocol === "hikvision-isapi") {
+    const result = await requestHikvisionIsapi({ host, port, username, password, pathname: "/ISAPI/System/deviceInfo", method: "GET" });
+    const summary = summarizeIsapiDeviceInfo(result.text);
+    return {
+      ok: true,
+      requestUrl: result.url,
+      rawText: result.text,
+      summary: {
+        ...summary,
+        protocolLabel: getProtocolLabel(normalizedProtocol),
+        testMode: "ISAPI 设备信息",
+        message: `${host}:${port} ISAPI 可连接`
+      }
+    };
+  }
+  if (normalizedProtocol === "onvif") {
+    const summary = await testOnvifConnection({ host, port, username, password });
+    return { ok: true, requestUrl: `http://${host}:${port}/onvif/device_service`, rawText: formatProtocolSummary(summary), summary };
+  }
+  if (normalizedProtocol === "dahua-http") {
+    const result = await requestDahuaHttp({ host, port, username, password });
+    const summary = summarizeDahuaHttpInfo(result.text);
+    return {
+      ok: true,
+      requestUrl: result.url,
+      rawText: result.text,
+      summary: {
+        ...summary,
+        protocolLabel: getProtocolLabel(normalizedProtocol),
+        testMode: "HTTP 系统信息",
+        message: `${host}:${port} HTTP 可连接`
+      }
+    };
+  }
+  const tcpSummary = await testTcpReachability({ host, port });
+  return {
+    ok: true,
+    requestUrl: `tcp://${host}:${port}`,
+    rawText: formatProtocolSummary({ ...tcpSummary, protocolLabel: getProtocolLabel(normalizedProtocol) }),
+    summary: {
+      protocolLabel: getProtocolLabel(normalizedProtocol),
+      testMode: "TCP 可达性",
+      message: `${host}:${port} 端口可达`
+    }
+  };
+}
+
+async function requestHikvisionIsapi({ host, port, username, password, pathname = "/ISAPI/System/deviceInfo", method = "GET", body = "" }) {
+  const conn = normalizeConnectionConfig({ host, port, username, password });
+  if (!conn.host) throw new Error("请填写摄像头 IP / Host");
+  if (!conn.username) throw new Error("请填写摄像头用户名");
+  if (!conn.password) throw new Error("请填写摄像头密码");
+  const url = buildIsapiDeviceUrl({ host: conn.host, port: conn.port, pathname });
+  const headers = { Accept: "application/xml, text/xml;q=0.9, */*;q=0.8" };
+  const requestOptions = { method: String(method || "GET").toUpperCase(), headers };
+  if (String(body || "")) {
+    requestOptions.body = String(body);
+    headers["Content-Type"] = "application/xml; charset=utf-8";
+  }
+
+  const digestClient = new DigestClient(conn.username, conn.password);
+  let res = await digestClient.fetch(url, requestOptions);
+  if (res.status === 401 || res.status === 403) {
+    const basicClient = new DigestClient(conn.username, conn.password, { basic: true });
+    res = await basicClient.fetch(url, requestOptions);
+  }
+  const text = await res.text();
+  if (!res.ok) {
+    throw new Error(`ISAPI 请求失败：HTTP ${res.status}${text ? ` - ${text.slice(0, 180)}` : ""}`);
+  }
+  return {
+    url,
+    status: res.status,
+    contentType: String(res.headers.get("content-type") || ""),
+    text
+  };
+}
+
 function toUInt16OrUndefined(v) {
   const n = Number(v);
   if (!Number.isFinite(n)) return undefined;
@@ -1804,12 +2514,13 @@ function normalizeIngestPatch(raw) {
 async function getClientConfig() {
   const info = await loadOrInitDeviceInfo();
   const connection = normalizeConnectionConfig(info?.connection);
+  const devices = normalizeManagedDeviceList(info?.devices);
   const probe = normalizeProbeConfig(info?.probe);
   const serial = normalizeSerialConfig(info?.serial);
   const system = normalizeSystemConfig(info?.system);
   const ingest = normalizeIngestConfig(info?.ingest);
   const registryBaseUrl = String(info?.registryBaseUrl || "").trim().replace(/\/+$/, "");
-  return { connection, probe, serial, system, ingest, registryBaseUrl };
+  return { connection, devices, probe, serial, system, ingest, registryBaseUrl };
 }
 
 async function startProbeResponder({ port, reporter }) {
@@ -2295,6 +3006,205 @@ app.get("/api/device/config", async (req, res, next) => {
 });
 
 app.post("/api/device/config", async (req, res, next) => {
+  const onlyDevices =
+    Array.isArray(req.body?.devices) &&
+    !req.body?.connection &&
+    !req.body?.probe &&
+    !req.body?.serial &&
+    !req.body?.system &&
+    !req.body?.ingest &&
+    typeof req.body?.registryBaseUrl !== "string";
+  if (!onlyDevices) return next();
+  try {
+    await saveDeviceInfoPatch({ devices: normalizeManagedDeviceList(req.body.devices) });
+    const config = await getClientConfig();
+    res.json({ ok: true, config });
+  } catch (err) {
+    next(err);
+  }
+});
+
+app.get("/api/devices", async (req, res, next) => {
+  try {
+    const config = await getClientConfig();
+    res.json({ ok: true, items: config.devices || [] });
+  } catch (err) {
+    next(err);
+  }
+});
+
+app.post("/api/devices", async (req, res, next) => {
+  try {
+    const info = await loadOrInitDeviceInfo();
+    const devices = normalizeManagedDeviceList(info?.devices);
+    const device = normalizeManagedDevice(req.body?.device || {});
+    if (!device.host) {
+      const err = new Error("请填写设备 IP / Host");
+      err.statusCode = 400;
+      throw err;
+    }
+    devices.unshift(device);
+    await saveDeviceInfoPatch({ devices });
+    res.json({ ok: true, item: device });
+  } catch (err) {
+    next(err);
+  }
+});
+
+app.put("/api/devices/:id", async (req, res, next) => {
+  try {
+    const targetId = String(req.params.id || "").trim();
+    const info = await loadOrInitDeviceInfo();
+    const devices = normalizeManagedDeviceList(info?.devices);
+    const index = devices.findIndex((item) => item.id === targetId);
+    if (index < 0) {
+      const err = new Error("设备不存在");
+      err.statusCode = 404;
+      throw err;
+    }
+    const updated = normalizeManagedDevice(req.body?.device || {}, devices[index]);
+    devices[index] = updated;
+    await saveDeviceInfoPatch({ devices });
+    res.json({ ok: true, item: updated });
+  } catch (err) {
+    next(err);
+  }
+});
+
+app.delete("/api/devices/:id", async (req, res, next) => {
+  try {
+    const targetId = String(req.params.id || "").trim();
+    const info = await loadOrInitDeviceInfo();
+    const devices = normalizeManagedDeviceList(info?.devices);
+    const nextDevices = devices.filter((item) => item.id !== targetId);
+    if (nextDevices.length === devices.length) {
+      const err = new Error("设备不存在");
+      err.statusCode = 404;
+      throw err;
+    }
+    await saveDeviceInfoPatch({ devices: nextDevices });
+    res.json({ ok: true });
+  } catch (err) {
+    next(err);
+  }
+});
+
+app.post("/api/device/test-connection", async (req, res, next) => {
+  try {
+    const cfg = await getClientConfig();
+    const baseConn = normalizeConnectionConfig(cfg?.connection);
+    const reqConn = req.body?.connection && typeof req.body.connection === "object" ? normalizeConnectionConfig(req.body.connection) : {};
+    const protocol = String(req.body?.protocol || "hikvision-isapi").trim() || "hikvision-isapi";
+    const connection = normalizeConnectionConfig({
+      host: reqConn.host || baseConn.host,
+      port: reqConn.port || baseConn.port,
+      username: reqConn.username || baseConn.username,
+      password: reqConn.password || baseConn.password
+    });
+    const result = await testDeviceConnectionByProtocol({
+      protocol,
+      ...connection
+    });
+    res.json({
+      ok: true,
+      protocol,
+      connection: {
+        host: connection.host,
+        port: connection.port,
+        username: connection.username
+      },
+      requestUrl: result.requestUrl,
+      summary: result.summary,
+      rawText: result.rawText
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+app.post("/api/devices/:id/check", async (req, res, next) => {
+  try {
+    const targetId = String(req.params.id || "").trim();
+    const info = await loadOrInitDeviceInfo();
+    const devices = normalizeManagedDeviceList(info?.devices);
+    const index = devices.findIndex((item) => item.id === targetId);
+    if (index < 0) {
+      const err = new Error("设备不存在");
+      err.statusCode = 404;
+      throw err;
+    }
+    const device = devices[index];
+    if (device.protocol !== "hikvision-isapi") {
+      const err = new Error(`当前协议暂不支持在线检测：${device.protocol}`);
+      err.statusCode = 400;
+      throw err;
+    }
+    const checkedAt = Date.now();
+    try {
+      const result = await requestHikvisionIsapi({
+        host: device.host,
+        port: device.port,
+        username: device.username,
+        password: device.password,
+        pathname: "/ISAPI/System/deviceInfo",
+        method: "GET"
+      });
+      const summary = summarizeIsapiDeviceInfo(result.text);
+      devices[index] = normalizeManagedDevice({
+        ...device,
+        onlineState: "online",
+        checkedAt,
+        summary
+      });
+      await saveDeviceInfoPatch({ devices });
+      res.json({ ok: true, item: devices[index], rawText: result.text, requestUrl: result.url });
+    } catch (e) {
+      devices[index] = normalizeManagedDevice({
+        ...device,
+        onlineState: "offline",
+        checkedAt
+      });
+      await saveDeviceInfoPatch({ devices });
+      res.status(502).json({ ok: false, error: String(e?.message || e), item: devices[index] });
+    }
+  } catch (err) {
+    next(err);
+  }
+});
+
+app.post("/api/isapi/device-info", async (req, res, next) => {
+  try {
+    const cfg = await getClientConfig();
+    const baseConn = normalizeConnectionConfig(cfg?.connection);
+    const reqConn = req.body?.connection && typeof req.body.connection === "object" ? normalizeConnectionConfig(req.body.connection) : {};
+    const connection = normalizeConnectionConfig({
+      host: reqConn.host || baseConn.host,
+      port: reqConn.port || baseConn.port,
+      username: reqConn.username || baseConn.username,
+      password: reqConn.password || baseConn.password
+    });
+    const result = await requestHikvisionIsapi({
+      ...connection,
+      pathname: "/ISAPI/System/deviceInfo",
+      method: "GET"
+    });
+    res.json({
+      ok: true,
+      connection: {
+        host: connection.host,
+        port: connection.port,
+        username: connection.username
+      },
+      requestUrl: result.url,
+      summary: summarizeIsapiDeviceInfo(result.text),
+      rawText: result.text
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+app.post("/api/device/config", async (req, res, next) => {
   try {
     const patch = {};
     if (req.body?.connection && typeof req.body.connection === "object") {
@@ -2314,6 +3224,9 @@ app.post("/api/device/config", async (req, res, next) => {
     if (req.body?.ingest && typeof req.body.ingest === "object") {
       const ingestPatch = normalizeIngestPatch(req.body.ingest);
       if (ingestPatch) patch.ingest = ingestPatch;
+    }
+    if (Array.isArray(req.body?.devices)) {
+      patch.devices = normalizeManagedDeviceList(req.body.devices);
     }
     if (typeof req.body?.registryBaseUrl === "string") {
       const v = String(req.body.registryBaseUrl || "").trim().replace(/\/+$/, "");
@@ -2428,18 +3341,19 @@ function formatTimestampForFile(date) {
   return `${y}${m}${day}_${hh}${mm}${ss}_${ms}`;
 }
 
-function planPlateFtpUpload({ plate, eventDate }) {
+function planPlateFtpUpload({ plate, eventDate, ext = ".jpg" }) {
   const cfg = getFtpConfig();
   if (!cfg.enabled) return null;
   const { y, m, day } = formatDateFolderParts(eventDate);
   const safePlate = sanitizeNamePart(plate);
   const remoteDir = `${cfg.baseDir}/${y}/${m}/${day}`;
-  const remoteName = `${formatTimestampForFile(eventDate)}_${safePlate}.jpg`;
+  const safeExt = /^\.[a-z0-9]+$/i.test(String(ext || "").trim()) ? String(ext).trim().toLowerCase() : ".jpg";
+  const remoteName = `${formatTimestampForFile(eventDate)}_${safePlate}${safeExt}`;
   const remotePath = `${remoteDir}/${remoteName}`;
   return { remoteDir, remoteName, remotePath };
 }
 
-async function uploadPlateJpegToFtp({ jpegBuffer, remoteDir, remoteName }) {
+async function uploadPlateBufferToFtp({ imageBuffer, remoteDir, remoteName }) {
   const cfg = getFtpConfig();
   if (!cfg.enabled) return;
   const client = new ftp.Client(15_000);
@@ -2453,7 +3367,7 @@ async function uploadPlateJpegToFtp({ jpegBuffer, remoteDir, remoteName }) {
       secure: cfg.secure
     });
     await client.ensureDir(remoteDir);
-    await client.uploadFrom(Readable.from(jpegBuffer), remoteName);
+    await client.uploadFrom(Readable.from(imageBuffer), remoteName);
   } finally {
     client.close();
   }
@@ -2471,15 +3385,13 @@ app.post("/api/isapi/event", express.raw({ type: "*/*", limit: "50mb" }), async 
     }
     const plate = parsed.plate;
     const eventType = String(parsed.eventType || "").trim().toUpperCase();
+    const eventCode = String(parsed.eventCode || "").trim().toUpperCase();
     const eventState = String(parsed.eventState || "").trim().toLowerCase();
-    const isAnprLike = !eventType || eventType.includes("ANPR") || eventType.includes("PLATE");
+    const isAnprLike = Boolean(parsed.isPlateEvent) || !eventType || eventType.includes("ANPR") || eventType.includes("PLATE") || eventCode.includes("ANPR") || eventCode.includes("PLATE");
     
-    // 閺€顖涘瘮 XML 閹?JSON 閺嶇厧绱￠惃鍕簠閻楀苯褰块幓鎰絿
     const imageBase64 = parsed.imageBase64;
-    const jpegBuffer = parsed.jpegBuffer;
-
-    // 鐏忔繆鐦憴锝嗙€?multipart 閹绘劕褰囬崶鍓у (JPEG)
-    // 缁犫偓閸楁洜娈戞禍宀冪箻閸掕埖鎮崇槐銏＄叀閹?JPEG header (FF D8 FF) 閸?footer (FF D9)
+    const imageBuffer = parsed.imageBuffer;
+    const imageExt = String(parsed.imageExt || ".jpg");
     if (plate && isAnprLike && (!eventState || eventState === "active")) {
       if (parsed.sourceEventKey) {
         const existing = stmtPlateGetBySourceEventKey.get(parsed.sourceEventKey);
@@ -2488,25 +3400,47 @@ app.post("/api/isapi/event", express.raw({ type: "*/*", limit: "50mb" }), async 
           return;
         }
       }
-      console.log(`[ISAPI] 鐠囧棗鍩嗛崚鎷屾簠閻? ${plate}`);
+      console.log(`[ISAPI] received plate ${plate}`);
       const eventDate = parsed.eventDate || new Date();
       const timestamp = eventDate.toISOString();
       const receivedAt = Date.now();
       const id = newPlateId(receivedAt);
-      const ftpPlan = jpegBuffer ? planPlateFtpUpload({ plate, eventDate }) : null;
-      if (jpegBuffer && ftpPlan) {
+      const serialForwardTask = startPlateSerialForward(plate);
+      const ftpPlan = imageBuffer ? planPlateFtpUpload({ plate, eventDate, ext: imageExt }) : null;
+      if (imageBuffer && ftpPlan) {
         setImmediate(() => {
-          uploadPlateJpegToFtp({ jpegBuffer, remoteDir: ftpPlan.remoteDir, remoteName: ftpPlan.remoteName }).catch((err) => {
+          uploadPlateBufferToFtp({ imageBuffer, remoteDir: ftpPlan.remoteDir, remoteName: ftpPlan.remoteName }).catch((err) => {
             console.error("[FTP] upload failed:", err?.message || String(err));
           });
         });
       }
       let imagePath = "";
-      if (jpegBuffer) {
+      if (imageBuffer) {
         try {
-          imagePath = await savePlateJpegToDisk({ jpegBuffer, eventDate, plate, id });
+          const imagePlan = planPlateBufferSave({ eventDate, plate, id, ext: imageExt });
+          imagePath = imagePlan.imagePath;
+          setImmediate(() => {
+            writePlateBufferToDiskInWorker({ imageBuffer, absPath: imagePlan.absPath }).catch((err) => {
+              console.error("[IMAGE] async save failed:", err?.message || String(err));
+            });
+          });
         } catch {}
       }
+      const parsedMeta = {
+        source: "isapi",
+        eventType: parsed.eventType || "",
+        eventCode: parsed.eventCode || "",
+        eventState: parsed.eventState || "",
+        channelId: parsed.channelId || "",
+        ipAddress: parsed.ipAddress || "",
+        laneNo: parsed.laneNo || "",
+        plateColor: parsed.plateColor || "",
+        vehicleColor: parsed.vehicleColor || "",
+        vehicleType: parsed.vehicleType || "",
+        confidence: parsed.confidence || "",
+        isRetransmission: Boolean(parsed.isRetransmission),
+        ftpRemotePath: ftpPlan?.remotePath || ""
+      };
       try {
         stmtPlateInsert.run({
           id,
@@ -2516,7 +3450,8 @@ app.post("/api/isapi/event", express.raw({ type: "*/*", limit: "50mb" }), async 
           imagePath,
           sourceEventKey: parsed.sourceEventKey || "",
           ftpRemotePath: ftpPlan?.remotePath || "",
-          serialSentAt: 0
+          serialSentAt: 0,
+          parsedMetaJson: safeStringifyParsedMeta(parsedMeta)
         });
       } catch {}
       const imageUrl = imagePath ? `/api/plates/image/${encodeURIComponent(id)}` : "";
@@ -2529,20 +3464,16 @@ app.post("/api/isapi/event", express.raw({ type: "*/*", limit: "50mb" }), async 
         eventAt: eventDate.getTime(),
         image: imageBase64,
         imageUrl,
-        ftpRemotePath: ftpPlan?.remotePath || ""
+        ftpRemotePath: ftpPlan?.remotePath || "",
+        parsedMeta
       });
-      const serialCfg = normalizeBackendSerialConfig((await getClientConfig())?.serial);
-      if (backendSerialPort && serialCfg.forwardEnabled) {
-        setImmediate(() => {
-          backendSerialEnqueueWrite(plate + "\r\n").then((ok) => {
-            if (ok) {
-              try {
-                const sentAt = Date.now();
-                stmtPlateUpdateSerialSent.run(sentAt, id);
-                broadcastSerialSent(id, sentAt);
-              } catch {}
-            }
-          });
+      if (serialForwardTask) {
+        void serialForwardTask.then((sentAt) => {
+          if (!sentAt) return;
+          try {
+            stmtPlateUpdateSerialSent.run(sentAt, id);
+            broadcastSerialSent(id, sentAt);
+          } catch {}
         });
       }
     } else if (parsed.xmlText) {
