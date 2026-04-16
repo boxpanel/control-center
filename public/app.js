@@ -332,7 +332,11 @@ const mainViewState = { view: "home" };
 
 function setMainView(view) {
   const v = view === "serial" ? "serial" : view === "network" ? "network" : view === "system" ? "system" : "home";
+  const prev = mainViewState.view;
   mainViewState.view = v;
+  if (prev === "network" && v !== "network" && activeStreamId) {
+    void stopStream();
+  }
   if (els.homePage) els.homePage.classList.toggle("view-hidden", v !== "home");
   if (els.networkPage) els.networkPage.classList.toggle("view-hidden", v !== "network");
   if (els.serialPage) els.serialPage.classList.toggle("view-hidden", v !== "serial");
@@ -3179,11 +3183,6 @@ initPlateModule();
 initEventStream();
 initDeviceConfigModalUi();
 
-let wasStreaming = false;
-try {
-  wasStreaming = sessionStorage.getItem(SESSION_STREAMING_KEY) === "1";
-} catch {}
-
 (async () => {
   const cfg = await loadDeviceConfig();
   const conn = cfg?.connection || {};
@@ -3221,51 +3220,35 @@ try {
     }
   }
 
-  const previewSession = readLastPreviewSession();
-  if (previewSession?.host) {
-    if (els.hostInput) els.hostInput.value = `${previewSession.host}:${previewSession.port || 80}`;
-    if (els.portInput) els.portInput.value = String(previewSession.port || 80);
-    if (els.userInput) els.userInput.value = previewSession.username || "";
-    if (els.passInput) els.passInput.value = previewSession.password || "";
-  }
-
   try {
     await refreshManagedDevices();
   } catch (e) {
     setManagedDeviceHint(`加载设备列表失败：${e?.message || e}`, true);
   }
-
-  if (previewSession?.streamId && previewSession?.playUrl) {
-    logLine("检测到已有预览流，正在尝试恢复画面...");
-    setTimeout(async () => {
-      try {
-        const status = await fetchJsonGet(`/api/stream/status/${encodeURIComponent(previewSession.streamId)}`);
-        if (!status?.ok) throw new Error("预览流不存在");
-        activeStreamId = previewSession.streamId;
-        setButtons({ streaming: true });
-        await playHls(previewSession.playUrl);
-        logLine(`已恢复预览：${previewSession.host}:${previewSession.port}`);
-      } catch {
-        writeLastPreviewSession(null);
-        if ((host || readLocalLastConnection()?.host) && wasStreaming) {
-          logLine("恢复旧预览失败，正在重新连接...");
-          setTimeout(() => {
-            if (!activeStreamId) connectAndPlay();
-          }, 200);
-        }
-      }
-    }, 120);
-  } else if ((host || readLocalLastConnection()?.host) && wasStreaming) {
-    logLine("检测到刷新前已有画面，已载入上次连接信息并尝试自动连接...");
-    setTimeout(() => {
-      if (!activeStreamId) connectAndPlay();
-    }, 200);
-  }
+  writeLastPreviewSession(null);
+  try {
+    sessionStorage.setItem(SESSION_STREAMING_KEY, "0");
+  } catch {}
 })();
 
 
 window.addEventListener("beforeunload", () => {
   cancelAnimationFrame(renderHandle);
+  const streamId = String(activeStreamId || "").trim();
+  if (!streamId) return;
+  try {
+    fetch("/api/stream/stop", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ streamId }),
+      keepalive: true
+    }).catch(() => {});
+  } catch {}
+  activeStreamId = "";
+  writeLastPreviewSession(null);
+  try {
+    sessionStorage.setItem(SESSION_STREAMING_KEY, "0");
+  } catch {}
 });
 
 
