@@ -1598,14 +1598,26 @@ function renderManagedDeviceList() {
       td.textContent = text;
       tr.appendChild(td);
     }
-    tr.addEventListener("click", () => {
-      managedDeviceState.selectedId = String(item.id || "");
-      fillConnectionForm(item);
-      setManagedDeviceHint(`已选择设备：${item.name}`);
-      renderManagedDeviceList();
-    });
-    body.appendChild(tr);
-  }
+      tr.addEventListener("click", () => {
+        managedDeviceState.selectedId = String(item.id || "");
+        fillConnectionForm(item);
+        setManagedDeviceHint(`已选择设备：${item.name}`);
+        renderManagedDeviceList();
+      });
+      tr.addEventListener("dblclick", async () => {
+        managedDeviceState.selectedId = String(item.id || "");
+        fillConnectionForm(item);
+        renderManagedDeviceList();
+        if (String(item.onlineState || "").trim() !== "online") {
+          setManagedDeviceHint(`设备未在线，无法预览：${item.name}`, true);
+          return;
+        }
+        setManagedDeviceHint(`正在预览：${item.name}`);
+        logLine(`开始预览设备：${item.name} (${item.host}:${item.port})`);
+        await connectAndPlay();
+      });
+      body.appendChild(tr);
+    }
   updateManagedDeviceActionButtons();
 }
 
@@ -1802,7 +1814,7 @@ function setDeviceConfigModalOpen(open) {
 function resetDeviceConfigDialogUi() {
   if (els.hostInput) els.hostInput.value = "";
   if (els.portInput) els.portInput.value = "80";
-  if (els.deviceProtocolSelect) els.deviceProtocolSelect.value = "hikvision-isapi";
+  if (els.deviceProtocolSelect) els.deviceProtocolSelect.value = "";
   if (els.deviceIdInput) els.deviceIdInput.value = "";
   if (els.deviceNameInput) els.deviceNameInput.value = "";
   if (els.userInput) els.userInput.value = "";
