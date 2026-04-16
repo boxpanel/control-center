@@ -25,13 +25,32 @@
   portInput: document.getElementById("portInput"),
   userInput: document.getElementById("userInput"),
   passInput: document.getElementById("passInput"),
+  deviceProtocolSelect: document.getElementById("deviceProtocolSelect"),
+  deviceIdInput: document.getElementById("deviceIdInput"),
+  deviceNameInput: document.getElementById("deviceNameInput"),
+  saveConnBtn: document.getElementById("saveConnBtn"),
+  testIsapiBtn: document.getElementById("testIsapiBtn"),
+  isapiDeviceStatus: document.getElementById("isapiDeviceStatus"),
+  isapiDeviceSummary: document.getElementById("isapiDeviceSummary"),
+  isapiDeviceRaw: document.getElementById("isapiDeviceRaw"),
+  refreshDeviceListBtn: document.getElementById("refreshDeviceListBtn"),
+  addDeviceBtn: document.getElementById("addDeviceBtn"),
+  updateDeviceBtn: document.getElementById("updateDeviceBtn"),
+  deleteDeviceBtn: document.getElementById("deleteDeviceBtn"),
+  checkDeviceBtn: document.getElementById("checkDeviceBtn"),
+  managedDeviceHint: document.getElementById("managedDeviceHint"),
+  managedDeviceTableBody: document.getElementById("managedDeviceTableBody"),
+  deviceConfigModal: document.getElementById("deviceConfigModal"),
+  deviceConfigModalTitle: document.getElementById("deviceConfigModalTitle"),
+  deviceConfigModalCloseBtn: document.getElementById("deviceConfigModalCloseBtn"),
+  deviceConfigModalCancelBtn: document.getElementById("deviceConfigModalCancelBtn"),
+  deviceConfigModalSubmitBtn: document.getElementById("deviceConfigModalSubmitBtn"),
   video: document.getElementById("video"),
   canvas: document.getElementById("canvas"),
   canvasWrap: document.querySelector(".canvasWrap"),
   rtspTransport: document.getElementById("rtspTransport"),
   processMode: document.getElementById("processMode"),
   showProcessed: document.getElementById("showProcessed"),
-  discoverIpList: document.getElementById("discoverIpList"),
   serialBaudRate: document.getElementById("serialBaudRate"),
   serialBaudRateInput: document.getElementById("serialBaudRateInput"),
   serialFixedBaudRate: document.getElementById("serialFixedBaudRate"),
@@ -39,8 +58,10 @@
   serialPortSelect: document.getElementById("serialPortSelect"),
   serialFixedPort: document.getElementById("serialFixedPort"),
   serialSendBtn: document.getElementById("serialSendBtn"),
+  serialSaveBtn: document.getElementById("serialSaveBtn"),
   serialStatus: document.getElementById("serialStatus"),
   serialHint: document.getElementById("serialHint"),
+  serialSaveHint: document.getElementById("serialSaveHint"),
   serialForwardEnabled: document.getElementById("serialForwardEnabled"),
   plateSelectAll: document.getElementById("plateSelectAll"),
   plateSearchInput: document.getElementById("plateSearchInput"),
@@ -84,11 +105,93 @@ let activeStreamId = "";
 let renderHandle = 0;
 const STORAGE_KEY = "onvif:lastConnection";
 const SESSION_STREAMING_KEY = "onvif:wasStreaming";
+const MANAGED_DEVICES_SHADOW_KEY = "onvif:managedDevicesShadow";
 let lastSavedSignature = "";
 const rtspByHostPort = new Map();
 const rtspPendingByHostPort = new Map();
 const rtspErrorByHostPort = new Map();
 let hoverHostPortKey = "";
+const managedDeviceState = {
+  items: [],
+  selectedId: ""
+};
+const deviceConfigModalState = {
+  mode: "add"
+};
+const DEVICE_PROTOCOL_LABELS = {
+  "": "请选择",
+  gb28181: "国标GB28181（2016/2022）",
+  ehome: "国家电网B接口",
+  "jt1078-terminal": "交通部JT1078终端设备",
+  "jt1078-platform": "交通部JT1078下级平台",
+  onvif: "ONVIF 2.0",
+  "hikvision-isapi": "海康ISAPI",
+  "hikvision-private": "海康私有协议",
+  "dahua-http": "大华HTTP",
+  "dahua-private": "大华私有协议",
+  "grid-platform": "网力平台接入（PVG6.x/PVG10.x）",
+  "custom-rtmp-rtsp": "自定义设备（RTMP/RTSP）"
+};
+
+function getDeviceProtocolLabel(protocol) {
+  const key = String(protocol || "").trim();
+  return DEVICE_PROTOCOL_LABELS[key] || key || "请选择";
+}
+
+function newClientManagedDeviceId() {
+  return `local-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`;
+}
+
+function readManagedDevicesShadow() {
+  try {
+    const raw = localStorage.getItem(MANAGED_DEVICES_SHADOW_KEY);
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeManagedDevicesShadow(items) {
+  try {
+    localStorage.setItem(MANAGED_DEVICES_SHADOW_KEY, JSON.stringify(Array.isArray(items) ? items : []));
+  } catch {}
+}
+
+function upsertManagedDeviceShadow(device) {
+  const items = readManagedDevicesShadow();
+  const next = items.filter((item) => String(item?.id || "") !== String(device?.id || ""));
+  next.unshift(device);
+  writeManagedDevicesShadow(next);
+}
+
+function removeManagedDeviceShadow(id) {
+  const next = readManagedDevicesShadow().filter((item) => String(item?.id || "") !== String(id || ""));
+  writeManagedDevicesShadow(next);
+}
+
+function mergeManagedDeviceItems(primaryItems, shadowItems) {
+  const merged = [];
+  const seen = new Set();
+  const pushItem = (item) => {
+    if (!item || typeof item !== "object") return;
+    const id = String(item.id || "").trim();
+    if (!id || seen.has(id)) return;
+    seen.add(id);
+    merged.push(item);
+  };
+  (Array.isArray(primaryItems) ? primaryItems : []).forEach(pushItem);
+  (Array.isArray(shadowItems) ? shadowItems : []).forEach(pushItem);
+  return merged;
+}
+
+function getOnlineManagedDeviceCount() {
+  return managedDeviceState.items.filter((item) => String(item?.onlineState || "").trim() === "online").length;
+}
+
+function supportsIsapiActiveTest(protocol) {
+  return String(protocol || "").trim() === "hikvision-isapi";
+}
 
 const tooltip = (() => {
   const el = document.createElement("div");
@@ -142,6 +245,37 @@ function appendLog(el, text) {
 
 function logLine(text) {
   appendLog(els.log, text);
+}
+
+function setManagedDeviceHint(text, isError = false) {
+  if (!els.managedDeviceHint) return;
+  els.managedDeviceHint.textContent = String(text || "");
+  els.managedDeviceHint.style.color = isError ? "#b91c1c" : "#6b7280";
+}
+
+function setIsapiDeviceStatus(text, isError = false) {
+  if (!els.isapiDeviceStatus) return;
+  els.isapiDeviceStatus.textContent = String(text || "");
+  els.isapiDeviceStatus.style.color = isError ? "#b91c1c" : "#6b7280";
+}
+
+function renderIsapiDeviceSummary(summary, requestUrl = "") {
+  if (els.isapiDeviceSummary) {
+    const parts = [];
+    if (summary?.manufacturer) parts.push(`厂商：${summary.manufacturer}`);
+    if (summary?.model) parts.push(`型号：${summary.model}`);
+    if (summary?.deviceName) parts.push(`设备名：${summary.deviceName}`);
+    if (summary?.serialNumber) parts.push(`序列号：${summary.serialNumber}`);
+    if (summary?.firmwareVersion) parts.push(`固件：${summary.firmwareVersion}`);
+    if (summary?.ipv4Address) parts.push(`设备IP：${summary.ipv4Address}`);
+    if (requestUrl) parts.push(`URL：${requestUrl}`);
+    els.isapiDeviceSummary.textContent = parts.join(" | ");
+  }
+}
+
+function setIsapiDeviceRaw(text) {
+  if (!els.isapiDeviceRaw) return;
+  els.isapiDeviceRaw.textContent = String(text || "");
 }
 
 function logSerialLine(text) {
@@ -205,6 +339,12 @@ function setFtpHint(text, isError = false) {
   if (!els.ftpServerHint) return;
   els.ftpServerHint.textContent = String(text || "");
   els.ftpServerHint.style.color = isError ? "#b91c1c" : "#6b7280";
+}
+
+function setSerialSaveHint(text, isError = false) {
+  if (!els.serialSaveHint) return;
+  els.serialSaveHint.textContent = String(text || "");
+  els.serialSaveHint.style.color = isError ? "#b91c1c" : "#6b7280";
 }
 
 async function loadNetIfaces() {
@@ -402,9 +542,9 @@ async function loadFingerprint() {
   }
 }
 
-async function fetchJson(url, body) {
+async function fetchJson(url, body, method = "POST") {
   const res = await fetch(url, {
-    method: "POST",
+    method,
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body ?? {})
   });
@@ -839,6 +979,7 @@ function fillPlateDetailModal(record) {
   const sizeEl = document.getElementById("plateDetailImageSize");
   const serialEl = document.getElementById("plateDetailSerialSentAt");
   const ftpEl = document.getElementById("plateDetailFtpPath");
+  const parsedMetaEl = document.getElementById("plateDetailParsedMeta");
 
   if (imgEl) imgEl.src = getImgSrcOrFallback(record.imageDataUrl);
   if (plateEl) plateEl.textContent = String(record.plate || "");
@@ -853,6 +994,29 @@ function fillPlateDetailModal(record) {
 
   const ftpPath = String(record.ftpRemotePath || "");
   if (ftpEl) ftpEl.textContent = ftpPath || "无";
+  if (parsedMetaEl) parsedMetaEl.textContent = formatParsedMetaText(record.parsedMeta);
+}
+
+function formatParsedMetaText(meta) {
+  if (!meta || typeof meta !== "object") return "无";
+  const parts = [];
+  if (meta.eventAt) parts.push(`时间：${formatDateTime(meta.eventAt) || "--"}`);
+  if (meta.deviceIp) parts.push(`设备IP：${meta.deviceIp}`);
+  if (meta.channelNo) parts.push(`通道号：${meta.channelNo}`);
+  if (meta.laneNo) parts.push(`车道号：${meta.laneNo}`);
+  if (meta.imageSeq) parts.push(`图片序号：${meta.imageSeq}`);
+  if (meta.vehicleSeq) parts.push(`车辆序号：${meta.vehicleSeq}`);
+  if (meta.plateColor) parts.push(`车牌颜色：${meta.plateColor}`);
+  if (meta.vehicleColor) parts.push(`车身颜色：${meta.vehicleColor}`);
+  if (meta.vehicleType) parts.push(`车辆类型：${meta.vehicleType}`);
+  if (meta.speed) parts.push(`车辆速度：${meta.speed}`);
+  if (meta.directionNo) parts.push(`方向编号：${meta.directionNo}`);
+  if (meta.intersectionNo) parts.push(`路口编号：${meta.intersectionNo}`);
+  if (meta.violationType) parts.push(`违规类型：${meta.violationType}`);
+  if (Array.isArray(meta.unmatchedTokens) && meta.unmatchedTokens.length) {
+    parts.push(`其余字段：${meta.unmatchedTokens.join(" / ")}`);
+  }
+  return parts.length ? parts.join(" | ") : "无";
 }
 
 async function openPlateDetailById(id) {
@@ -1349,6 +1513,405 @@ async function persistConnectionToServer({ host, port, username, password }) {
   } catch {}
 }
 
+function collectCurrentConnectionForm() {
+  const inputPort = Number(els.portInput?.value || 80);
+  const parsedHost = parseHostAndPortFromInput(els.hostInput?.value, inputPort);
+  return {
+    host: parsedHost.host.trim(),
+    port: parsedHost.port,
+    protocol: String(els.deviceProtocolSelect?.value || "hikvision-isapi").trim() || "hikvision-isapi",
+    deviceId: String(els.deviceIdInput?.value || "").trim(),
+    name: String(els.deviceNameInput?.value || "").trim(),
+    username: String(els.userInput?.value || ""),
+    password: String(els.passInput?.value || "")
+  };
+}
+
+function fillConnectionForm(device) {
+  const item = device && typeof device === "object" ? device : null;
+  if (els.hostInput) {
+    const host = String(item?.host || "");
+    const port = String(Number(item?.port || 80) || 80);
+    els.hostInput.value = host ? `${host}:${port}` : "";
+  }
+  if (els.portInput) els.portInput.value = String(Number(item?.port || 80) || 80);
+  if (els.deviceProtocolSelect) els.deviceProtocolSelect.value = String(item?.protocol || "hikvision-isapi");
+  if (els.deviceIdInput) els.deviceIdInput.value = String(item?.deviceId || "");
+  if (els.deviceNameInput) els.deviceNameInput.value = String(item?.name || "");
+  if (els.userInput) els.userInput.value = String(item?.username || "");
+  if (els.passInput) els.passInput.value = String(item?.password || "");
+}
+
+function getManagedDeviceSummaryText(item) {
+  const summary = item?.summary && typeof item.summary === "object" ? item.summary : {};
+  const parts = [];
+  if (summary.model) parts.push(summary.model);
+  if (summary.deviceName && summary.deviceName !== item?.name) parts.push(summary.deviceName);
+  if (summary.serialNumber) parts.push(summary.serialNumber);
+  if (summary.firmwareVersion) parts.push(summary.firmwareVersion);
+  return parts.join(" | ") || "--";
+}
+
+function updateManagedDeviceActionButtons() {
+  const hasSelection = Boolean(managedDeviceState.selectedId);
+  if (els.updateDeviceBtn) els.updateDeviceBtn.disabled = !hasSelection;
+  if (els.deleteDeviceBtn) els.deleteDeviceBtn.disabled = !hasSelection;
+  if (els.checkDeviceBtn) els.checkDeviceBtn.disabled = false;
+}
+
+function renderManagedDeviceList() {
+  const body = els.managedDeviceTableBody;
+  if (!body) return;
+  body.textContent = "";
+  if (!managedDeviceState.items.length) {
+    const tr = document.createElement("tr");
+    tr.className = "plate-row";
+    const td = document.createElement("td");
+    td.colSpan = 5;
+    td.textContent = "暂无已接入设备";
+    td.style.color = "#6b7280";
+    td.style.textAlign = "center";
+    tr.appendChild(td);
+    body.appendChild(tr);
+    updateManagedDeviceActionButtons();
+    return;
+  }
+  for (const item of managedDeviceState.items) {
+    const tr = document.createElement("tr");
+    tr.dataset.deviceId = String(item.id || "");
+    tr.className = managedDeviceState.selectedId === item.id ? "plate-row selected" : "plate-row";
+    const statusText =
+      item.onlineState === "online"
+        ? "在线"
+        : item.onlineState === "offline"
+        ? "离线"
+        : "未知";
+    const cells = [
+      statusText,
+      String(item.name || ""),
+      `${String(item.host || "")}:${Number(item.port || 80) || 80}`,
+      getDeviceProtocolLabel(item.protocol || "hikvision-isapi"),
+      getManagedDeviceSummaryText(item)
+    ];
+    for (const text of cells) {
+      const td = document.createElement("td");
+      td.textContent = text;
+      tr.appendChild(td);
+    }
+    tr.addEventListener("click", () => {
+      managedDeviceState.selectedId = String(item.id || "");
+      fillConnectionForm(item);
+      setManagedDeviceHint(`已选择设备：${item.name}`);
+      renderManagedDeviceList();
+    });
+    body.appendChild(tr);
+  }
+  updateManagedDeviceActionButtons();
+}
+
+async function refreshManagedDevices({ keepSelection = true } = {}) {
+  let items = [];
+  const shadowItems = readManagedDevicesShadow();
+  try {
+    const data = await fetchJsonGet("/api/devices");
+    items = Array.isArray(data?.items) ? data.items : [];
+  } catch (err) {
+    const msg = String(err?.message || err || "");
+    if (!msg.includes("404")) throw err;
+    const fallback = await fetchJsonGet("/api/device/config");
+    items = Array.isArray(fallback?.config?.devices) ? fallback.config.devices : [];
+  }
+  managedDeviceState.items = mergeManagedDeviceItems(items, shadowItems);
+  const backendIds = new Set(items.map((item) => String(item?.id || "")).filter(Boolean));
+  const nextShadow = shadowItems.filter((item) => !backendIds.has(String(item?.id || "")));
+  if (nextShadow.length !== shadowItems.length) {
+    writeManagedDevicesShadow(nextShadow);
+  }
+  if (keepSelection && managedDeviceState.selectedId) {
+    const exists = managedDeviceState.items.some((item) => item.id === managedDeviceState.selectedId);
+    if (!exists) managedDeviceState.selectedId = "";
+  } else if (!keepSelection) {
+    managedDeviceState.selectedId = "";
+  }
+  const selected = getSelectedManagedDevice();
+  if (selected) {
+    fillConnectionForm(selected);
+  }
+  renderManagedDeviceList();
+}
+
+async function persistManagedDevicesFallback(nextItems) {
+  try {
+    await fetchJson("/api/device/config", { devices: nextItems });
+  } catch (err) {
+    const msg = String(err?.message || err || "");
+    if (msg.includes("后端串口启动失败")) {
+      return;
+    }
+    throw err;
+  }
+}
+
+function getSelectedManagedDevice() {
+  return managedDeviceState.items.find((item) => item.id === managedDeviceState.selectedId) || null;
+}
+
+async function addManagedDevice() {
+  const form = collectCurrentConnectionForm();
+  if (!form.host) throw new Error("请填写设备 IP / Host");
+  const device = {
+    id: form.id || newClientManagedDeviceId(),
+    name: form.name || `${form.host}:${form.port}`,
+    protocol: form.protocol || "hikvision-isapi",
+    ...form
+  };
+  let savedItem = null;
+  try {
+    const data = await fetchJson("/api/devices", { device });
+    savedItem = data?.item || device;
+  } catch (err) {
+    const msg = String(err?.message || err || "");
+    if (!msg.includes("404")) throw err;
+      const nextItems = [device, ...managedDeviceState.items];
+      await persistManagedDevicesFallback(nextItems);
+      savedItem = device;
+    }
+    managedDeviceState.selectedId = String(savedItem?.id || device.id || "");
+    await refreshManagedDevices();
+    if (!managedDeviceState.items.some((item) => String(item?.id || "") === managedDeviceState.selectedId)) {
+      upsertManagedDeviceShadow(savedItem || device);
+      managedDeviceState.items = mergeManagedDeviceItems(managedDeviceState.items, readManagedDevicesShadow());
+      renderManagedDeviceList();
+    } else {
+      removeManagedDeviceShadow(managedDeviceState.selectedId);
+    }
+    setManagedDeviceHint("设备已增加");
+}
+
+async function updateManagedDevice() {
+  const selected = getSelectedManagedDevice();
+  if (!selected) throw new Error("请先选择设备");
+  const form = collectCurrentConnectionForm();
+  if (!form.host) throw new Error("请填写设备 IP / Host");
+  const device = {
+    ...selected,
+    name: form.name || String(selected.name || `${form.host}:${form.port}`),
+    ...form
+  };
+  try {
+    await fetchJson(`/api/devices/${encodeURIComponent(selected.id)}`, { device }, "PUT");
+  } catch (err) {
+    const msg = String(err?.message || err || "");
+    if (!msg.includes("404")) throw err;
+      const nextItems = managedDeviceState.items.map((item) => (item.id === selected.id ? device : item));
+      await persistManagedDevicesFallback(nextItems);
+    }
+    await refreshManagedDevices();
+    if (!managedDeviceState.items.some((item) => String(item?.id || "") === String(selected.id || ""))) {
+      upsertManagedDeviceShadow(device);
+      managedDeviceState.items = mergeManagedDeviceItems(managedDeviceState.items, readManagedDevicesShadow());
+      renderManagedDeviceList();
+    } else {
+      removeManagedDeviceShadow(selected.id);
+    }
+    setManagedDeviceHint("设备已更新");
+}
+
+async function deleteManagedDevice() {
+  const selected = getSelectedManagedDevice();
+  if (!selected) throw new Error("请先选择设备");
+  try {
+    await fetchJson(`/api/devices/${encodeURIComponent(selected.id)}`, null, "DELETE");
+  } catch (err) {
+    const msg = String(err?.message || err || "");
+    if (!msg.includes("404")) throw err;
+      const nextItems = managedDeviceState.items.filter((item) => item.id !== selected.id);
+      await persistManagedDevicesFallback(nextItems);
+    }
+    removeManagedDeviceShadow(selected.id);
+    managedDeviceState.selectedId = "";
+    await refreshManagedDevices({ keepSelection: false });
+    setManagedDeviceHint("设备已删除");
+}
+
+async function checkManagedDevice() {
+  const items = Array.isArray(managedDeviceState.items) ? managedDeviceState.items : [];
+  if (!items.length) throw new Error("暂无可检测设备");
+  const logs = [];
+  let lastSummary = null;
+  let lastRequestUrl = "";
+  for (const item of items) {
+    try {
+      const data = await runProtocolConnectionTest({
+        protocol: item.protocol,
+        connection: {
+          host: item.host,
+          port: item.port,
+          username: item.username,
+          password: item.password
+        }
+      });
+      item.onlineState = "online";
+      item.summary = data?.summary || item.summary || null;
+      item.checkedAt = Date.now();
+      lastSummary = data?.summary || lastSummary;
+      lastRequestUrl = data?.requestUrl || lastRequestUrl;
+      logs.push(`[在线] ${item.name} (${item.host}:${item.port})`);
+      if (data?.rawText) {
+        logs.push(String(data.rawText));
+      }
+    } catch (err) {
+      item.onlineState = "offline";
+      item.checkedAt = Date.now();
+      logs.push(`[离线] ${item.name} (${item.host}:${item.port})`);
+      logs.push(String(err?.message || err || "检测失败"));
+    }
+    try {
+      await fetchJson(`/api/devices/${encodeURIComponent(item.id)}`, { device: item }, "PUT");
+    } catch (err) {
+      const msg = String(err?.message || err || "");
+      if (!msg.includes("404")) {
+        logLine(`设备状态写回失败：${item.name} - ${msg}`);
+      } else {
+        const nextItems = managedDeviceState.items.map((entry) => (entry.id === item.id ? item : entry));
+        try {
+          await persistManagedDevicesFallback(nextItems);
+        } catch {}
+      }
+    }
+    upsertManagedDeviceShadow(item);
+  }
+  renderManagedDeviceList();
+  setManagedDeviceHint(`检测完成：当前 ${getOnlineManagedDeviceCount()} 台在线`);
+  renderIsapiDeviceSummary(lastSummary, lastRequestUrl);
+  setIsapiDeviceRaw(logs.join("\n"));
+}
+
+function setDeviceConfigModalOpen(open) {
+  const modal = els.deviceConfigModal;
+  if (!modal) return;
+  if (open) {
+    modal.classList.add("open");
+    modal.setAttribute("aria-hidden", "false");
+  } else {
+    modal.classList.remove("open");
+    modal.setAttribute("aria-hidden", "true");
+  }
+}
+
+function resetDeviceConfigDialogUi() {
+  if (els.hostInput) els.hostInput.value = "";
+  if (els.portInput) els.portInput.value = "80";
+  if (els.deviceProtocolSelect) els.deviceProtocolSelect.value = "hikvision-isapi";
+  if (els.deviceIdInput) els.deviceIdInput.value = "";
+  if (els.deviceNameInput) els.deviceNameInput.value = "";
+  if (els.userInput) els.userInput.value = "";
+  if (els.passInput) els.passInput.value = "";
+  setIsapiDeviceStatus("日志");
+  renderIsapiDeviceSummary(null, "");
+  setIsapiDeviceRaw("");
+}
+
+function openDeviceConfigDialog(mode = "add") {
+  deviceConfigModalState.mode = mode === "edit" ? "edit" : "add";
+  if (els.deviceConfigModalTitle) {
+    els.deviceConfigModalTitle.textContent = deviceConfigModalState.mode === "edit" ? "修改" : "新增";
+  }
+  if (deviceConfigModalState.mode === "edit") {
+    const selected = getSelectedManagedDevice();
+    if (!selected) throw new Error("请先选择设备");
+    fillConnectionForm(selected);
+    setIsapiDeviceStatus(`已载入：${selected.host}:${selected.port}`);
+  } else {
+    resetDeviceConfigDialogUi();
+  }
+  setDeviceConfigModalOpen(true);
+}
+
+function initDeviceConfigModalUi() {
+  const modal = els.deviceConfigModal;
+  if (!modal) return;
+  const close = () => setDeviceConfigModalOpen(false);
+  if (els.deviceConfigModalCloseBtn) els.deviceConfigModalCloseBtn.addEventListener("click", close);
+  modal.addEventListener("click", (ev) => {
+    const t = ev.target;
+    if (t instanceof HTMLElement && t.dataset.close === "1") close();
+  });
+  document.addEventListener("keydown", (ev) => {
+    if (ev.key === "Escape" && modal.classList.contains("open")) {
+      close();
+    }
+  });
+}
+
+async function saveCurrentConnectionConfig() {
+  const inputPort = Number(els.portInput?.value || 80);
+  const parsedHost = parseHostAndPortFromInput(els.hostInput?.value, inputPort);
+  const payload = {
+    host: parsedHost.host.trim(),
+    port: parsedHost.port,
+    username: String(els.userInput?.value || ""),
+    password: String(els.passInput?.value || "")
+  };
+  if (!payload.host) throw new Error("请填写摄像头 IP / Host");
+  await persistConnectionToServer(payload);
+  setIsapiDeviceStatus("接入配置已保存");
+  logLine(`已保存海康 ISAPI 接入配置：${payload.host}:${payload.port}`);
+}
+
+async function runProtocolConnectionTest(payload) {
+  try {
+    return await fetchJson("/api/device/test-connection", payload);
+  } catch (err) {
+    const msg = String(err?.message || err || "");
+    if (!msg.includes("404")) throw err;
+    const protocol = String(payload?.protocol || "hikvision-isapi").trim() || "hikvision-isapi";
+    if (protocol === "hikvision-isapi") {
+      return await fetchJson("/api/isapi/device-info", { connection: payload.connection });
+    }
+    if (protocol === "onvif") {
+      const rtsp = await fetchJson("/api/onvif/stream-uri", payload.connection);
+      return {
+        ok: true,
+        protocol,
+        requestUrl: `http://${payload.connection.host}:${payload.connection.port}/onvif/device_service`,
+        summary: {
+          protocolLabel: getDeviceProtocolLabel(protocol),
+          testMode: "ONVIF RTSP探测",
+          message: rtsp?.rtspUri || rtsp?.rtspUriWithAuth || `${payload.connection.host}:${payload.connection.port} ONVIF 可连接`
+        },
+        rawText: String(rtsp?.rtspUriWithAuth || rtsp?.rtspUri || "ONVIF 设备已返回 RTSP 地址")
+      };
+    }
+    throw new Error(`${getDeviceProtocolLabel(protocol)} 当前服务版本还不支持测试连接，请先重启到最新版本`);
+  }
+}
+
+async function testIsapiDeviceInfo() {
+  const protocol = String(els.deviceProtocolSelect?.value || "hikvision-isapi").trim() || "hikvision-isapi";
+  const inputPort = Number(els.portInput?.value || 80);
+  const parsedHost = parseHostAndPortFromInput(els.hostInput?.value, inputPort);
+  const payload = {
+    protocol,
+    connection: {
+      host: parsedHost.host.trim(),
+      port: parsedHost.port,
+      username: String(els.userInput?.value || ""),
+      password: String(els.passInput?.value || "")
+    }
+  };
+  if (!payload.connection.host) throw new Error("请填写摄像头 IP / Host");
+  setIsapiDeviceStatus("测试中...");
+  renderIsapiDeviceSummary(null, "");
+  setIsapiDeviceRaw("");
+  const data = await runProtocolConnectionTest(payload);
+  await persistConnectionToServer(payload.connection);
+  setIsapiDeviceStatus("测试连接成功");
+  renderIsapiDeviceSummary(data?.summary || null, data?.requestUrl || "");
+  setIsapiDeviceRaw(data?.rawText || "");
+  logLine(`${getDeviceProtocolLabel(protocol)} 测试成功：${payload.connection.host}:${payload.connection.port}`);
+}
+
 async function persistSerialToServer({ baudRate, usbVendorId, usbProductId, forwardEnabled, backendPort }) {
   const serial = {};
   if (baudRate != null) serial.baudRate = Number(baudRate) || DEFAULT_SERIAL_BAUD_RATE;
@@ -1362,6 +1925,17 @@ async function persistSerialToServer({ baudRate, usbVendorId, usbProductId, forw
   try {
     await fetchJson("/api/device/config", payload);
   } catch {}
+}
+
+async function saveSerialSettings() {
+  const payload = {
+    serial: {
+      baudRate: DEFAULT_SERIAL_BAUD_RATE,
+      backendPort: getFixedBackendSerialPort(),
+      forwardEnabled: Boolean(serialState.forwardEnabled)
+    }
+  };
+  await fetchJson("/api/device/config", payload);
 }
 
 function getCurrentConnectionSignature() {
@@ -1793,6 +2367,7 @@ function initSerialUi() {
   syncFixedSerialBaudRateUi();
   serialState.backendPort = getFixedBackendSerialPort();
   setSerialUiState({ connected: false, statusText: "未连接" });
+  setSerialSaveHint("");
   (async () => {
     try {
       const cfg = await loadDeviceConfig();
@@ -1817,8 +2392,23 @@ function initSerialUi() {
   if (els.serialForwardEnabled instanceof HTMLInputElement) {
     els.serialForwardEnabled.addEventListener("change", () => {
       serialState.forwardEnabled = Boolean(els.serialForwardEnabled.checked);
-      persistSerialToServer({ forwardEnabled: serialState.forwardEnabled });
+      setSerialSaveHint("串口设置已修改，点击“保存串口设置”生效。");
       logSerialLine(serialState.forwardEnabled ? "串口转发已开启" : "串口转发已关闭");
+    });
+  }
+  if (els.serialSaveBtn) {
+    els.serialSaveBtn.addEventListener("click", async () => {
+      try {
+        els.serialSaveBtn.disabled = true;
+        setSerialSaveHint("");
+        await saveSerialSettings();
+        await syncBackendSerialUi();
+        setSerialSaveHint("串口设置保存成功");
+      } catch (e) {
+        setSerialSaveHint(`保存失败：${e?.message || e}`, true);
+      } finally {
+        els.serialSaveBtn.disabled = false;
+      }
     });
   }
   els.serialSendBtn.addEventListener("click", () => {
@@ -1868,14 +2458,10 @@ function parseHostAndPortFromInput(raw, fallbackPort) {
 }
 
 function setButtons({ streaming }) {
-  if (els.stopBtn) els.stopBtn.disabled = !streaming;
   if (els.snapshotBtn) els.snapshotBtn.disabled = !streaming;
 }
 
-function setDiscoverIpList(devices) {
-  const ul = document.getElementById("discoverIpList");
-  if (!ul) return;
-  ul.innerHTML = "";
+function formatDiscoverResultsText(devices) {
   const seen = new Set();
   const rows = [];
   const ensureRow = ({ host, port, device }) => {
@@ -1922,57 +2508,92 @@ function setDiscoverIpList(devices) {
     const port = Number(parsed.port || 80) || 80;
     ensureRow({ host, port, device: d });
   }
-  for (const row of rows) {
+  return rows.map((row) => {
     const protocolText = Array.from(row.protocols).join("+") || "-";
-    const protocol = protocolText.padEnd(10, " ");
-    const hostPort = `${row.host}:${row.port}`.padEnd(24, " ");
-    const mac = String(row.sadp?.mac || "-").padEnd(20, " ");
+    const hostPort = `${row.host}:${row.port}`;
     const activatedRaw = row.sadp?.activated;
     const activated = activatedRaw == null ? "未知" : activatedRaw ? "已激活" : "未激活";
+    const mac = String(row.sadp?.mac || "-");
     const serial = String(row.sadp?.deviceSn || "-");
-    const opt = document.createElement("option");
-    opt.value = row.key;
-    opt.textContent = `${protocol} ${hostPort} ${mac} ${activated.padEnd(6, " ")} ${serial}`;
-    opt.title = `协议: ${protocolText}\nIP: ${hostPort.trim()}\nMAC: ${String(row.sadp?.mac || "-")}\n激活: ${activated}\n序列号: ${serial}`;
-    ul.appendChild(opt);
+    return {
+      key: row.key,
+      host: row.host,
+      port: row.port,
+      text: `协议: ${protocolText}\n地址: ${hostPort}\nMAC: ${mac}\n激活: ${activated}\n序列号: ${serial}`
+    };
+  });
+}
+
+function getDiscoverPlan(protocol) {
+  const key = String(protocol || "").trim() || "hikvision-isapi";
+  if (key === "onvif") {
+    return {
+      mode: "onvif",
+      label: getDeviceProtocolLabel(key),
+      run: async () => {
+        const result = await fetchJson("/api/onvif/ws-discover", {
+          timeoutMs: 4500,
+          bindAddress: "",
+          allIfaces: true,
+          ttl: 2,
+          repeat: 3
+        });
+        return (result?.devices || []).map((d) => ({ ...d, protocol: "onvif" }));
+      }
+    };
   }
+  if (["hikvision-isapi", "hikvision-private", "ehome"].includes(key)) {
+    return {
+      mode: "sadp",
+      label: getDeviceProtocolLabel(key),
+      run: async () => {
+        const result = await fetchJson("/api/hikvision/sadp-discover", {
+          timeoutMs: 2500,
+          port: 37020
+        });
+        return (result?.devices || []).map((d) => ({ ...d, protocol: "sadp" }));
+      }
+    };
+  }
+  return {
+    mode: "unsupported",
+    label: getDeviceProtocolLabel(key),
+    run: null
+  };
 }
 
 async function discover() {
   try {
     els.discoverBtn.disabled = true;
-    logLine("开始搜索...");
-    const [sadpResult, onvifResult] = await Promise.allSettled([
-      fetchJson("/api/hikvision/sadp-discover", {
-        timeoutMs: 2500,
-        port: 37020
-      }),
-      fetchJson("/api/onvif/ws-discover", {
-        timeoutMs: 4500,
-        bindAddress: "",
-        allIfaces: true,
-        ttl: 2,
-        repeat: 3
-      })
-    ]);
-    const sadpDevices =
-      sadpResult.status === "fulfilled" ? (sadpResult.value?.devices || []).map((d) => ({ ...d, protocol: "sadp" })) : [];
-    const onvifDevices =
-      onvifResult.status === "fulfilled" ? (onvifResult.value?.devices || []).map((d) => ({ ...d, protocol: "onvif" })) : [];
-    const devices = [...sadpDevices, ...onvifDevices];
-    setDiscoverIpList(devices);
-    logLine(`SADP ${sadpDevices.length} / ONVIF ${onvifDevices.length} / TOTAL ${devices.length}`);
-    if (sadpResult.status === "rejected") {
-      logLine(`SADP discover failed: ${sadpResult.reason?.message || sadpResult.reason || "unknown"}`);
+    const protocol = String(els.deviceProtocolSelect?.value || "hikvision-isapi").trim() || "hikvision-isapi";
+    const plan = getDiscoverPlan(protocol);
+    logLine(`开始搜索：${plan.label}`);
+    setIsapiDeviceStatus("搜索中...");
+    if (!plan.run) {
+      const message = `${plan.label} 当前不支持局域网自动搜索，请手动输入设备地址。`;
+      setIsapiDeviceRaw(message);
+      setIsapiDeviceStatus("当前协议不支持自动搜索", true);
+      logLine(message);
+      return;
     }
-    if (onvifResult.status === "rejected") {
-      logLine(`ONVIF discover failed: ${onvifResult.reason?.message || onvifResult.reason || "unknown"}`);
+    const devices = await plan.run();
+    const rows = formatDiscoverResultsText(devices);
+    if (rows.length) {
+      const [first] = rows;
+      if (els.hostInput) els.hostInput.value = `${first.host}:${first.port}`;
+      setIsapiDeviceRaw(rows.map((row, index) => `#${index + 1}\n${row.text}`).join("\n\n"));
+      setIsapiDeviceStatus(`已搜索到 ${rows.length} 台设备`);
+    } else {
+      setIsapiDeviceRaw("未发现设备");
+      setIsapiDeviceStatus("未发现设备", true);
     }
+    logLine(`${plan.label} 搜索完成：${devices.length} 台`);
     if (!devices.length) {
       logLine("没有发现设备，可以尝试子网扫描。");
     }
   } catch (e) {
     logLine(`搜索失败: ${e.message}`);
+    setIsapiDeviceStatus(`搜索失败：${e?.message || e}`, true);
   } finally {
     els.discoverBtn.disabled = false;
   }
@@ -1995,7 +2616,6 @@ function detachPlayer() {
 async function stopStream() {
   if (!activeStreamId) return;
   try {
-    els.stopBtn.disabled = true;
     await fetchJson("/api/stream/stop", { streamId: activeStreamId });
   } catch (e) {
     logLine(`停止失败：${e.message}`);
@@ -2022,7 +2642,6 @@ async function connectAndPlay() {
   els.portInput.value = String(port);
 
   try {
-    els.connectBtn.disabled = true;
     try {
       const appHealth = await fetchJson("/api/app/health");
       logLine(`服务信息：${appHealth?.platform || ""} ${appHealth?.node || ""} pid=${appHealth?.pid || ""}`);
@@ -2075,7 +2694,6 @@ async function connectAndPlay() {
       sessionStorage.setItem(SESSION_STREAMING_KEY, "0");
     } catch {}
   } finally {
-    els.connectBtn.disabled = false;
   }
 }
 
@@ -2269,8 +2887,118 @@ function snapshot() {
 }
 
 els.discoverBtn.addEventListener("click", discover);
-els.connectBtn.addEventListener("click", connectAndPlay);
-els.stopBtn.addEventListener("click", stopStream);
+async function submitDeviceConfigDialog() {
+  if (deviceConfigModalState.mode === "edit") {
+    await updateManagedDevice();
+  } else {
+    await addManagedDevice();
+  }
+  setDeviceConfigModalOpen(false);
+}
+
+els.connectBtn.addEventListener("click", async () => {
+  try {
+    els.connectBtn.disabled = true;
+    await submitDeviceConfigDialog();
+  } catch (e) {
+    setManagedDeviceHint(
+      `${deviceConfigModalState.mode === "edit" ? "保存修改" : "保存设备"}失败：${e?.message || e}`,
+      true
+    );
+  } finally {
+    els.connectBtn.disabled = false;
+    updateManagedDeviceActionButtons();
+  }
+});
+els.stopBtn.addEventListener("click", () => {
+  setDeviceConfigModalOpen(false);
+});
+if (els.saveConnBtn) {
+  els.saveConnBtn.addEventListener("click", async () => {
+    try {
+      els.saveConnBtn.disabled = true;
+      await saveCurrentConnectionConfig();
+    } catch (e) {
+      setIsapiDeviceStatus(`保存失败：${e?.message || e}`, true);
+      logLine(`保存海康 ISAPI 接入配置失败：${e?.message || e}`);
+    } finally {
+      els.saveConnBtn.disabled = false;
+    }
+  });
+}
+if (els.testIsapiBtn) {
+  els.testIsapiBtn.addEventListener("click", async () => {
+    try {
+      els.testIsapiBtn.disabled = true;
+      await testIsapiDeviceInfo();
+    } catch (e) {
+      setIsapiDeviceStatus(`测试失败：${e?.message || e}`, true);
+      setIsapiDeviceRaw("");
+      renderIsapiDeviceSummary(null, "");
+      logLine(`海康 ISAPI 测试失败：${e?.message || e}`);
+    } finally {
+      els.testIsapiBtn.disabled = false;
+    }
+  });
+}
+if (els.refreshDeviceListBtn) {
+  els.refreshDeviceListBtn.addEventListener("click", async () => {
+    try {
+      els.refreshDeviceListBtn.disabled = true;
+      await refreshManagedDevices();
+      setManagedDeviceHint("设备列表已刷新");
+    } catch (e) {
+      setManagedDeviceHint(`刷新失败：${e?.message || e}`, true);
+    } finally {
+      els.refreshDeviceListBtn.disabled = false;
+    }
+  });
+}
+if (els.addDeviceBtn) {
+  els.addDeviceBtn.addEventListener("click", () => {
+    try {
+      openDeviceConfigDialog("add");
+    } catch (e) {
+      setManagedDeviceHint(`增加失败：${e?.message || e}`, true);
+    }
+  });
+}
+if (els.updateDeviceBtn) {
+  els.updateDeviceBtn.addEventListener("click", () => {
+    try {
+      openDeviceConfigDialog("edit");
+    } catch (e) {
+      setManagedDeviceHint(`修改失败：${e?.message || e}`, true);
+    }
+  });
+}
+if (els.deleteDeviceBtn) {
+  els.deleteDeviceBtn.addEventListener("click", async () => {
+    try {
+      els.deleteDeviceBtn.disabled = true;
+      await deleteManagedDevice();
+      renderIsapiDeviceSummary(null, "");
+      setIsapiDeviceRaw("");
+    } catch (e) {
+      setManagedDeviceHint(`删除失败：${e?.message || e}`, true);
+    } finally {
+      updateManagedDeviceActionButtons();
+    }
+  });
+}
+if (els.checkDeviceBtn) {
+  els.checkDeviceBtn.addEventListener("click", async () => {
+    try {
+      els.checkDeviceBtn.disabled = true;
+      await checkManagedDevice();
+    } catch (e) {
+      setManagedDeviceHint(`检测失败：${e?.message || e}`, true);
+      logLine(`设备在线检测失败：${e?.message || e}`);
+    } finally {
+      updateManagedDeviceActionButtons();
+    }
+  });
+}
 if (els.snapshotBtn) els.snapshotBtn.addEventListener("click", snapshot);
 if (els.clearLogBtn) {
   els.clearLogBtn.addEventListener("click", () => {
@@ -2283,57 +3011,6 @@ if (els.clearSerialLogBtn) {
   });
 }
 if (els.showProcessed) els.showProcessed.addEventListener("change", updateCanvasVisibility);
-if (els.discoverIpList) {
-  els.discoverIpList.addEventListener("dblclick", () => {
-    const idx = els.discoverIpList.selectedIndex;
-    if (idx < 0) return;
-    const val = els.discoverIpList.options[idx]?.value || "";
-    const [host, portStr] = val.split(":");
-    if (host) {
-      const p = Number(portStr);
-      const port = Number.isFinite(p) && p > 0 ? p : 80;
-      els.hostInput.value = host;
-      els.portInput.value = String(port);
-      logLine(`已填入：${host}:${port}`);
-    }
-  });
-
-  els.discoverIpList.addEventListener("mousemove", (ev) => {
-    const target = ev.target;
-    if (!(target instanceof HTMLOptionElement)) {
-      hoverHostPortKey = "";
-      tooltip.hide();
-      return;
-    }
-    const key = String(target.value || "");
-    hoverHostPortKey = key;
-    const rtsp = rtspByHostPort.get(key) || "";
-    const err = rtspErrorByHostPort.get(key) || "";
-    if (rtsp) {
-      tooltip.show(rtsp, ev.clientX, ev.clientY);
-      return;
-    }
-    if (err) {
-      tooltip.show(err, ev.clientX, ev.clientY);
-      return;
-    }
-    if (rtspPendingByHostPort.has(key)) {
-      tooltip.show("RTSP 获取中...", ev.clientX, ev.clientY);
-      return;
-    }
-    tooltip.show("RTSP 未获取，正在尝试获取...", ev.clientX, ev.clientY);
-    ensureRtspCachedForKey(key).then(() => {
-      if (hoverHostPortKey !== key) return;
-      const v = rtspByHostPort.get(key) || rtspErrorByHostPort.get(key) || "";
-      if (v) tooltip.show(v, ev.clientX, ev.clientY);
-    });
-  });
-  els.discoverIpList.addEventListener("mouseleave", () => {
-    hoverHostPortKey = "";
-    tooltip.hide();
-  });
-}
-
 if (els.video) {
   els.video.addEventListener("loadedmetadata", () => {
     ensureCanvasSize();
@@ -2374,7 +3051,8 @@ function initEventStream() {
       eventAt,
       imageDataUrl,
       serialSentAt: Number(data?.serialSentAt || 0) || 0,
-      ftpRemotePath: typeof data?.ftpRemotePath === "string" ? data.ftpRemotePath : ""
+      ftpRemotePath: typeof data?.ftpRemotePath === "string" ? data.ftpRemotePath : "",
+      parsedMeta: data?.parsedMeta && typeof data.parsedMeta === "object" ? data.parsedMeta : null
     };
 
     plateById.set(record.id, record);
@@ -2429,6 +3107,7 @@ initSystemUi();
 initSerialUi();
 initPlateModule();
 initEventStream();
+initDeviceConfigModalUi();
 
 let wasStreaming = false;
 try {
@@ -2456,6 +3135,7 @@ try {
     if (els.portInput) els.portInput.value = String(port);
     if (els.userInput) els.userInput.value = username;
     if (els.passInput) els.passInput.value = password;
+    setIsapiDeviceStatus(`已配置：${host}:${port}`);
   }
 
   applySerialBaudRateToUi(baudRate);
@@ -2467,7 +3147,14 @@ try {
       if (els.userInput) els.userInput.value = local.username || "";
       if (els.passInput) els.passInput.value = local.password || "";
       persistConnectionToServer(local);
+      setIsapiDeviceStatus(`已配置：${local.host}:${local.port || 80}`);
     }
+  }
+
+  try {
+    await refreshManagedDevices();
+  } catch (e) {
+    setManagedDeviceHint(`加载设备列表失败：${e?.message || e}`, true);
   }
 
   if ((host || readLocalLastConnection()?.host) && wasStreaming) {
