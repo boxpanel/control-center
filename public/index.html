@@ -360,7 +360,7 @@
           <div class="deviceConfigGrid">
             <input id="portInput" type="hidden" value="80" />
             <div class="deviceFormRow">
-              <label for="deviceProtocolSelect">* 接入协议</label>
+              <label for="deviceProtocolSelect">接入协议</label>
               <div class="deviceFormControl">
                 <select id="deviceProtocolSelect">
                   <option value="">请选择</option>
@@ -369,7 +369,7 @@
                   <option value="jt1078-terminal">交通部JT1078终端设备</option>
                   <option value="jt1078-platform">交通部JT1078下级平台</option>
                   <option value="onvif">ONVIF 2.0</option>
-                  <option value="hikvision-isapi" selected>海康ISAPI</option>
+                  <option value="hikvision-isapi">海康ISAPI</option>
                   <option value="hikvision-private">海康私有协议</option>
                   <option value="dahua-http">大华HTTP</option>
                   <option value="dahua-private">大华私有协议</option>
@@ -398,7 +398,7 @@
               </div>
             </div>
             <div class="deviceFormRow">
-              <label for="passInput">* 密码</label>
+              <label for="passInput">密码</label>
               <div class="deviceFormControl">
                 <input id="passInput" type="password" autocomplete="off" />
               </div>
@@ -412,8 +412,8 @@
             <div class="deviceActionRow">
               <button id="discoverBtn" type="button" class="secondaryBtn">搜索</button>
               <button id="testIsapiBtn" type="button" class="secondaryBtn">测试连接</button>
-              <button id="stopBtn" type="button" class="ghost">取消</button>
               <button id="connectBtn" type="button" class="primaryBtn">保存</button>
+              <button id="stopBtn" type="button" class="ghost">取消</button>
             </div>
             <div id="isapiDeviceStatus" class="deviceStatusText">日志</div>
             <div id="isapiDeviceSummary" class="deviceSummaryText"></div>
@@ -424,7 +424,7 @@
     </div>
 
     <script src="/vendor/hls/hls.min.js"></script>
-<script type="module" src="/app.js?v=65"></script>
+<script type="module" src="/app.js?v=66"></script>
   </body>
 </html>
 

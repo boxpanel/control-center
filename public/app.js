@@ -105,6 +105,7 @@ let activeStreamId = "";
 let renderHandle = 0;
 const STORAGE_KEY = "onvif:lastConnection";
 const SESSION_STREAMING_KEY = "onvif:wasStreaming";
+const STREAM_SESSION_KEY = "onvif:lastPreviewSession";
 const MANAGED_DEVICES_SHADOW_KEY = "onvif:managedDevicesShadow";
 let lastSavedSignature = "";
 const rtspByHostPort = new Map();
@@ -150,6 +151,51 @@ function readManagedDevicesShadow() {
   } catch {
     return [];
   }
+}
+
+function readLastPreviewSession() {
+  try {
+    const raw = localStorage.getItem(STREAM_SESSION_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object") return null;
+    const streamId = String(parsed.streamId || "").trim();
+    const playUrl = String(parsed.playUrl || "").trim();
+    const host = String(parsed.host || "").trim();
+    if (!streamId || !playUrl || !host) return null;
+    return {
+      streamId,
+      playUrl,
+      host,
+      port: Number(parsed.port || 80) || 80,
+      username: String(parsed.username || ""),
+      password: String(parsed.password || ""),
+      savedAt: Number(parsed.savedAt || 0) || 0
+    };
+  } catch {
+    return null;
+  }
+}
+
+function writeLastPreviewSession(session) {
+  try {
+    if (!session || typeof session !== "object") {
+      localStorage.removeItem(STREAM_SESSION_KEY);
+      return;
+    }
+    localStorage.setItem(
+      STREAM_SESSION_KEY,
+      JSON.stringify({
+        streamId: String(session.streamId || "").trim(),
+        playUrl: String(session.playUrl || "").trim(),
+        host: String(session.host || "").trim(),
+        port: Number(session.port || 80) || 80,
+        username: String(session.username || ""),
+        password: String(session.password || ""),
+        savedAt: Number(session.savedAt || Date.now()) || Date.now()
+      })
+    );
+  } catch {}
 }
 
 function writeManagedDevicesShadow(items) {
@@ -2633,6 +2679,7 @@ async function stopStream() {
     logLine(`停止失败：${e.message}`);
   } finally {
     activeStreamId = "";
+    writeLastPreviewSession(null);
     detachPlayer();
     setButtons({ streaming: false });
     try {
@@ -2682,8 +2729,18 @@ async function connectAndPlay() {
       rtspTransport: els.rtspTransport?.value || "tcp"
     });
     activeStreamId = started.streamId;
+    const playUrl = started.playUrl || `/streams/${encodeURIComponent(activeStreamId)}/index.m3u8`;
+    writeLastPreviewSession({
+      streamId: activeStreamId,
+      playUrl,
+      host,
+      port,
+      username: String(els.userInput.value || ""),
+      password: String(els.passInput.value || ""),
+      savedAt: Date.now()
+    });
     setButtons({ streaming: true });
-    await playHls(started.playUrl || `/streams/${encodeURIComponent(activeStreamId)}/index.m3u8`);
+    await playHls(playUrl);
 
     setTimeout(async () => {
       if (!activeStreamId) return;
@@ -2700,6 +2757,7 @@ async function connectAndPlay() {
       } catch {}
     }
     activeStreamId = "";
+    writeLastPreviewSession(null);
     detachPlayer();
     setButtons({ streaming: false });
     try {
@@ -3163,13 +3221,41 @@ try {
     }
   }
 
+  const previewSession = readLastPreviewSession();
+  if (previewSession?.host) {
+    if (els.hostInput) els.hostInput.value = `${previewSession.host}:${previewSession.port || 80}`;
+    if (els.portInput) els.portInput.value = String(previewSession.port || 80);
+    if (els.userInput) els.userInput.value = previewSession.username || "";
+    if (els.passInput) els.passInput.value = previewSession.password || "";
+  }
+
   try {
     await refreshManagedDevices();
   } catch (e) {
     setManagedDeviceHint(`加载设备列表失败：${e?.message || e}`, true);
   }
 
-  if ((host || readLocalLastConnection()?.host) && wasStreaming) {
+  if (previewSession?.streamId && previewSession?.playUrl) {
+    logLine("检测到已有预览流，正在尝试恢复画面...");
+    setTimeout(async () => {
+      try {
+        const status = await fetchJsonGet(`/api/stream/status/${encodeURIComponent(previewSession.streamId)}`);
+        if (!status?.ok) throw new Error("预览流不存在");
+        activeStreamId = previewSession.streamId;
+        setButtons({ streaming: true });
+        await playHls(previewSession.playUrl);
+        logLine(`已恢复预览：${previewSession.host}:${previewSession.port}`);
+      } catch {
+        writeLastPreviewSession(null);
+        if ((host || readLocalLastConnection()?.host) && wasStreaming) {
+          logLine("恢复旧预览失败，正在重新连接...");
+          setTimeout(() => {
+            if (!activeStreamId) connectAndPlay();
+          }, 200);
+        }
+      }
+    }, 120);
+  } else if ((host || readLocalLastConnection()?.host) && wasStreaming) {
     logLine("检测到刷新前已有画面，已载入上次连接信息并尝试自动连接...");
     setTimeout(() => {
       if (!activeStreamId) connectAndPlay();
