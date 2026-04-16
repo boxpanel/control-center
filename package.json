@@ -5,8 +5,7 @@
   "type": "module",
   "scripts": {
     "start": "node server.js",
-    "setup": "bash ./install.sh",
-    "build:release": "node ./scripts/build-release.mjs"
+    "setup": "bash ./install.sh"
   },
   "dependencies": {
     "basic-ftp": "^5.0.5",
@@ -18,9 +17,5 @@
     "node-onvif": "^0.1.7",
     "onvif": "^0.8.1",
     "serialport": "^13.0.0"
-  },
-  "devDependencies": {
-    "javascript-obfuscator": "^5.4.1",
-    "puppeteer": "^24.40.0"
   }
 }
