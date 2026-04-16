@@ -89,6 +89,7 @@
   ftpServerEnabled: document.getElementById("ftpServerEnabled"),
   ftpServerPort: document.getElementById("ftpServerPort"),
   ftpServerRootDir: document.getElementById("ftpServerRootDir"),
+  ftpServerPasvHost: document.getElementById("ftpServerPasvHost"),
   ftpServerUser: document.getElementById("ftpServerUser"),
   ftpServerPass: document.getElementById("ftpServerPass"),
   ftpServerSaveBtn: document.getElementById("ftpServerSaveBtn"),
@@ -515,16 +516,18 @@ async function initSystemUi() {
   const ftpUser = String(ftpServer?.username || "");
   const ftpPass = String(ftpServer?.password || "");
   const ftpRootDir = String(ftpServer?.rootDir || "");
+  const ftpPasvHost = String(ftpServer?.pasvHost || "");
   const ftpResolvedRootDir = String(ftpServer?.resolvedRootDir || ftpRootDir || "uploads/ftp");
 
   if (els.ftpServerEnabled instanceof HTMLInputElement) els.ftpServerEnabled.checked = ftpEnabled;
   if (els.ftpServerPort) els.ftpServerPort.value = String(ftpPort);
   if (els.ftpServerRootDir) els.ftpServerRootDir.value = ftpRootDir;
+  if (els.ftpServerPasvHost) els.ftpServerPasvHost.value = ftpPasvHost;
   if (els.ftpServerUser) els.ftpServerUser.value = ftpUser;
   if (els.ftpServerPass) els.ftpServerPass.value = ftpPass;
 
   if (els.ftpIngestUrl) {
-    const ipShown = ipMode === "manual" ? (manualIp || autoIp) : autoIp;
+    const ipShown = ftpPasvHost || (ipMode === "manual" ? (manualIp || autoIp) : autoIp);
     const addr = ipShown || "127.0.0.1";
     els.ftpIngestUrl.textContent = `ftp://${addr}:${ftpPort}/`;
   }
@@ -537,6 +540,7 @@ async function initSystemUi() {
       const enabled = Boolean(els.ftpServerEnabled instanceof HTMLInputElement ? els.ftpServerEnabled.checked : false);
       const port = Number(els.ftpServerPort?.value || 21) || 21;
       const rootDir = String(els.ftpServerRootDir?.value || "").trim();
+      const pasvHost = String(els.ftpServerPasvHost?.value || "").trim();
       const username = String(els.ftpServerUser?.value || "").trim();
       const password = String(els.ftpServerPass?.value || "");
       const payload = {
@@ -545,6 +549,7 @@ async function initSystemUi() {
             enabled,
             port,
             rootDir,
+            pasvHost,
             username,
             password
           }
@@ -555,7 +560,7 @@ async function initSystemUi() {
         const data = await fetchJson("/api/device/config", payload);
         setFtpHint("保存成功");
         if (els.ftpIngestUrl) {
-          const ipShownNow = String(els.systemIpInput?.value || "").trim() || autoIp || "127.0.0.1";
+          const ipShownNow = pasvHost || String(els.systemIpInput?.value || "").trim() || autoIp || "127.0.0.1";
           els.ftpIngestUrl.textContent = `ftp://${ipShownNow}:${port}/`;
         }
         if (els.ftpIngestDir) {
