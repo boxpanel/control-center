@@ -666,10 +666,9 @@ function normalizeFtpServerConfig(raw) {
   const enabled = Boolean(raw?.enabled);
   const port = toPort(raw?.port, 21);
   const rootDir = String(raw?.rootDir || "").trim();
-  const pasvHost = String(raw?.pasvHost || "").trim();
   const username = String(raw?.username || "").trim();
   const password = String(raw?.password || "");
-  return { enabled, port: port || 21, rootDir, pasvHost, username, password };
+  return { enabled, port: port || 21, rootDir, username, password };
 }
 
 function ftpConfigKey(cfg) {
@@ -678,7 +677,6 @@ function ftpConfigKey(cfg) {
     enabled: Boolean(cfg.enabled),
     port: Number(cfg.port || 0) || 0,
     rootDir: String(cfg.rootDir || ""),
-    pasvHost: String(cfg.pasvHost || ""),
     username: String(cfg.username || ""),
     password: String(cfg.password || "")
   });
@@ -1196,15 +1194,11 @@ async function ensureFtpServer(cfg) {
   const resolvedRoot = resolveFtpRootDir(conf.rootDir);
   const info = await loadOrInitDeviceInfo();
   const preferredLanIp = resolvePreferredLanIp(info?.system);
-  const publicPasvHost = String(conf.pasvHost || "").trim();
   await ensureDir(resolvedRoot);
   const srv = new FtpSrv({
     url,
     anonymous: !conf.username,
-    pasv_url: (remoteAddress) => {
-      if (isLoopbackIp(remoteAddress)) return "127.0.0.1";
-      return publicPasvHost || preferredLanIp;
-    },
+    pasv_url: (remoteAddress) => (isLoopbackIp(remoteAddress) ? "127.0.0.1" : preferredLanIp),
     pasv_min: FTP_PASV_MIN_PORT,
     pasv_max: FTP_PASV_MAX_PORT,
     greeting: ["Control Center FTP ready"]
@@ -1220,7 +1214,7 @@ async function ensureFtpServer(cfg) {
   });
   srv.on("client-error", () => {});
   await srv.listen();
-  console.log(`[FTP] listening on ${url}, root=${resolvedRoot}, pasv=${publicPasvHost || preferredLanIp}:${FTP_PASV_MIN_PORT}-${FTP_PASV_MAX_PORT}`);
+  console.log(`[FTP] listening on ${url}, root=${resolvedRoot}, pasv=${preferredLanIp}:${FTP_PASV_MIN_PORT}-${FTP_PASV_MAX_PORT}`);
   ftpServer = srv;
   scheduleFtpIngestLoop(conf);
 }
@@ -1431,7 +1425,7 @@ async function loadOrInitDeviceInfo() {
           !Object.prototype.hasOwnProperty.call(s, "manualIp");
         if (needs) patch.system = { ...systemDefaults, ...s };
       }
-      const ingestDefaults = { ftpServer: { enabled: false, port: 21, rootDir: "", pasvHost: "", username: "", password: "" } };
+      const ingestDefaults = { ftpServer: { enabled: false, port: 21, rootDir: "", username: "", password: "" } };
       if (!parsed.ingest || typeof parsed.ingest !== "object") {
         patch.ingest = ingestDefaults;
       } else {
@@ -1461,7 +1455,7 @@ async function loadOrInitDeviceInfo() {
     probe: { enabled: true, group: "239.255.255.250", port: 10086 },
     serial: { baudRate: DEFAULT_SERIAL_BAUD_RATE, forwardEnabled: false, backendPort: getPreferredLinuxBoardSerialPort(await listLinuxBoardSerialPorts()) },
     system: { name: "", clientMode: false, ipMode: "auto", preferredIp: "", manualIp: "" },
-    ingest: { ftpServer: { enabled: false, port: 21, rootDir: "", pasvHost: "", username: "", password: "" } }
+    ingest: { ftpServer: { enabled: false, port: 21, rootDir: "", username: "", password: "" } }
   };
   try {
     await fs.writeFile(deviceInfoPath, JSON.stringify(info), "utf8");
@@ -2505,9 +2499,6 @@ function normalizeIngestPatch(raw) {
     }
     if (Object.prototype.hasOwnProperty.call(raw.ftpServer, "rootDir")) {
       ftpOut.rootDir = String(raw.ftpServer.rootDir || "").trim();
-    }
-    if (Object.prototype.hasOwnProperty.call(raw.ftpServer, "pasvHost")) {
-      ftpOut.pasvHost = String(raw.ftpServer.pasvHost || "").trim();
     }
     if (Object.prototype.hasOwnProperty.call(raw.ftpServer, "username")) {
       ftpOut.username = String(raw.ftpServer.username || "").trim();
