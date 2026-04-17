@@ -516,7 +516,12 @@ EOF
   printf "Service status  : sudo systemctl status %s\n" "$SERVICE_NAME"
 }
 
-ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_SOURCE="${BASH_SOURCE[0]:-}"
+if [[ -n "$SCRIPT_SOURCE" ]]; then
+  ROOT_DIR="$(cd "$(dirname "$SCRIPT_SOURCE")" && pwd)"
+else
+  ROOT_DIR="$(pwd)"
+fi
 cd "$ROOT_DIR"
 
 if [[ "$SKIP_BOOTSTRAP" -eq 0 ]]; then
