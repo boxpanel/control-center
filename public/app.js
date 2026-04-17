@@ -417,6 +417,26 @@ function pickFirstIfaceIp(ifaces) {
   return "";
 }
 
+function prefixToNetmask(prefix) {
+  const n = Number(prefix);
+  if (!Number.isInteger(n) || n < 1 || n > 32) return "";
+  let remaining = n;
+  const octets = [];
+  for (let i = 0; i < 4; i += 1) {
+    const bits = Math.max(0, Math.min(8, remaining));
+    const value = bits === 0 ? 0 : 256 - 2 ** (8 - bits);
+    octets.push(String(value));
+    remaining -= bits;
+  }
+  return octets.join(".");
+}
+
+function formatNetmaskDisplay(prefix, netmask = "") {
+  const prefixText = String(prefix || "").trim();
+  const maskText = String(netmask || "").trim() || prefixToNetmask(prefixText);
+  return maskText || prefixText;
+}
+
 function readCurrentAppPort() {
   try {
     const u = new URL(window.location.href);
@@ -448,6 +468,7 @@ async function initSystemUi() {
   const manualIp = String(system?.manualIp || "");
   const manualPrefix = String(system?.manualPrefix || "");
   const manualGateway = String(system?.manualGateway || "");
+  const manualNetmask = formatNetmaskDisplay(manualPrefix, "");
   els.systemNameInput.value = name;
   if (els.systemClientMode instanceof HTMLInputElement) els.systemClientMode.checked = clientMode;
   els.systemIpMode.value = ipMode;
@@ -457,6 +478,7 @@ async function initSystemUi() {
   const appPort = readCurrentAppPort();
   const iface = cfg?.systemNetworkTarget || null;
   const autoPrefix = String(iface?.prefix || "").trim();
+  const autoNetmask = String(iface?.netmask || "").trim();
   const autoGateway = String(iface?.gateway || "").trim();
 
   const applyIpModeToUi = () => {
@@ -466,7 +488,8 @@ async function initSystemUi() {
       els.systemIpInput.value = manualIp || els.systemIpInput.value || "";
       els.systemIpInput.placeholder = "例如：192.168.1.22";
       els.systemPrefixInput.readOnly = false;
-      els.systemPrefixInput.value = manualPrefix || els.systemPrefixInput.value || "";
+      els.systemPrefixInput.value = manualNetmask || els.systemPrefixInput.value || "";
+      els.systemPrefixInput.placeholder = "例如：255.255.255.0";
       els.systemGatewayInput.readOnly = false;
       els.systemGatewayInput.value = manualGateway || els.systemGatewayInput.value || "";
     } else {
@@ -474,7 +497,8 @@ async function initSystemUi() {
       els.systemIpInput.value = autoIp || "";
       els.systemIpInput.placeholder = "自动获取";
       els.systemPrefixInput.readOnly = true;
-      els.systemPrefixInput.value = autoPrefix || "";
+      els.systemPrefixInput.value = formatNetmaskDisplay(autoPrefix, autoNetmask);
+      els.systemPrefixInput.placeholder = "自动获取";
       els.systemGatewayInput.readOnly = true;
       els.systemGatewayInput.value = autoGateway || "";
     }
