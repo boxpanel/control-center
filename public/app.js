@@ -1110,25 +1110,56 @@ function fillPlateDetailModal(record) {
 
 function formatParsedMetaText(meta) {
   if (!meta || typeof meta !== "object") return "无";
+  const normalizeHikvisionDisplayText = (value) => {
+    let text = String(value || "").trim();
+    if (!text) return "";
+    text = text.replace(/[\uE000-\uF8FF]/gu, "");
+    const replacements = [
+      [/鏃犺溅鐗/g, "无车牌"],
+      [/姝ｅ父/g, "正常"],
+      [/鍏跺畠鑹/g, "其它色"],
+      [/灏忓瀷杞/gu, "小型车"],
+      [/涓瀷杞/gu, "中型车"],
+      [/澶у瀷杞/gu, "大型车"],
+      [/钃濊壊|钃濈墝/gu, "蓝"],
+      [/榛勮壊|榛勭墝/gu, "黄"],
+      [/鐧借壊|鐧界墝/gu, "白"],
+      [/榛戣壊|榛戠墝/gu, "黑"],
+      [/缁胯壊|缁跨墝/gu, "绿"]
+    ];
+    for (const [pattern, replacement] of replacements) {
+      text = text.replace(pattern, replacement);
+    }
+    if (text === "鏃") return "无";
+    return text.trim();
+  };
+  const isUnreadableToken = (value) => {
+    const text = normalizeHikvisionDisplayText(value);
+    if (!text) return false;
+    return /锟|斤拷|睫筹拷|酵筹拷|[\uFFFD]/u.test(text);
+  };
   const parts = [];
   const eventAtText = String(meta.eventAtText || "").trim();
   if (eventAtText) parts.push(`时间：${eventAtText}`);
   else if (meta.eventAt) parts.push(`时间：${formatDateTime(meta.eventAt) || "--"}`);
   if (meta.deviceIp) parts.push(`设备IP：${meta.deviceIp}`);
-  if (meta.deviceNo) parts.push(`设备号：${meta.deviceNo}`);
+  if (meta.deviceNo && !isUnreadableToken(meta.deviceNo)) parts.push(`设备号：${normalizeHikvisionDisplayText(meta.deviceNo)}`);
   if (meta.channelNo) parts.push(`通道号：${meta.channelNo}`);
   if (meta.laneNo) parts.push(`车道号：${meta.laneNo}`);
   if (meta.imageSeq) parts.push(`图片序号：${meta.imageSeq}`);
   if (meta.vehicleSeq) parts.push(`车辆序号：${meta.vehicleSeq}`);
-  if (meta.plateColor) parts.push(`车牌颜色：${meta.plateColor}`);
-  if (meta.vehicleColor) parts.push(`车身颜色：${meta.vehicleColor}`);
-  if (meta.vehicleType) parts.push(`车辆类型：${meta.vehicleType}`);
+  if (meta.plateColor && !isUnreadableToken(meta.plateColor)) parts.push(`车牌颜色：${normalizeHikvisionDisplayText(meta.plateColor)}`);
+  if (meta.vehicleColor && !isUnreadableToken(meta.vehicleColor)) parts.push(`车身颜色：${normalizeHikvisionDisplayText(meta.vehicleColor)}`);
+  if (meta.vehicleType && !isUnreadableToken(meta.vehicleType)) parts.push(`车辆类型：${normalizeHikvisionDisplayText(meta.vehicleType)}`);
   if (meta.speed) parts.push(`车辆速度：${meta.speed}`);
   if (meta.directionNo) parts.push(`方向编号：${meta.directionNo}`);
   if (meta.intersectionNo) parts.push(`路口编号：${meta.intersectionNo}`);
-  if (meta.violationType) parts.push(`违规类型：${meta.violationType}`);
-  if (Array.isArray(meta.unmatchedTokens) && meta.unmatchedTokens.length) {
-    parts.push(`其余字段：${meta.unmatchedTokens.join(" / ")}`);
+  if (meta.violationType && !isUnreadableToken(meta.violationType)) parts.push(`违规类型：${normalizeHikvisionDisplayText(meta.violationType)}`);
+  const cleanUnmatched = Array.isArray(meta.unmatchedTokens)
+    ? meta.unmatchedTokens.map(normalizeHikvisionDisplayText).filter((token) => token && !isUnreadableToken(token))
+    : [];
+  if (cleanUnmatched.length) {
+    parts.push(`其余字段：${cleanUnmatched.join(" / ")}`);
   }
   return parts.length ? parts.join(" | ") : "无";
 }

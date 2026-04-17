@@ -120,6 +120,7 @@ function rowToPlateDto(row) {
   if (!row) return null;
   const id = String(row.id || "");
   const imagePath = String(row.imagePath || "");
+  const ftpRemotePath = String(row.ftpRemotePath || "");
   let parsedMeta = null;
   try {
     const raw = String(row.parsedMetaJson || "").trim();
@@ -127,13 +128,16 @@ function rowToPlateDto(row) {
   } catch {
     parsedMeta = null;
   }
+  if (ftpRemotePath) {
+    parsedMeta = mergeFtpParsedMeta(parsedMeta, parseFtpFilenameStructuredMeta(ftpRemotePath));
+  }
   return {
     id,
     plate: String(row.plate || ""),
     receivedAt: Number(row.receivedAt || 0) || 0,
     eventAt: Number(row.eventAt || 0) || 0,
     imageDataUrl: imagePath ? `/api/plates/image/${encodeURIComponent(id)}` : "",
-    ftpRemotePath: String(row.ftpRemotePath || ""),
+    ftpRemotePath,
     serialSentAt: Number(row.serialSentAt || 0) || 0,
     parsedMeta
   };
@@ -856,10 +860,88 @@ function looksLikeUnreadableFtpToken(token) {
   const text = String(token || "").trim();
   if (!text) return false;
   if (/[\uFFFD]/u.test(text)) return true;
+  if (/锟|斤拷|睫筹拷|酵筹拷/u.test(text)) return true;
   if (/^[\d._-]+$/.test(text)) return false;
   if (/[\u4E00-\u9FFF]/u.test(text)) return false;
   const weirdChars = (text.match(/[^\w._-]/g) || []).length;
   return weirdChars >= Math.max(2, Math.ceil(text.length / 2));
+}
+
+function normalizeHikvisionFtpText(value) {
+  let text = String(value || "").trim();
+  if (!text) return "";
+  text = text.replace(/[\uE000-\uF8FF]/gu, "");
+  const replacements = [
+    [/鏃犺溅鐗/g, "无车牌"],
+    [/姝ｅ父/g, "正常"],
+    [/鍏跺畠鑹/g, "其它色"],
+    [/灏忓瀷杞/gu, "小型车"],
+    [/涓瀷杞/gu, "中型车"],
+    [/澶у瀷杞/gu, "大型车"],
+    [/钃濊壊|钃濈墝/gu, "蓝"],
+    [/榛勮壊|榛勭墝/gu, "黄"],
+    [/鐧借壊|鐧界墝/gu, "白"],
+    [/榛戣壊|榛戠墝/gu, "黑"],
+    [/缁胯壊|缁跨墝/gu, "绿"]
+  ];
+  for (const [pattern, replacement] of replacements) {
+    text = text.replace(pattern, replacement);
+  }
+  if (text === "鏃") return "无";
+  return text.trim();
+}
+
+function preferFtpMetaValue(currentValue, fallbackValue) {
+  const currentText = normalizeHikvisionFtpText(currentValue);
+  const fallbackText = normalizeHikvisionFtpText(fallbackValue);
+  if (!currentText) return fallbackText;
+  if (looksLikeUnreadableFtpToken(currentText) && fallbackText) return fallbackText;
+  return currentText;
+}
+
+function mergeFtpParsedMeta(existingMeta, filenameMeta) {
+  const existing = existingMeta && typeof existingMeta === "object" ? { ...existingMeta } : {};
+  const filename = filenameMeta && typeof filenameMeta === "object" ? filenameMeta : {};
+  const merged = { ...existing };
+
+  merged.baseName = preferFtpMetaValue(existing.baseName, filename.baseName);
+  merged.plate = preferFtpMetaValue(existing.plate, filename.plate);
+  merged.deviceIp = preferFtpMetaValue(existing.deviceIp, filename.deviceIp);
+  merged.deviceNo = preferFtpMetaValue(existing.deviceNo, filename.deviceNo);
+  merged.plateColor = preferFtpMetaValue(existing.plateColor, filename.plateColor);
+  merged.vehicleColor = preferFtpMetaValue(existing.vehicleColor, filename.vehicleColor);
+  merged.vehicleType = preferFtpMetaValue(existing.vehicleType, filename.vehicleType);
+  merged.violationType = preferFtpMetaValue(existing.violationType, filename.violationType);
+  merged.plateCoords = preferFtpMetaValue(existing.plateCoords, filename.plateCoords);
+  merged.ftpRemotePath = preferFtpMetaValue(existing.ftpRemotePath, filename.ftpRemotePath);
+  merged.eventAtText = preferFtpMetaValue(existing.eventAtText, filename.eventAtText);
+
+  if (!Number.isFinite(Number(existing.eventAt || 0)) || Number(existing.eventAt || 0) <= 0) merged.eventAt = Number(filename.eventAt || 0) || 0;
+  if (!Number.isFinite(Number(existing.speed || 0)) || Number(existing.speed || 0) <= 0) merged.speed = Number(filename.speed || 0) || 0;
+  if (!Number.isFinite(Number(existing.imageSeq || 0)) || Number(existing.imageSeq || 0) <= 0) merged.imageSeq = Number(filename.imageSeq || 0) || 0;
+  if (!Number.isFinite(Number(existing.vehicleSeq || 0)) || Number(existing.vehicleSeq || 0) <= 0) merged.vehicleSeq = Number(filename.vehicleSeq || 0) || 0;
+  if (!Number.isFinite(Number(existing.channelNo || 0)) || Number(existing.channelNo || 0) <= 0) merged.channelNo = Number(filename.channelNo || 0) || 0;
+  if (!Number.isFinite(Number(existing.laneNo || 0)) || Number(existing.laneNo || 0) <= 0) merged.laneNo = Number(filename.laneNo || 0) || 0;
+  if (!Number.isFinite(Number(existing.directionNo || 0)) || Number(existing.directionNo || 0) <= 0) merged.directionNo = Number(filename.directionNo || 0) || 0;
+  if (!Number.isFinite(Number(existing.intersectionNo || 0)) || Number(existing.intersectionNo || 0) <= 0) merged.intersectionNo = Number(filename.intersectionNo || 0) || 0;
+
+  const currentTokens = Array.isArray(existing.unmatchedTokens)
+    ? existing.unmatchedTokens.map(normalizeHikvisionFtpText).filter(Boolean)
+    : [];
+  const cleanCurrentTokens = currentTokens.filter((token) => !looksLikeUnreadableFtpToken(token));
+  const fallbackTokens = Array.isArray(filename.unmatchedTokens)
+    ? filename.unmatchedTokens.map(normalizeHikvisionFtpText).filter((token) => token && !looksLikeUnreadableFtpToken(token))
+    : [];
+  merged.unmatchedTokens = cleanCurrentTokens.length ? cleanCurrentTokens : fallbackTokens;
+  if (!merged.unmatchedTokens.length) delete merged.unmatchedTokens;
+
+  merged.tokens = Array.isArray(filename.tokens)
+    ? filename.tokens.map(normalizeHikvisionFtpText).filter(Boolean)
+    : Array.isArray(existing.tokens)
+      ? existing.tokens.map(normalizeHikvisionFtpText).filter(Boolean)
+      : undefined;
+
+  return merged;
 }
 
 parseFtpDatMetadataText = function (text) {
@@ -901,7 +983,7 @@ parseFtpMetadataPayload = function (text, ext) {
 };
 
 function normalizeFtpMetaToken(token) {
-  return String(token || "").trim().replace(/\s+/g, "");
+  return normalizeHikvisionFtpText(String(token || "").trim().replace(/\s+/g, ""));
 }
 
 function splitFtpFilenameTokens(filePath) {
@@ -1362,7 +1444,7 @@ async function ingestFtpImageFile(candidate, rootDir) {
   const eventAt = Number(metadataEventAt || filenameMeta.eventAt || 0) || (stat.mtimeMs > 0 ? stat.mtimeMs : receivedAt);
   const id = newPlateId(receivedAt);
   const mergedMetadata = Object.assign({}, ...parsedMetadata.map((item) => (item && typeof item === "object" ? item : {})));
-  const parsedMeta = {
+  let parsedMeta = {
     ...filenameMeta,
     ...mergedMetadata,
     eventAt,
@@ -1373,6 +1455,7 @@ async function ingestFtpImageFile(candidate, rootDir) {
     metadataCount: metadataFiles.length,
     metadata: parsedMetadata
   };
+  parsedMeta = mergeFtpParsedMeta(parsedMeta, filenameMeta);
   const serialForwardTask = startPlateSerialForward(plate);
   const imagePath = await savePlateImageFileToDisk({
     srcPath: absPath,
