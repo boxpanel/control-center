@@ -938,18 +938,21 @@ canvas {
   background: #000;
   overflow: auto;
   max-height: 58vh;
+  max-width: min(100%, 760px);
+  width: 100%;
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 12px;
+  box-sizing: border-box;
 }
 
 .plateDetailImg {
   display: block;
-  max-width: min(100%, 72vw);
-  max-height: 52vh;
   width: auto;
   height: auto;
+  max-width: min(100%, 736px);
+  max-height: 52vh;
   object-fit: contain;
 }
 
