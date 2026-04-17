@@ -260,6 +260,18 @@
                   <input id="systemIpInput" type="text" autocomplete="off" placeholder="例如：192.168.1.22" />
                 </div>
                 <div class="field span-4">
+                  <label for="systemPrefixInput">子网掩码 / 前缀长度</label>
+                  <input id="systemPrefixInput" type="text" autocomplete="off" placeholder="例如：24 或 255.255.255.0" />
+                </div>
+                <div class="field span-4">
+                  <label for="systemGatewayInput">网关</label>
+                  <input id="systemGatewayInput" type="text" autocomplete="off" placeholder="例如：192.168.1.1" />
+                </div>
+                <div class="field span-4">
+                  <label>当前操作网卡</label>
+                  <div id="systemIfaceInfo" class="fingerprintBox" style="margin-top:6px;">加载中...</div>
+                </div>
+                <div class="field span-4">
                   <label for="systemOldPassword">当前密码</label>
                   <input id="systemOldPassword" type="password" autocomplete="current-password" placeholder="请输入当前密码" />
                 </div>

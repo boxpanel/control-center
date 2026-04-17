@@ -1,4 +1,4 @@
-import { spawn } from "node:child_process";
+import { execFile, spawn } from "node:child_process";
 import crypto from "node:crypto";
 import dgram from "node:dgram";
 import { watch as fsWatch } from "node:fs";
@@ -1473,7 +1473,15 @@ async function loadOrInitDeviceInfo() {
           patch.serial = mergedSerial;
         }
       }
-      const systemDefaults = { name: "", clientMode: false, ipMode: "auto", preferredIp: "", manualIp: "" };
+      const systemDefaults = {
+        name: "",
+        clientMode: false,
+        ipMode: "auto",
+        preferredIp: "",
+        manualIp: "",
+        manualPrefix: "",
+        manualGateway: ""
+      };
       if (!parsed.system || typeof parsed.system !== "object") {
         patch.system = systemDefaults;
       } else {
@@ -1483,7 +1491,9 @@ async function loadOrInitDeviceInfo() {
           !Object.prototype.hasOwnProperty.call(s, "clientMode") ||
           !Object.prototype.hasOwnProperty.call(s, "ipMode") ||
           !Object.prototype.hasOwnProperty.call(s, "preferredIp") ||
-          !Object.prototype.hasOwnProperty.call(s, "manualIp");
+          !Object.prototype.hasOwnProperty.call(s, "manualIp") ||
+          !Object.prototype.hasOwnProperty.call(s, "manualPrefix") ||
+          !Object.prototype.hasOwnProperty.call(s, "manualGateway");
         if (needs) patch.system = { ...systemDefaults, ...s };
       }
       const ingestDefaults = { ftpServer: { enabled: false, port: 21, rootDir: "", username: "", password: "" } };
@@ -1515,7 +1525,7 @@ async function loadOrInitDeviceInfo() {
     devices: [],
     probe: { enabled: true, group: "239.255.255.250", port: 10086 },
     serial: { baudRate: DEFAULT_SERIAL_BAUD_RATE, forwardEnabled: false, backendPort: getPreferredLinuxBoardSerialPort(await listLinuxBoardSerialPorts()) },
-    system: { name: "", clientMode: false, ipMode: "auto", preferredIp: "", manualIp: "" },
+    system: { name: "", clientMode: false, ipMode: "auto", preferredIp: "", manualIp: "", manualPrefix: "", manualGateway: "" },
     ingest: { ftpServer: { enabled: false, port: 21, rootDir: "", username: "", password: "" } }
   };
   try {
@@ -2506,15 +2516,41 @@ function isValidIpv4(value) {
   return true;
 }
 
+function netmaskToPrefix(maskText) {
+  if (!isValidIpv4(maskText)) return "";
+  const octets = String(maskText || "")
+    .trim()
+    .split(".")
+    .map((part) => Number(part));
+  let bits = "";
+  for (const octet of octets) bits += octet.toString(2).padStart(8, "0");
+  if (!/^1*0*$/.test(bits)) return "";
+  const prefix = bits.indexOf("0");
+  return String(prefix < 0 ? 32 : prefix);
+}
+
+function normalizeIpv4PrefixValue(value) {
+  const text = String(value || "").trim();
+  if (!text) return "";
+  if (isValidIpv4(text)) return netmaskToPrefix(text);
+  const num = Number(text);
+  if (!Number.isInteger(num) || num < 1 || num > 32) return "";
+  return String(num);
+}
+
 function normalizeSystemConfig(raw) {
   const name = String(raw?.name || "").trim();
   const clientMode = Boolean(raw?.clientMode);
   const ipMode = String(raw?.ipMode || "auto").trim().toLowerCase() === "manual" ? "manual" : "auto";
   const preferredIpRaw = String(raw?.preferredIp || "").trim();
   const manualIpRaw = String(raw?.manualIp || "").trim();
+  const manualPrefixRaw = String(raw?.manualPrefix || "").trim();
+  const manualGatewayRaw = String(raw?.manualGateway || "").trim();
   const preferredIp = isValidIpv4(preferredIpRaw) ? preferredIpRaw : "";
   const manualIp = isValidIpv4(manualIpRaw) ? manualIpRaw : "";
-  return { name, clientMode, ipMode, preferredIp, manualIp };
+  const manualGateway = isValidIpv4(manualGatewayRaw) ? manualGatewayRaw : "";
+  const manualPrefix = normalizeIpv4PrefixValue(manualPrefixRaw);
+  return { name, clientMode, ipMode, preferredIp, manualIp, manualPrefix, manualGateway };
 }
 
 function normalizeSystemPatch(raw) {
@@ -2537,6 +2573,13 @@ function normalizeSystemPatch(raw) {
   if (Object.prototype.hasOwnProperty.call(raw, "manualIp")) {
     const v = String(raw.manualIp || "").trim();
     out.manualIp = isValidIpv4(v) ? v : "";
+  }
+  if (Object.prototype.hasOwnProperty.call(raw, "manualPrefix")) {
+    out.manualPrefix = normalizeIpv4PrefixValue(raw.manualPrefix);
+  }
+  if (Object.prototype.hasOwnProperty.call(raw, "manualGateway")) {
+    const v = String(raw.manualGateway || "").trim();
+    out.manualGateway = isValidIpv4(v) ? v : "";
   }
   return Object.keys(out).length ? out : null;
 }
@@ -2581,7 +2624,13 @@ async function getClientConfig() {
   const system = normalizeSystemConfig(info?.system);
   const ingest = normalizeIngestConfig(info?.ingest);
   const registryBaseUrl = String(info?.registryBaseUrl || "").trim().replace(/\/+$/, "");
-  return { connection, devices, probe, serial, system, ingest, registryBaseUrl };
+  let systemNetworkTarget = null;
+  try {
+    systemNetworkTarget = await resolveUbuntuManagedInterface(system);
+  } catch {
+    systemNetworkTarget = null;
+  }
+  return { connection, devices, probe, serial, system, ingest, registryBaseUrl, systemNetworkTarget };
 }
 
 async function startProbeResponder({ port, reporter }) {
@@ -2766,6 +2815,152 @@ function parseBooleanText(value) {
   if (["true", "1", "yes", "on"].includes(text)) return true;
   if (["false", "0", "no", "off"].includes(text)) return false;
   return null;
+}
+
+function execFileAsync(command, args = [], options = {}) {
+  return new Promise((resolve, reject) => {
+    execFile(command, args, { windowsHide: true, maxBuffer: 1024 * 1024, ...options }, (error, stdout, stderr) => {
+      if (error) {
+        error.stdout = String(stdout || "");
+        error.stderr = String(stderr || "");
+        reject(error);
+        return;
+      }
+      resolve({ stdout: String(stdout || ""), stderr: String(stderr || "") });
+    });
+  });
+}
+
+function parseIpRouteGateway(text, ifaceName) {
+  const lines = String(text || "")
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+  for (const line of lines) {
+    if (ifaceName && !new RegExp(`\\bdev\\s+${ifaceName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`).test(line)) continue;
+    const m = line.match(/\bvia\s+(\d{1,3}(?:\.\d{1,3}){3})\b/);
+    if (m?.[1]) return m[1];
+  }
+  return "";
+}
+
+function parseLinuxIpv4Prefix(text, ifaceName, ipAddress = "") {
+  const lines = String(text || "")
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+  for (const line of lines) {
+    if (ifaceName && !line.includes(` ${ifaceName} `) && !line.includes(` ${ifaceName}:`)) continue;
+    const regex = ipAddress
+      ? new RegExp(`\\b${ipAddress.replace(/\./g, "\\.")}\\/(\\d{1,2})\\b`)
+      : /\b(\d{1,3}(?:\.\d{1,3}){3})\/(\d{1,2})\b/;
+    const match = line.match(regex);
+    if (match?.[1] && ipAddress) return Number(match[1]) || 24;
+    if (match?.[2]) return Number(match[2]) || 24;
+  }
+  return 24;
+}
+
+async function resolveUbuntuManagedInterface(systemCfg) {
+  const ifaces = listPrivateIPv4();
+  if (!ifaces.length) {
+    throw new Error("未找到可配置的 IPv4 网卡");
+  }
+  const cfg = normalizeSystemConfig(systemCfg);
+  const preferredCandidates = [String(cfg.preferredIp || "").trim(), String(cfg.manualIp || "").trim()].filter(Boolean);
+  let selected = ifaces[0];
+  for (const ip of preferredCandidates) {
+    const hit = ifaces.find((item) => item.address === ip);
+    if (hit) {
+      selected = hit;
+      break;
+    }
+  }
+
+  const ifaceName = String(selected?.name || "").trim();
+  if (!ifaceName) throw new Error("未找到可配置的网卡名称");
+
+  let connectionName = ifaceName;
+  try {
+    const { stdout } = await execFileAsync("nmcli", ["-g", "GENERAL.CONNECTION", "device", "show", ifaceName]);
+    const firstLine = stdout.split(/\r?\n/).map((line) => line.trim()).find(Boolean);
+    if (firstLine && firstLine !== "--") connectionName = firstLine;
+  } catch {}
+
+  let gateway = "";
+  try {
+    const { stdout } = await execFileAsync("ip", ["route", "show", "default"]);
+    gateway = parseIpRouteGateway(stdout, ifaceName);
+  } catch {}
+
+  let prefix = 24;
+  try {
+    const { stdout } = await execFileAsync("ip", ["-o", "-4", "addr", "show", "dev", ifaceName]);
+    prefix = parseLinuxIpv4Prefix(stdout, ifaceName, selected.address);
+  } catch {}
+
+  return {
+    name: ifaceName,
+    connectionName,
+    address: String(selected?.address || "").trim(),
+    netmask: String(selected?.netmask || "").trim(),
+    prefix: Math.max(1, Math.min(32, Number(prefix) || 24)),
+    gateway
+  };
+}
+
+async function applyUbuntuSystemNetwork(nextSystem, currentSystem) {
+  if (process.platform !== "linux") {
+    return { applied: false, skipped: true, reason: "platform", message: "当前平台不是 Ubuntu/Linux，未执行系统网卡修改" };
+  }
+  const desired = normalizeSystemConfig(nextSystem);
+  const previous = normalizeSystemConfig(currentSystem);
+  const modeChanged =
+    desired.ipMode !== previous.ipMode ||
+    String(desired.manualIp || "") !== String(previous.manualIp || "") ||
+    String(desired.preferredIp || "") !== String(previous.preferredIp || "");
+  if (!modeChanged) {
+    return { applied: false, skipped: true, reason: "unchanged", message: "网络设置未变化" };
+  }
+
+  const iface = await resolveUbuntuManagedInterface(previous);
+  try {
+    await execFileAsync("nmcli", ["--version"]);
+  } catch {
+    throw new Error("系统缺少 nmcli，无法应用 Ubuntu 网卡配置");
+  }
+
+  const connectionName = iface.connectionName || iface.name;
+  if (desired.ipMode === "manual") {
+    const manualIp = String(desired.manualIp || "").trim();
+    if (!isValidIpv4(manualIp)) {
+      throw new Error("手动 IP 地址无效");
+    }
+    const prefix = Math.max(1, Math.min(32, Number(desired.manualPrefix || iface.prefix || 24) || 24));
+    const gateway = String(desired.manualGateway || iface.gateway || "").trim();
+    const addressWithPrefix = `${manualIp}/${prefix}`;
+    const modifyArgs = ["connection", "modify", connectionName, "ipv4.method", "manual", "ipv4.addresses", addressWithPrefix];
+    if (gateway) {
+      modifyArgs.push("ipv4.gateway", gateway);
+    } else {
+      modifyArgs.push("ipv4.gateway", "");
+    }
+    await execFileAsync("nmcli", modifyArgs);
+  } else {
+    await execFileAsync("nmcli", ["connection", "modify", connectionName, "ipv4.method", "auto", "ipv4.addresses", "", "ipv4.gateway", ""]);
+  }
+
+  await execFileAsync("nmcli", ["connection", "up", connectionName, "ifname", iface.name]);
+  return {
+    applied: true,
+    skipped: false,
+    iface: iface.name,
+    connectionName,
+    message:
+      desired.ipMode === "manual"
+        ? `已应用网卡 ${iface.name} 的手动 IP：${desired.manualIp}/${String(desired.manualPrefix || iface.prefix || 24).trim()}`
+        : `已恢复网卡 ${iface.name} 为自动获取 IP`
+  };
 }
 
 function buildSadpInquiryMessage(uuid) {
@@ -3267,6 +3462,7 @@ app.post("/api/isapi/device-info", async (req, res, next) => {
 
 app.post("/api/device/config", async (req, res, next) => {
   try {
+    const currentConfig = await getClientConfig();
     const patch = {};
     if (req.body?.connection && typeof req.body.connection === "object") {
       patch.connection = normalizeConnectionConfig(req.body.connection);
@@ -3293,6 +3489,13 @@ app.post("/api/device/config", async (req, res, next) => {
       const v = String(req.body.registryBaseUrl || "").trim().replace(/\/+$/, "");
       if (!v || isHttpUrl(v)) patch.registryBaseUrl = v;
     }
+
+    let networkApplyResult = null;
+    if (patch.system) {
+      const nextSystem = normalizeSystemConfig({ ...(currentConfig?.system || {}), ...patch.system });
+      networkApplyResult = await applyUbuntuSystemNetwork(nextSystem, currentConfig?.system || {});
+    }
+
     await saveDeviceInfoPatch(patch);
     const config = await getClientConfig();
     try {
@@ -3316,7 +3519,7 @@ app.post("/api/device/config", async (req, res, next) => {
       err.statusCode = 502;
       throw err;
     }
-    res.json({ ok: true, config });
+    res.json({ ok: true, config, networkApplyResult });
   } catch (err) {
     next(err);
   }

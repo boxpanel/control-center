@@ -81,6 +81,9 @@
   systemClientMode: document.getElementById("systemClientMode"),
   systemIpMode: document.getElementById("systemIpMode"),
   systemIpInput: document.getElementById("systemIpInput"),
+  systemPrefixInput: document.getElementById("systemPrefixInput"),
+  systemGatewayInput: document.getElementById("systemGatewayInput"),
+  systemIfaceInfo: document.getElementById("systemIfaceInfo"),
   systemOldPassword: document.getElementById("systemOldPassword"),
   systemNewPassword: document.getElementById("systemNewPassword"),
   systemSaveBtn: document.getElementById("systemSaveBtn"),
@@ -424,7 +427,15 @@ function readCurrentAppPort() {
 }
 
 async function initSystemUi() {
-  if (!els.systemNameInput || !els.systemIpInput || !els.systemSaveBtn || !els.systemIpMode || !els.systemClientMode)
+  if (
+    !els.systemNameInput ||
+    !els.systemIpInput ||
+    !els.systemSaveBtn ||
+    !els.systemIpMode ||
+    !els.systemClientMode ||
+    !els.systemPrefixInput ||
+    !els.systemGatewayInput
+  )
     return;
   setSystemHint("");
   setSystemPassHint("");
@@ -435,6 +446,8 @@ async function initSystemUi() {
   const clientMode = Boolean(system?.clientMode);
   const ipMode = String(system?.ipMode || "auto") === "manual" ? "manual" : "auto";
   const manualIp = String(system?.manualIp || "");
+  const manualPrefix = String(system?.manualPrefix || "");
+  const manualGateway = String(system?.manualGateway || "");
   els.systemNameInput.value = name;
   if (els.systemClientMode instanceof HTMLInputElement) els.systemClientMode.checked = clientMode;
   els.systemIpMode.value = ipMode;
@@ -442,6 +455,9 @@ async function initSystemUi() {
   const ifaces = await loadNetIfaces();
   const autoIp = pickFirstIfaceIp(ifaces);
   const appPort = readCurrentAppPort();
+  const iface = cfg?.systemNetworkTarget || null;
+  const autoPrefix = String(iface?.prefix || "").trim();
+  const autoGateway = String(iface?.gateway || "").trim();
 
   const applyIpModeToUi = () => {
     const mode = String(els.systemIpMode?.value || "auto") === "manual" ? "manual" : "auto";
@@ -449,10 +465,18 @@ async function initSystemUi() {
       els.systemIpInput.readOnly = false;
       els.systemIpInput.value = manualIp || els.systemIpInput.value || "";
       els.systemIpInput.placeholder = "例如：192.168.1.22";
+      els.systemPrefixInput.readOnly = false;
+      els.systemPrefixInput.value = manualPrefix || els.systemPrefixInput.value || "";
+      els.systemGatewayInput.readOnly = false;
+      els.systemGatewayInput.value = manualGateway || els.systemGatewayInput.value || "";
     } else {
       els.systemIpInput.readOnly = true;
       els.systemIpInput.value = autoIp || "";
       els.systemIpInput.placeholder = "自动获取";
+      els.systemPrefixInput.readOnly = true;
+      els.systemPrefixInput.value = autoPrefix || "";
+      els.systemGatewayInput.readOnly = true;
+      els.systemGatewayInput.value = autoGateway || "";
     }
   };
   els.systemIpMode.addEventListener("change", () => {
@@ -461,6 +485,16 @@ async function initSystemUi() {
   });
   applyIpModeToUi();
 
+  if (els.systemIfaceInfo) {
+    const ifaceName = String(iface?.name || "").trim();
+    const addr = String(iface?.address || "").trim();
+    const gateway = String(iface?.gateway || "").trim();
+    const prefix = String(iface?.prefix || "").trim();
+    els.systemIfaceInfo.textContent = ifaceName
+      ? `${ifaceName}${addr ? ` | 当前IP ${addr}` : ""}${prefix ? `/${prefix}` : ""}${gateway ? ` | 网关 ${gateway}` : ""}`
+      : "未识别到可配置网卡";
+  }
+
   els.systemSaveBtn.addEventListener("click", async () => {
     const mode = String(els.systemIpMode?.value || "auto") === "manual" ? "manual" : "auto";
     const payload = {
@@ -468,15 +502,18 @@ async function initSystemUi() {
         name: String(els.systemNameInput?.value || "").trim(),
         clientMode: Boolean(els.systemClientMode instanceof HTMLInputElement ? els.systemClientMode.checked : false),
         ipMode: mode,
-        manualIp: mode === "manual" ? String(els.systemIpInput?.value || "").trim() : ""
+        manualIp: mode === "manual" ? String(els.systemIpInput?.value || "").trim() : "",
+        manualPrefix: mode === "manual" ? String(els.systemPrefixInput?.value || "").trim() : "",
+        manualGateway: mode === "manual" ? String(els.systemGatewayInput?.value || "").trim() : ""
       }
     };
     try {
       els.systemSaveBtn.disabled = true;
       setSystemHint("");
       setSystemPassHint("");
-      await fetchJson("/api/device/config", payload);
-      setSystemHint("保存成功");
+      const result = await fetchJson("/api/device/config", payload);
+      const networkMsg = String(result?.networkApplyResult?.message || "").trim();
+      setSystemHint(networkMsg || "保存成功");
 
       const oldPwd = String(els.systemOldPassword?.value || "");
       const newPwd = String(els.systemNewPassword?.value || "");
