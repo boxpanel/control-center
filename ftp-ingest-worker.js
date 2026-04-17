@@ -42,7 +42,9 @@ function scoreDecodedFilename(text) {
   score += (raw.match(/[\u4E00-\u9FFF]/g) || []).length * 8;
   score += (raw.match(/[A-Za-z0-9._-]/g) || []).length * 2;
   score -= (raw.match(/[\uFFFD]/g) || []).length * 12;
+  score -= (raw.match(/(?:鏃犺溅鐗|姝ｅ父|鍏跺畠鑹|灏忓瀷杞|涓瀷杞|澶у瀷杞|鏃燺|瞋|宊|)/g) || []).length * 18;
   score -= (raw.match(/[^\u4E00-\u9FFFA-Za-z0-9._-]/g) || []).length * 2;
+  score += (raw.match(/(?:无车牌|正常|其它色|小型车|中型车|大型车)/g) || []).length * 20;
   return score;
 }
 
