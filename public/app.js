@@ -1111,8 +1111,11 @@ function fillPlateDetailModal(record) {
 function formatParsedMetaText(meta) {
   if (!meta || typeof meta !== "object") return "无";
   const parts = [];
-  if (meta.eventAt) parts.push(`时间：${formatDateTime(meta.eventAt) || "--"}`);
+  const eventAtText = String(meta.eventAtText || "").trim();
+  if (eventAtText) parts.push(`时间：${eventAtText}`);
+  else if (meta.eventAt) parts.push(`时间：${formatDateTime(meta.eventAt) || "--"}`);
   if (meta.deviceIp) parts.push(`设备IP：${meta.deviceIp}`);
+  if (meta.deviceNo) parts.push(`设备号：${meta.deviceNo}`);
   if (meta.channelNo) parts.push(`通道号：${meta.channelNo}`);
   if (meta.laneNo) parts.push(`车道号：${meta.laneNo}`);
   if (meta.imageSeq) parts.push(`图片序号：${meta.imageSeq}`);

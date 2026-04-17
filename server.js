@@ -718,7 +718,7 @@ function isFtpMetadataFile(filePath) {
   return /\.(json|xml|txt|dat)$/i.test(String(filePath || ""));
 }
 
-function extractPlateFromText(text) {
+extractPlateFromText = function (text) {
   const raw = String(text || "");
   if (/无车牌|未识别|无牌/u.test(raw)) return "无车牌";
   const compact = raw.replace(/\s+/g, "").toUpperCase();
@@ -727,7 +727,7 @@ function extractPlateFromText(text) {
   const en = compact.match(/\b([A-Z]{1,3}[A-Z0-9]{4,7})\b/);
   if (en?.[1]) return en[1];
   return "";
-}
+};
 
 function decodeFtpMetadataBuffer(buffer, ext = "") {
   const buf = Buffer.isBuffer(buffer) ? buffer : Buffer.from(buffer || []);
@@ -800,6 +800,106 @@ function parseCompactTimestampToMs(text) {
   return Number.isFinite(ts) && ts > 0 ? ts : 0;
 }
 
+function extractPlateFromText(text) {
+  const raw = String(text || "");
+  if (/(?:\u65e0\u8f66\u724c|\u672a\u8bc6\u522b|\u65e0\u724c)/u.test(raw)) return "\u65e0\u8f66\u724c";
+  const compact = raw.replace(/\s+/g, "").toUpperCase();
+  const cn = compact.match(/([\u4E00-\u9FFF][A-Z][A-Z0-9]{5,6})/u);
+  if (cn?.[1]) return cn[1];
+  const en = compact.match(/\b([A-Z]{1,3}[A-Z0-9]{4,7})\b/);
+  if (en?.[1]) return en[1];
+  return "";
+}
+
+const HIKVISION_FTP_TIMEZONE_OFFSET_MINUTES = 8 * 60;
+
+function extractCompactTimestampDigits(text) {
+  const raw = String(text || "");
+  const direct = raw.match(/(\d{14,17})/);
+  if (direct?.[1]) return direct[1];
+  const digits = raw.replace(/\D+/g, "");
+  return digits.length >= 14 ? digits : "";
+}
+
+function formatCompactTimestampDigits(digits) {
+  const compact = String(digits || "").trim();
+  if (compact.length < 14) return "";
+  const yyyy = compact.slice(0, 4);
+  const mm = String(Number(compact.slice(4, 6)));
+  const dd = String(Number(compact.slice(6, 8)));
+  const hh = compact.slice(8, 10);
+  const mi = compact.slice(10, 12);
+  const ss = compact.slice(12, 14);
+  return `${yyyy}/${mm}/${dd} ${hh}:${mi}:${ss}`;
+}
+
+parseCompactTimestampToMs = function (text, options = {}) {
+  const digits = extractCompactTimestampDigits(text);
+  if (digits.length < 14) return 0;
+  const yyyy = Number(digits.slice(0, 4));
+  const mm = Number(digits.slice(4, 6));
+  const dd = Number(digits.slice(6, 8));
+  const hh = Number(digits.slice(8, 10));
+  const mi = Number(digits.slice(10, 12));
+  const ss = Number(digits.slice(12, 14));
+  const ms = digits.length >= 17 ? Number(digits.slice(14, 17)) : 0;
+  if (!yyyy || mm < 1 || mm > 12 || dd < 1 || dd > 31 || hh > 23 || mi > 59 || ss > 59) return 0;
+  const offsetMinutes = Number.isFinite(options?.timezoneOffsetMinutes)
+    ? Number(options.timezoneOffsetMinutes)
+    : HIKVISION_FTP_TIMEZONE_OFFSET_MINUTES;
+  const utcMs = Date.UTC(yyyy, mm - 1, dd, hh, mi, ss, ms);
+  const ts = utcMs - offsetMinutes * 60 * 1000;
+  return Number.isFinite(ts) && ts > 0 ? ts : 0;
+};
+
+function looksLikeUnreadableFtpToken(token) {
+  const text = String(token || "").trim();
+  if (!text) return false;
+  if (/[\uFFFD]/u.test(text)) return true;
+  if (/^[\d._-]+$/.test(text)) return false;
+  if (/[\u4E00-\u9FFF]/u.test(text)) return false;
+  const weirdChars = (text.match(/[^\w._-]/g) || []).length;
+  return weirdChars >= Math.max(2, Math.ceil(text.length / 2));
+}
+
+parseFtpDatMetadataText = function (text) {
+  const raw = String(text || "");
+  if (!raw) return null;
+  const meta = {
+    source: "ftp-dat"
+  };
+  const eventDigits = extractCompactTimestampDigits(raw);
+  const eventAt = parseCompactTimestampToMs(eventDigits);
+  if (eventAt > 0) {
+    meta.eventAt = eventAt;
+    meta.eventAtText = formatCompactTimestampDigits(eventDigits);
+  }
+  const plate = extractPlateFromText(raw);
+  if (plate) meta.plate = plate;
+  if (/(?:\u65e0\u8f66\u724c|\u672a\u8bc6\u522b|\u65e0\u724c)/u.test(raw)) meta.plate = "\u65e0\u8f66\u724c";
+  return Object.keys(meta).length > 1 ? meta : null;
+};
+
+parseFtpMetadataPayload = function (text, ext) {
+  const raw = String(text || "");
+  const extName = String(ext || "").toLowerCase();
+  if (!raw) return null;
+  if (extName === ".dat") return parseFtpDatMetadataText(decodeFtpMetadataBuffer(Buffer.from(raw, "base64"), extName));
+
+  const meta = {
+    source: extName ? `ftp-${extName.slice(1)}` : "ftp-text"
+  };
+  const eventDigits = extractCompactTimestampDigits(raw);
+  const eventAt = parseCompactTimestampToMs(eventDigits);
+  if (eventAt > 0) {
+    meta.eventAt = eventAt;
+    meta.eventAtText = formatCompactTimestampDigits(eventDigits);
+  }
+  const plate = extractPlateFromText(raw);
+  if (plate) meta.plate = plate;
+  return Object.keys(meta).length > 1 ? meta : null;
+};
+
 function normalizeFtpMetaToken(token) {
   return String(token || "").trim().replace(/\s+/g, "");
 }
@@ -812,7 +912,7 @@ function splitFtpFilenameTokens(filePath) {
   return base.split(/\s+/).map(normalizeFtpMetaToken).filter(Boolean);
 }
 
-function parseFtpFilenameStructuredMeta(filePath) {
+parseFtpFilenameStructuredMeta = function (filePath) {
   const baseName = path.basename(String(filePath || ""), path.extname(String(filePath || ""))).trim();
   const tokens = splitFtpFilenameTokens(filePath);
   const meta = {
@@ -951,6 +1051,166 @@ function parseFtpFilenameStructuredMeta(filePath) {
     if (token === meta.vehicleType) return false;
     if (token === meta.violationType) return false;
     if (token === meta.plateCoords) return false;
+    if (meta.eventAt && parseCompactTimestampToMs(token) === meta.eventAt) return false;
+    return true;
+  });
+  if (leftovers.length) meta.unmatchedTokens = leftovers;
+
+  return meta;
+};
+
+function parseFtpFilenameStructuredMeta(filePath) {
+  const baseName = path.basename(String(filePath || ""), path.extname(String(filePath || ""))).trim();
+  const tokens = splitFtpFilenameTokens(filePath);
+  const meta = {
+    source: "ftp-filename",
+    baseName,
+    tokens
+  };
+  if (!baseName) return meta;
+
+  const plate = extractPlateFromFilename(filePath);
+  if (plate) meta.plate = plate;
+
+  const plateColorMatchers = [
+    [/^(?:\u84dd|\u84dd\u724c)$/u, "\u84dd"],
+    [/^(?:\u9ec4|\u9ec4\u724c)$/u, "\u9ec4"],
+    [/^(?:\u767d|\u767d\u724c)$/u, "\u767d"],
+    [/^(?:\u9ed1|\u9ed1\u724c)$/u, "\u9ed1"],
+    [/^(?:\u7eff|\u7eff\u724c)$/u, "\u7eff"],
+    [/^(?:\u9ec4\u7eff|\u9ec4\u7eff\u724c)$/u, "\u9ec4\u7eff"],
+    [/^(?:\u6e10\u53d8\u7eff|\u6e10\u53d8\u7eff\u724c)$/u, "\u6e10\u53d8\u7eff"]
+  ];
+  const vehicleColorMatchers = [
+    [/^\u9ed1\u8272?$/u, "\u9ed1"],
+    [/^\u767d\u8272?$/u, "\u767d"],
+    [/^\u94f6\u8272?$/u, "\u94f6"],
+    [/^\u7070\u8272?$/u, "\u7070"],
+    [/^\u7ea2\u8272?$/u, "\u7ea2"],
+    [/^\u84dd\u8272?$/u, "\u84dd"],
+    [/^\u9ec4\u8272?$/u, "\u9ec4"],
+    [/^\u68d5\u8272?$/u, "\u68d5"],
+    [/^\u7eff\u8272?$/u, "\u7eff"],
+    [/^\u91d1\u8272?$/u, "\u91d1"],
+    [/^\u5176\u5b83?\u8272$/u, "\u5176\u5b83\u8272"]
+  ];
+  const vehicleTypeMatchers = [
+    /\bSUV\b/i,
+    /\bMPV\b/i,
+    /\u5c0f\u578b\u8f66/u,
+    /\u5927\u578b\u8f66/u,
+    /\u4e2d\u578b\u8f66/u,
+    /\u8f7d\u8d27\u6c7d\u8f66/u,
+    /\u8d27\u8f66/u,
+    /\u5ba2\u8f66/u,
+    /\u9762\u5305\u8f66/u,
+    /\u6469\u6258/u
+  ];
+  const violationMatchers = [
+    /\u6b63\u5e38/u,
+    /\u65e0/u,
+    /\u8fdd\u505c/u,
+    /\u95ef\u7ea2\u706f/u,
+    /\u538b\u7ebf/u,
+    /\u9006\u884c/u,
+    /\u8d85\u901f/u,
+    /\u8fdd\u6cd5/u,
+    /\u5360\u9053/u
+  ];
+
+  for (const token of tokens) {
+    if (!token) continue;
+    if (!meta.deviceIp) {
+      const ipMatch = token.match(/\b((?:\d{1,3}\.){3}\d{1,3})\b/);
+      if (ipMatch?.[1]) meta.deviceIp = ipMatch[1];
+    }
+    if (!meta.eventAt) {
+      const eventDigits = extractCompactTimestampDigits(token);
+      const ts = parseCompactTimestampToMs(eventDigits);
+      if (ts > 0) {
+        meta.eventAt = ts;
+        meta.eventAtText = formatCompactTimestampDigits(eventDigits);
+      }
+    }
+    if (!meta.plate && extractPlateFromText(token)) {
+      meta.plate = extractPlateFromText(token);
+    }
+    if (!meta.plateColor) {
+      const hit = plateColorMatchers.find(([re]) => re.test(token));
+      if (hit) meta.plateColor = hit[1];
+    }
+    if (!meta.vehicleColor) {
+      const hit = vehicleColorMatchers.find(([re]) => re.test(token));
+      if (hit) meta.vehicleColor = hit[1];
+    }
+    if (!meta.vehicleType) {
+      const hit = vehicleTypeMatchers.find((re) => re.test(token));
+      if (hit) meta.vehicleType = token;
+    }
+    if (!meta.violationType) {
+      const hit = violationMatchers.find((re) => re.test(token));
+      if (hit) meta.violationType = token;
+    }
+    if (!meta.plateCoords) {
+      const coordMatch = token.match(/^(\d{1,4},){3}\d{1,4}$/);
+      if (coordMatch) meta.plateCoords = token;
+    }
+    if (!meta.laneNo) {
+      const m = token.match(/^(?:lane|ln|cd|chedao|[\u8f66\u9053]{1,2})[-_ ]?(\d{1,2})$/i);
+      if (m?.[1]) meta.laneNo = Number(m[1]);
+    }
+    if (!meta.channelNo) {
+      const m = token.match(/^(?:ch|channel|td|[\u901a\u9053]{1,2})[-_ ]?(\d{1,2})$/i);
+      if (m?.[1]) meta.channelNo = Number(m[1]);
+    }
+    if (!meta.directionNo) {
+      const m = token.match(/^(?:dir|fx|[\u65b9\u5411]{1,2})[-_ ]?(\d{1,2})$/i);
+      if (m?.[1]) meta.directionNo = Number(m[1]);
+    }
+    if (!meta.intersectionNo) {
+      const m = token.match(/^(?:cross|road|lk|[\u8def\u53e3]{1,2})[-_ ]?(\d{1,3})$/i);
+      if (m?.[1]) meta.intersectionNo = Number(m[1]);
+    }
+    if (!meta.imageSeq) {
+      const m = token.match(/^(?:img|image|pic|tp|[\u56fe\u7247]{1,2})[-_ ]?(\d{1,4})$/i);
+      if (m?.[1]) meta.imageSeq = Number(m[1]);
+    }
+    if (!meta.vehicleSeq) {
+      const m = token.match(/^(?:veh|car|vehicle|cl|[\u8f66\u8f86\u5e8f\u53f7]{1,4})[-_ ]?(\d{1,6})$/i);
+      if (m?.[1]) meta.vehicleSeq = Number(m[1]);
+    }
+    if (!meta.speed) {
+      const m = token.match(/^(?:spd|speed|v|[\u901f\u5ea6]{1,2})[-_ ]?(\d{1,3})(?:kmh|km\/h|kph)?$/i);
+      if (m?.[1]) meta.speed = Number(m[1]);
+    }
+    if (!meta.deviceNo) {
+      const m = token.match(/^(?:dev|device|sn|[\u8bbe\u5907\u53f7]{1,3})[-_ ]?([A-Z0-9]{2,})$/i);
+      if (m?.[1]) meta.deviceNo = m[1];
+    }
+  }
+
+  if (!meta.deviceNo && /^\d{2,}$/.test(tokens[1] || "")) meta.deviceNo = tokens[1];
+  if (!meta.imageSeq && /^\d{1,4}$/.test(tokens[tokens.length - 1] || "")) meta.imageSeq = Number(tokens[tokens.length - 1]);
+  if (!meta.vehicleSeq && /^\d{2,6}$/.test(tokens[tokens.length - 2] || "")) meta.vehicleSeq = Number(tokens[tokens.length - 2]);
+  if (!meta.speed) {
+    const speedCandidate = tokens.find((token, index) => index > 2 && /^\d{2,3}$/.test(token));
+    if (speedCandidate) meta.speed = Number(speedCandidate);
+  }
+
+  const leftovers = tokens.filter((token) => {
+    if (!token) return false;
+    if (looksLikeUnreadableFtpToken(token)) return false;
+    if (token === meta.plate) return false;
+    if (token === meta.deviceIp) return false;
+    if (token === meta.deviceNo) return false;
+    if (token === meta.plateColor) return false;
+    if (token === meta.vehicleColor) return false;
+    if (token === meta.vehicleType) return false;
+    if (token === meta.violationType) return false;
+    if (token === meta.plateCoords) return false;
+    if (meta.speed != null && token === String(meta.speed).padStart(token.length, "0")) return false;
+    if (meta.vehicleSeq != null && token === String(meta.vehicleSeq).padStart(token.length, "0")) return false;
+    if (meta.imageSeq != null && token === String(meta.imageSeq).padStart(token.length, "0")) return false;
     if (meta.eventAt && parseCompactTimestampToMs(token) === meta.eventAt) return false;
     return true;
   });
@@ -1096,10 +1356,15 @@ async function ingestFtpImageFile(candidate, rootDir) {
 
   const receivedAt = Date.now();
   const metadataEventAt = parsedMetadata.find((item) => Number(item?.eventAt || 0) > 0)?.eventAt || 0;
+  const metadataEventAtText = String(parsedMetadata.find((item) => String(item?.eventAtText || "").trim())?.eventAtText || "");
   const eventAt = Number(metadataEventAt || filenameMeta.eventAt || 0) || (stat.mtimeMs > 0 ? stat.mtimeMs : receivedAt);
   const id = newPlateId(receivedAt);
+  const mergedMetadata = Object.assign({}, ...parsedMetadata.map((item) => (item && typeof item === "object" ? item : {})));
   const parsedMeta = {
     ...filenameMeta,
+    ...mergedMetadata,
+    eventAt,
+    eventAtText: metadataEventAtText || String(filenameMeta.eventAtText || ""),
     plate,
     ftpRemotePath: relPath,
     metadataFiles,
