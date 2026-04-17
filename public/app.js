@@ -1103,36 +1103,37 @@ function fillPlateDetailModal(record) {
   const sentAt = Number(record.serialSentAt || 0);
   if (serialEl) serialEl.textContent = sentAt ? formatDateTime(sentAt) : "未发送";
 
-  const ftpPath = String(record.ftpRemotePath || "");
+  const ftpPath = normalizeHikvisionDisplayText(String(record.ftpRemotePath || ""));
   if (ftpEl) ftpEl.textContent = ftpPath || "无";
   if (parsedMetaEl) parsedMetaEl.textContent = formatParsedMetaText(record.parsedMeta);
 }
 
+function normalizeHikvisionDisplayText(value) {
+  let text = String(value || "").trim();
+  if (!text) return "";
+  text = text.replace(/[\uE000-\uF8FF]/gu, "");
+  const replacements = [
+    [/鏃犺溅鐗/g, "无车牌"],
+    [/姝ｅ父/g, "正常"],
+    [/鍏跺畠鑹/g, "其它色"],
+    [/灏忓瀷杞/gu, "小型车"],
+    [/涓瀷杞/gu, "中型车"],
+    [/澶у瀷杞/gu, "大型车"],
+    [/钃濊壊|钃濈墝/gu, "蓝"],
+    [/榛勮壊|榛勭墝/gu, "黄"],
+    [/鐧借壊|鐧界墝/gu, "白"],
+    [/榛戣壊|榛戠墝/gu, "黑"],
+    [/缁胯壊|缁跨墝/gu, "绿"]
+  ];
+  for (const [pattern, replacement] of replacements) {
+    text = text.replace(pattern, replacement);
+  }
+  if (text === "鏃") return "无";
+  return text.trim();
+}
+
 function formatParsedMetaText(meta) {
   if (!meta || typeof meta !== "object") return "无";
-  const normalizeHikvisionDisplayText = (value) => {
-    let text = String(value || "").trim();
-    if (!text) return "";
-    text = text.replace(/[\uE000-\uF8FF]/gu, "");
-    const replacements = [
-      [/鏃犺溅鐗/g, "无车牌"],
-      [/姝ｅ父/g, "正常"],
-      [/鍏跺畠鑹/g, "其它色"],
-      [/灏忓瀷杞/gu, "小型车"],
-      [/涓瀷杞/gu, "中型车"],
-      [/澶у瀷杞/gu, "大型车"],
-      [/钃濊壊|钃濈墝/gu, "蓝"],
-      [/榛勮壊|榛勭墝/gu, "黄"],
-      [/鐧借壊|鐧界墝/gu, "白"],
-      [/榛戣壊|榛戠墝/gu, "黑"],
-      [/缁胯壊|缁跨墝/gu, "绿"]
-    ];
-    for (const [pattern, replacement] of replacements) {
-      text = text.replace(pattern, replacement);
-    }
-    if (text === "鏃") return "无";
-    return text.trim();
-  };
   const isUnreadableToken = (value) => {
     const text = normalizeHikvisionDisplayText(value);
     if (!text) return false;

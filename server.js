@@ -120,7 +120,7 @@ function rowToPlateDto(row) {
   if (!row) return null;
   const id = String(row.id || "");
   const imagePath = String(row.imagePath || "");
-  const ftpRemotePath = String(row.ftpRemotePath || "");
+  const ftpRemotePath = normalizeHikvisionFtpDisplayPath(String(row.ftpRemotePath || ""));
   let parsedMeta = null;
   try {
     const raw = String(row.parsedMetaJson || "").trim();
@@ -891,6 +891,19 @@ function normalizeHikvisionFtpText(value) {
   return text.trim();
 }
 
+function normalizeHikvisionFtpDisplayPath(remotePath) {
+  const raw = String(remotePath || "").trim();
+  if (!raw) return "";
+  const normalized = raw.replace(/\\/g, "/");
+  const segments = normalized.split("/");
+  const last = segments.pop() || "";
+  const ext = path.extname(last);
+  const base = ext ? last.slice(0, -ext.length) : last;
+  const parts = base.split(/_+/).map((token) => normalizeHikvisionFtpText(token));
+  const rebuilt = `${parts.join("_")}${ext}`;
+  return [...segments, rebuilt].filter(Boolean).join("/");
+}
+
 function preferFtpMetaValue(currentValue, fallbackValue) {
   const currentText = normalizeHikvisionFtpText(currentValue);
   const fallbackText = normalizeHikvisionFtpText(fallbackValue);
@@ -1409,7 +1422,7 @@ async function ingestFtpImageFile(candidate, rootDir) {
   const absPath = String(candidate?.absPath || "");
   if (!absPath) return false;
   const relPath = String(candidate?.relPath || path.relative(rootDir, absPath).split(path.sep).join("/"));
-  const displayRelPath = String(candidate?.displayRelPath || relPath);
+  const displayRelPath = normalizeHikvisionFtpDisplayPath(String(candidate?.displayRelPath || relPath));
   const sourceEventKey = `ftp:${relPath}`;
   if (stmtPlateGetBySourceEventKey.get(sourceEventKey)) return false;
 
