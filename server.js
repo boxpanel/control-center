@@ -891,6 +891,19 @@ function normalizeHikvisionFtpText(value) {
   return text.trim();
 }
 
+function expandHikvisionFtpToken(token) {
+  let text = normalizeHikvisionFtpText(token);
+  if (!text) return [];
+  text = text.replace(/[^\u4E00-\u9FFFA-Za-z0-9./-]+/gu, "_");
+  text = text
+    .replace(/(无车牌)(?=\d{2,3}\b)/g, "$1_")
+    .replace(/(正常)(?=(?:无|其它色|小型车|中型车|大型车|货车|客车|面包车|\d))/g, "$1_")
+    .replace(/(无)(?=(?:其它色|小型车|中型车|大型车|货车|客车|面包车|\d))/g, "$1_")
+    .replace(/(其它色|黑色|白色|蓝色|黄色|绿色)(?=(?:小型车|中型车|大型车|货车|客车|面包车|\d))/g, "$1_")
+    .replace(/(小型车|中型车|大型车|货车|客车|面包车)(?=\d{4,6}\b)/g, "$1_");
+  return text.split(/_+/).map((part) => part.trim()).filter(Boolean);
+}
+
 function normalizeHikvisionFtpDisplayPath(remotePath) {
   const raw = String(remotePath || "").trim();
   if (!raw) return "";
@@ -899,7 +912,9 @@ function normalizeHikvisionFtpDisplayPath(remotePath) {
   const last = segments.pop() || "";
   const ext = path.extname(last);
   const base = ext ? last.slice(0, -ext.length) : last;
-  const parts = base.split(/_+/).map((token) => normalizeHikvisionFtpText(token));
+  const parts = base
+    .split(/_+/)
+    .flatMap((token) => expandHikvisionFtpToken(token));
   const rebuilt = `${parts.join("_")}${ext}`;
   return [...segments, rebuilt].filter(Boolean).join("/");
 }
@@ -939,19 +954,19 @@ function mergeFtpParsedMeta(existingMeta, filenameMeta) {
   if (!Number.isFinite(Number(existing.intersectionNo || 0)) || Number(existing.intersectionNo || 0) <= 0) merged.intersectionNo = Number(filename.intersectionNo || 0) || 0;
 
   const currentTokens = Array.isArray(existing.unmatchedTokens)
-    ? existing.unmatchedTokens.map(normalizeHikvisionFtpText).filter(Boolean)
+    ? existing.unmatchedTokens.flatMap(expandHikvisionFtpToken)
     : [];
   const cleanCurrentTokens = currentTokens.filter((token) => !looksLikeUnreadableFtpToken(token));
   const fallbackTokens = Array.isArray(filename.unmatchedTokens)
-    ? filename.unmatchedTokens.map(normalizeHikvisionFtpText).filter((token) => token && !looksLikeUnreadableFtpToken(token))
+    ? filename.unmatchedTokens.flatMap(expandHikvisionFtpToken).filter((token) => token && !looksLikeUnreadableFtpToken(token))
     : [];
   merged.unmatchedTokens = cleanCurrentTokens.length ? cleanCurrentTokens : fallbackTokens;
   if (!merged.unmatchedTokens.length) delete merged.unmatchedTokens;
 
   merged.tokens = Array.isArray(filename.tokens)
-    ? filename.tokens.map(normalizeHikvisionFtpText).filter(Boolean)
+    ? filename.tokens.flatMap(expandHikvisionFtpToken)
     : Array.isArray(existing.tokens)
-      ? existing.tokens.map(normalizeHikvisionFtpText).filter(Boolean)
+      ? existing.tokens.flatMap(expandHikvisionFtpToken)
       : undefined;
 
   return merged;

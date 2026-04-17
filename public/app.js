@@ -1103,7 +1103,7 @@ function fillPlateDetailModal(record) {
   const sentAt = Number(record.serialSentAt || 0);
   if (serialEl) serialEl.textContent = sentAt ? formatDateTime(sentAt) : "未发送";
 
-  const ftpPath = normalizeHikvisionDisplayText(String(record.ftpRemotePath || ""));
+  const ftpPath = normalizeHikvisionDisplayPath(String(record.ftpRemotePath || ""));
   if (ftpEl) ftpEl.textContent = ftpPath || "无";
   if (parsedMetaEl) parsedMetaEl.textContent = formatParsedMetaText(record.parsedMeta);
 }
@@ -1132,6 +1132,32 @@ function normalizeHikvisionDisplayText(value) {
   return text.trim();
 }
 
+function expandHikvisionDisplayToken(token) {
+  let text = normalizeHikvisionDisplayText(token);
+  if (!text) return [];
+  text = text.replace(/[^\u4E00-\u9FFFA-Za-z0-9./-]+/gu, "_");
+  text = text
+    .replace(/(无车牌)(?=\d{2,3}\b)/g, "$1_")
+    .replace(/(正常)(?=(?:无|其它色|小型车|中型车|大型车|货车|客车|面包车|\d))/g, "$1_")
+    .replace(/(无)(?=(?:其它色|小型车|中型车|大型车|货车|客车|面包车|\d))/g, "$1_")
+    .replace(/(其它色|黑色|白色|蓝色|黄色|绿色)(?=(?:小型车|中型车|大型车|货车|客车|面包车|\d))/g, "$1_")
+    .replace(/(小型车|中型车|大型车|货车|客车|面包车)(?=\d{4,6}\b)/g, "$1_");
+  return text.split(/_+/).map((part) => part.trim()).filter(Boolean);
+}
+
+function normalizeHikvisionDisplayPath(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  const normalized = raw.replace(/\\/g, "/");
+  const segments = normalized.split("/");
+  const last = segments.pop() || "";
+  const dot = last.lastIndexOf(".");
+  const base = dot >= 0 ? last.slice(0, dot) : last;
+  const ext = dot >= 0 ? last.slice(dot) : "";
+  const parts = base.split(/_+/).flatMap((token) => expandHikvisionDisplayToken(token));
+  return [...segments, `${parts.join("_")}${ext}`].filter(Boolean).join("/");
+}
+
 function formatParsedMetaText(meta) {
   if (!meta || typeof meta !== "object") return "无";
   const isUnreadableToken = (value) => {
@@ -1157,7 +1183,7 @@ function formatParsedMetaText(meta) {
   if (meta.intersectionNo) parts.push(`路口编号：${meta.intersectionNo}`);
   if (meta.violationType && !isUnreadableToken(meta.violationType)) parts.push(`违规类型：${normalizeHikvisionDisplayText(meta.violationType)}`);
   const cleanUnmatched = Array.isArray(meta.unmatchedTokens)
-    ? meta.unmatchedTokens.map(normalizeHikvisionDisplayText).filter((token) => token && !isUnreadableToken(token))
+    ? meta.unmatchedTokens.flatMap(expandHikvisionDisplayToken).filter((token) => token && !isUnreadableToken(token))
     : [];
   if (cleanUnmatched.length) {
     parts.push(`其余字段：${cleanUnmatched.join(" / ")}`);
