@@ -1327,6 +1327,7 @@ async function ingestFtpImageFile(candidate, rootDir) {
   const absPath = String(candidate?.absPath || "");
   if (!absPath) return false;
   const relPath = String(candidate?.relPath || path.relative(rootDir, absPath).split(path.sep).join("/"));
+  const displayRelPath = String(candidate?.displayRelPath || relPath);
   const sourceEventKey = `ftp:${relPath}`;
   if (stmtPlateGetBySourceEventKey.get(sourceEventKey)) return false;
 
@@ -1334,16 +1335,17 @@ async function ingestFtpImageFile(candidate, rootDir) {
   if (!stat || !stat.isFile() || stat.size <= 0) return false;
   if (Date.now() - stat.mtimeMs < FTP_INGEST_SETTLE_MS) return false;
 
-  const filenameMeta = parseFtpFilenameStructuredMeta(absPath);
+  const filenameMeta = parseFtpFilenameStructuredMeta(displayRelPath);
   let plate = "";
   const metadataTexts = Array.isArray(candidate?.metadataTexts) ? candidate.metadataTexts : [];
   const metadataFiles = Array.isArray(candidate?.metadataPaths) ? candidate.metadataPaths : [];
+  const metadataDisplayFiles = Array.isArray(candidate?.metadataDisplayPaths) ? candidate.metadataDisplayPaths : [];
   const metadataExts = Array.isArray(candidate?.metadataExts) ? candidate.metadataExts : [];
   const parsedMetadata = [];
   for (let i = 0; i < metadataTexts.length; i += 1) {
     const parsed = parseFtpMetadataPayload(metadataTexts[i], metadataExts[i]);
     if (parsed) {
-      parsed.file = metadataFiles[i] ? path.basename(metadataFiles[i]) : "";
+      parsed.file = metadataDisplayFiles[i] ? path.basename(metadataDisplayFiles[i]) : metadataFiles[i] ? path.basename(metadataFiles[i]) : "";
       parsedMetadata.push(parsed);
       if (!plate && parsed.plate) plate = String(parsed.plate || "");
     } else if (!plate) {
@@ -1366,8 +1368,8 @@ async function ingestFtpImageFile(candidate, rootDir) {
     eventAt,
     eventAtText: metadataEventAtText || String(filenameMeta.eventAtText || ""),
     plate,
-    ftpRemotePath: relPath,
-    metadataFiles,
+    ftpRemotePath: displayRelPath,
+    metadataFiles: metadataDisplayFiles.length ? metadataDisplayFiles : metadataFiles,
     metadataCount: metadataFiles.length,
     metadata: parsedMetadata
   };
@@ -1399,7 +1401,7 @@ async function ingestFtpImageFile(candidate, rootDir) {
     eventAt,
     image: "",
     imageUrl: `/api/plates/image/${encodeURIComponent(id)}`,
-    ftpRemotePath: relPath,
+    ftpRemotePath: displayRelPath,
     parsedMeta
   });
   if (serialForwardTask) {
