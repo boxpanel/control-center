@@ -120,16 +120,13 @@ function rowToPlateDto(row) {
   if (!row) return null;
   const id = String(row.id || "");
   const imagePath = String(row.imagePath || "");
-  const ftpRemotePath = normalizeHikvisionFtpDisplayPath(String(row.ftpRemotePath || ""));
+  const ftpRemotePath = String(row.ftpRemotePath || "");
   let parsedMeta = null;
   try {
     const raw = String(row.parsedMetaJson || "").trim();
     parsedMeta = raw ? JSON.parse(raw) : null;
   } catch {
     parsedMeta = null;
-  }
-  if (ftpRemotePath) {
-    parsedMeta = mergeFtpParsedMeta(parsedMeta, parseFtpFilenameStructuredMeta(ftpRemotePath));
   }
   return {
     id,
@@ -867,111 +864,6 @@ function looksLikeUnreadableFtpToken(token) {
   return weirdChars >= Math.max(2, Math.ceil(text.length / 2));
 }
 
-function normalizeHikvisionFtpText(value) {
-  let text = String(value || "").trim();
-  if (!text) return "";
-  text = text.replace(/[\uE000-\uF8FF]/gu, "");
-  const replacements = [
-    [/鏃犺溅鐗/g, "无车牌"],
-    [/姝ｅ父/g, "正常"],
-    [/鍏跺畠鑹/g, "其它色"],
-    [/灏忓瀷杞/gu, "小型车"],
-    [/涓瀷杞/gu, "中型车"],
-    [/澶у瀷杞/gu, "大型车"],
-    [/钃濊壊|钃濈墝/gu, "蓝"],
-    [/榛勮壊|榛勭墝/gu, "黄"],
-    [/鐧借壊|鐧界墝/gu, "白"],
-    [/榛戣壊|榛戠墝/gu, "黑"],
-    [/缁胯壊|缁跨墝/gu, "绿"]
-  ];
-  for (const [pattern, replacement] of replacements) {
-    text = text.replace(pattern, replacement);
-  }
-  if (text === "鏃") return "无";
-  return text.trim();
-}
-
-function expandHikvisionFtpToken(token) {
-  let text = normalizeHikvisionFtpText(token);
-  if (!text) return [];
-  text = text.replace(/[^\u4E00-\u9FFFA-Za-z0-9./-]+/gu, "_");
-  text = text
-    .replace(/(无车牌)(?=\d{2,3}\b)/g, "$1_")
-    .replace(/(正常)(?=(?:无|其它色|小型车|中型车|大型车|货车|客车|面包车|\d))/g, "$1_")
-    .replace(/(无)(?=(?:其它色|小型车|中型车|大型车|货车|客车|面包车|\d))/g, "$1_")
-    .replace(/(其它色|黑色|白色|蓝色|黄色|绿色)(?=(?:小型车|中型车|大型车|货车|客车|面包车|\d))/g, "$1_")
-    .replace(/(小型车|中型车|大型车|货车|客车|面包车)(?=\d{4,6}\b)/g, "$1_");
-  return text.split(/_+/).map((part) => part.trim()).filter(Boolean);
-}
-
-function normalizeHikvisionFtpDisplayPath(remotePath) {
-  const raw = String(remotePath || "").trim();
-  if (!raw) return "";
-  const normalized = raw.replace(/\\/g, "/");
-  const segments = normalized.split("/");
-  const last = segments.pop() || "";
-  const ext = path.extname(last);
-  const base = ext ? last.slice(0, -ext.length) : last;
-  const parts = base
-    .split(/_+/)
-    .flatMap((token) => expandHikvisionFtpToken(token));
-  const rebuilt = `${parts.join("_")}${ext}`;
-  return [...segments, rebuilt].filter(Boolean).join("/");
-}
-
-function preferFtpMetaValue(currentValue, fallbackValue) {
-  const currentText = normalizeHikvisionFtpText(currentValue);
-  const fallbackText = normalizeHikvisionFtpText(fallbackValue);
-  if (!currentText) return fallbackText;
-  if (looksLikeUnreadableFtpToken(currentText) && fallbackText) return fallbackText;
-  return currentText;
-}
-
-function mergeFtpParsedMeta(existingMeta, filenameMeta) {
-  const existing = existingMeta && typeof existingMeta === "object" ? { ...existingMeta } : {};
-  const filename = filenameMeta && typeof filenameMeta === "object" ? filenameMeta : {};
-  const merged = { ...existing };
-
-  merged.baseName = preferFtpMetaValue(existing.baseName, filename.baseName);
-  merged.plate = preferFtpMetaValue(existing.plate, filename.plate);
-  merged.deviceIp = preferFtpMetaValue(existing.deviceIp, filename.deviceIp);
-  merged.deviceNo = preferFtpMetaValue(existing.deviceNo, filename.deviceNo);
-  merged.plateColor = preferFtpMetaValue(existing.plateColor, filename.plateColor);
-  merged.vehicleColor = preferFtpMetaValue(existing.vehicleColor, filename.vehicleColor);
-  merged.vehicleType = preferFtpMetaValue(existing.vehicleType, filename.vehicleType);
-  merged.violationType = preferFtpMetaValue(existing.violationType, filename.violationType);
-  merged.plateCoords = preferFtpMetaValue(existing.plateCoords, filename.plateCoords);
-  merged.ftpRemotePath = preferFtpMetaValue(existing.ftpRemotePath, filename.ftpRemotePath);
-  merged.eventAtText = preferFtpMetaValue(existing.eventAtText, filename.eventAtText);
-
-  if (!Number.isFinite(Number(existing.eventAt || 0)) || Number(existing.eventAt || 0) <= 0) merged.eventAt = Number(filename.eventAt || 0) || 0;
-  if (!Number.isFinite(Number(existing.speed || 0)) || Number(existing.speed || 0) <= 0) merged.speed = Number(filename.speed || 0) || 0;
-  if (!Number.isFinite(Number(existing.imageSeq || 0)) || Number(existing.imageSeq || 0) <= 0) merged.imageSeq = Number(filename.imageSeq || 0) || 0;
-  if (!Number.isFinite(Number(existing.vehicleSeq || 0)) || Number(existing.vehicleSeq || 0) <= 0) merged.vehicleSeq = Number(filename.vehicleSeq || 0) || 0;
-  if (!Number.isFinite(Number(existing.channelNo || 0)) || Number(existing.channelNo || 0) <= 0) merged.channelNo = Number(filename.channelNo || 0) || 0;
-  if (!Number.isFinite(Number(existing.laneNo || 0)) || Number(existing.laneNo || 0) <= 0) merged.laneNo = Number(filename.laneNo || 0) || 0;
-  if (!Number.isFinite(Number(existing.directionNo || 0)) || Number(existing.directionNo || 0) <= 0) merged.directionNo = Number(filename.directionNo || 0) || 0;
-  if (!Number.isFinite(Number(existing.intersectionNo || 0)) || Number(existing.intersectionNo || 0) <= 0) merged.intersectionNo = Number(filename.intersectionNo || 0) || 0;
-
-  const currentTokens = Array.isArray(existing.unmatchedTokens)
-    ? existing.unmatchedTokens.flatMap(expandHikvisionFtpToken)
-    : [];
-  const cleanCurrentTokens = currentTokens.filter((token) => !looksLikeUnreadableFtpToken(token));
-  const fallbackTokens = Array.isArray(filename.unmatchedTokens)
-    ? filename.unmatchedTokens.flatMap(expandHikvisionFtpToken).filter((token) => token && !looksLikeUnreadableFtpToken(token))
-    : [];
-  merged.unmatchedTokens = cleanCurrentTokens.length ? cleanCurrentTokens : fallbackTokens;
-  if (!merged.unmatchedTokens.length) delete merged.unmatchedTokens;
-
-  merged.tokens = Array.isArray(filename.tokens)
-    ? filename.tokens.flatMap(expandHikvisionFtpToken)
-    : Array.isArray(existing.tokens)
-      ? existing.tokens.flatMap(expandHikvisionFtpToken)
-      : undefined;
-
-  return merged;
-}
-
 parseFtpDatMetadataText = function (text) {
   const raw = String(text || "");
   if (!raw) return null;
@@ -1011,7 +903,7 @@ parseFtpMetadataPayload = function (text, ext) {
 };
 
 function normalizeFtpMetaToken(token) {
-  return normalizeHikvisionFtpText(String(token || "").trim().replace(/\s+/g, ""));
+  return String(token || "").trim().replace(/\s+/g, "");
 }
 
 function splitFtpFilenameTokens(filePath) {
@@ -1437,7 +1329,7 @@ async function ingestFtpImageFile(candidate, rootDir) {
   const absPath = String(candidate?.absPath || "");
   if (!absPath) return false;
   const relPath = String(candidate?.relPath || path.relative(rootDir, absPath).split(path.sep).join("/"));
-  const displayRelPath = normalizeHikvisionFtpDisplayPath(String(candidate?.displayRelPath || relPath));
+  const displayRelPath = String(candidate?.displayRelPath || relPath);
   const sourceEventKey = `ftp:${relPath}`;
   if (stmtPlateGetBySourceEventKey.get(sourceEventKey)) return false;
 
@@ -1472,7 +1364,7 @@ async function ingestFtpImageFile(candidate, rootDir) {
   const eventAt = Number(metadataEventAt || filenameMeta.eventAt || 0) || (stat.mtimeMs > 0 ? stat.mtimeMs : receivedAt);
   const id = newPlateId(receivedAt);
   const mergedMetadata = Object.assign({}, ...parsedMetadata.map((item) => (item && typeof item === "object" ? item : {})));
-  let parsedMeta = {
+  const parsedMeta = {
     ...filenameMeta,
     ...mergedMetadata,
     eventAt,
@@ -1483,7 +1375,6 @@ async function ingestFtpImageFile(candidate, rootDir) {
     metadataCount: metadataFiles.length,
     metadata: parsedMetadata
   };
-  parsedMeta = mergeFtpParsedMeta(parsedMeta, filenameMeta);
   const serialForwardTask = startPlateSerialForward(plate);
   const imagePath = await savePlateImageFileToDisk({
     srcPath: absPath,
