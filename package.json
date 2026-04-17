@@ -18,11 +18,11 @@
     "hls.js": "^1.6.7",
     "node-onvif": "^0.1.7",
     "onvif": "^0.8.1",
+    "patch-package": "^8.0.1",
     "serialport": "^13.0.0"
   },
   "devDependencies": {
     "javascript-obfuscator": "^5.4.1",
-    "patch-package": "^8.0.1",
     "puppeteer": "^24.40.0"
   }
 }
