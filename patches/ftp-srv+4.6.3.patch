@@ -1,0 +1,81 @@
+diff --git a/node_modules/ftp-srv/src/commands/index.js b/node_modules/ftp-srv/src/commands/index.js
+index 8d8f56e..491b02e 100644
+--- a/node_modules/ftp-srv/src/commands/index.js
++++ b/node_modules/ftp-srv/src/commands/index.js
+@@ -1,10 +1,46 @@
+ const _ = require('lodash');
+ const Promise = require('bluebird');
++const {TextDecoder} = require('util');
+ 
+ const REGISTRY = require('./registry');
+ 
+ const CMD_FLAG_REGEX = new RegExp(/^-(\w{1})$/);
+ 
++function scoreDecodedArg(text) {
++  const raw = String(text || '');
++  if (!raw) return -Infinity;
++  let score = 0;
++  score += (raw.match(/[\u4E00-\u9FFF]/g) || []).length * 8;
++  score += (raw.match(/[A-Za-z0-9._/\\:-]/g) || []).length * 2;
++  score -= (raw.match(/[\uFFFD]/g) || []).length * 12;
++  score -= (raw.match(/[^\u4E00-\u9FFFA-Za-z0-9._/\\:\-]/g) || []).length * 2;
++  return score;
++}
++
++function decodeCommandArg(text) {
++  const latin1 = String(text || '');
++  if (!latin1) return latin1;
++  const raw = Buffer.from(latin1, 'latin1');
++  const candidates = [];
++  try {
++    candidates.push(new TextDecoder('utf-8', {fatal: false}).decode(raw));
++  } catch {}
++  try {
++    candidates.push(new TextDecoder('gb18030', {fatal: false}).decode(raw));
++  } catch {}
++  candidates.push(latin1);
++  let best = latin1;
++  let bestScore = scoreDecodedArg(best);
++  for (const candidate of candidates) {
++    const score = scoreDecodedArg(candidate);
++    if (score > bestScore) {
++      best = candidate;
++      bestScore = score;
++    }
++  }
++  return best;
++}
++
+ class FtpCommands {
+   constructor(connection) {
+     this.connection = connection;
+@@ -27,7 +63,7 @@ class FtpCommands {
+ 
+     const command = {
+       directive,
+-      arg: params.arg.length ? params.arg.join(' ') : null,
++      arg: params.arg.length ? decodeCommandArg(params.arg.join(' ')) : null,
+       flags: params.flags,
+       raw: message
+     };
+diff --git a/node_modules/ftp-srv/src/connection.js b/node_modules/ftp-srv/src/connection.js
+index 8389dcb..d9c1545 100644
+--- a/node_modules/ftp-srv/src/connection.js
++++ b/node_modules/ftp-srv/src/connection.js
+@@ -19,6 +19,7 @@ class FtpConnection extends EventEmitter {
+     this.commands = new Commands(this);
+     this.transferType = 'binary';
+     this.encoding = 'utf8';
++    this.commandEncoding = 'latin1';
+     this.bufferSize = false;
+     this._restByteCount = 0;
+     this._secure = false;
+@@ -42,7 +43,7 @@ class FtpConnection extends EventEmitter {
+   }
+ 
+   _handleData(data) {
+-    const messages = _.compact(data.toString(this.encoding).split('\r\n'));
++    const messages = _.compact(data.toString(this.commandEncoding || this.encoding).split('\r\n'));
+     this.log.trace(messages);
+     return Promise.mapSeries(messages, (message) => this.commands.handle(message));
+   }
