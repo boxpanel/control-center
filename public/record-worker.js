@@ -1,8 +1,8 @@
 // 记录处理Worker - 多线程优化
 const recordBatchQueue = [];
 let batchProcessingTimer = null;
-const BATCH_PROCESS_DELAY = 0; // 0毫秒批处理延迟（立即处理）
-const MAX_BATCH_SIZE = 1; // 最大批处理大小（完全逐条处理）
+const BATCH_PROCESS_DELAY = 0; // 0毫秒批处理延迟（逐条处理）
+const MAX_BATCH_SIZE = 1; // 最大批处理大小（逐条处理）
 
 // 处理单个记录
 function processRecord(data) {
@@ -73,10 +73,10 @@ function processRecordBatch() {
     });
   }
   
-  // 如果队列中还有记录，继续处理
+  // 如果队列中还有记录，继续处理（逐条处理模式）
   if (recordBatchQueue.length > 0) {
-    // 逐条处理：立即处理下一条
-    batchProcessingTimer = setTimeout(processRecordBatch, BATCH_PROCESS_DELAY);
+    // 逐条处理，立即处理下一条
+    batchProcessingTimer = setTimeout(processRecordBatch, 0);
   } else {
     batchProcessingTimer = null;
   }
@@ -93,9 +93,17 @@ function addRecordToBatch(data) {
     console.log(`[Worker] 批处理队列长度: ${recordBatchQueue.length}`);
   }
   
-  // 逐条处理策略：立即处理
+  // 逐条处理策略
   if (!batchProcessingTimer) {
-    batchProcessingTimer = setTimeout(processRecordBatch, BATCH_PROCESS_DELAY);
+    // 如果没有定时器，立即处理（逐条处理模式）
+    batchProcessingTimer = setTimeout(processRecordBatch, 0);
+  } else {
+    // 已有定时器，检查是否需要加速处理（队列积压时）
+    if (recordBatchQueue.length >= 5) {
+      // 队列积压严重，取消当前定时器，立即处理
+      clearTimeout(batchProcessingTimer);
+      batchProcessingTimer = setTimeout(processRecordBatch, 0);
+    }
   }
 }
 
