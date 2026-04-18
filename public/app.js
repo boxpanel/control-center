@@ -1733,8 +1733,10 @@ function initPlateModule() {
         }
         const plateListEl = document.getElementById("plateList");
         if (plateListEl) ensureEmptyHint(plateListEl);
-        // 异步调用过滤
-        applyPlateFiltersFromUi().catch(err => console.error("删除后过滤失败:", err));
+        
+        // 删除后直接更新UI，不重新加载数据
+        updatePlateDashboard();
+        updatePlatePageInfo();
         logLine(`已删除 ${ids.length} 条记录`);
       } catch {
         logLine("删除记录失败");
