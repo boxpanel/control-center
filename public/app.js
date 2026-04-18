@@ -3514,13 +3514,34 @@ if (els.video) {
   });
 }
 
-function initEventStream() {
-  const evtSource = new EventSource("/api/events/stream");
-  const handleLpr = async (data) => {
-    const plate = String(data?.plate || "").trim();
-    if (!plate) return;
-    logLine(`[车牌识别] 收到车牌号：${plate}`);
+// 批量记录处理队列
+const recordBatchQueue = [];
+let batchProcessingTimer = null;
+const BATCH_PROCESS_DELAY = 50; // 50毫秒批处理延迟
+const MAX_BATCH_SIZE = 10; // 最大批处理大小
 
+// 批量处理记录
+async function processRecordBatch() {
+  if (recordBatchQueue.length === 0) {
+    batchProcessingTimer = null;
+    return;
+  }
+  
+  // 获取一批记录进行处理
+  const batch = recordBatchQueue.splice(0, Math.min(MAX_BATCH_SIZE, recordBatchQueue.length));
+  
+  if (batch.length === 0) {
+    batchProcessingTimer = null;
+    return;
+  }
+  
+  // 处理批量记录
+  const processedRecords = [];
+  
+  for (const data of batch) {
+    const plate = String(data?.plate || "").trim();
+    if (!plate) continue;
+    
     const id = String(data?.id || "") || `${Date.now()}-${Math.random().toString(16).slice(2)}`;
     const receivedAt = Number(data?.receivedAt || Date.now()) || Date.now();
     const eventAt = Number(data?.eventAt || 0) || (() => {
@@ -3552,22 +3573,90 @@ function initEventStream() {
     renderPlateCard(record, { prepend: true, skipFilterApply: true });
     if (record.imageDataUrl) enrichRecordImageMeta(record.id, record.imageDataUrl);
     
-    // 轻量级更新UI，不触发完整查询
-    updatePlateDashboardLight(record);
-    updatePlatePageInfoLight();
+    processedRecords.push(record);
+  }
+  
+  // 批量UI更新
+   if (processedRecords.length > 0) {
+     logLine(`[批量处理] 已添加 ${processedRecords.length} 条记录`);
+     
+     // 使用最后一条记录进行轻量级UI更新
+     const lastRecord = processedRecords[processedRecords.length - 1];
+     updatePlateDashboardLight(lastRecord);
+     updatePlatePageInfoLight();
+     
+     // 批量串口转发（如果需要）
+     if (serialState.forwardEnabled && !serialState.backendPort && processedRecords.length > 0) {
+       // 收集需要转发的车牌
+       const platesToForward = processedRecords
+         .filter(record => record.plate && record.plate.trim())
+         .map(record => record.plate.trim());
+       
+       if (platesToForward.length > 0) {
+         logSerialLine(`[串口发送] 准备批量转发 ${platesToForward.length} 个车牌`);
+         
+         // 批量转发
+         for (const plate of platesToForward) {
+           const ok = await serialEnqueueSend(plate + "\r\n");
+           if (ok) {
+             const sentAt = Date.now();
+             // 更新对应记录的串口发送时间
+             const record = processedRecords.find(r => r.plate.trim() === plate);
+             if (record) {
+               updateRecordSerialSent(record.id, sentAt);
+               markSerialTransfer(plate, sentAt);
+             }
+             logSerialLine(`[串口发送] 已转发车牌: ${plate}`);
+           } else {
+             logSerialLine(`[串口发送] 转发失败: ${plate}`);
+           }
+         }
+       }
+     }
+   }
+  
+  // 如果队列中还有记录，继续处理
+  if (recordBatchQueue.length > 0) {
+    batchProcessingTimer = setTimeout(processRecordBatch, BATCH_PROCESS_DELAY);
+  } else {
+    batchProcessingTimer = null;
+  }
+}
 
-    if (serialState.forwardEnabled && !serialState.backendPort) {
-      logSerialLine(`[串口发送] 已接收车牌，准备转发: ${plate}`);
-      const ok = await serialEnqueueSend(plate + "\r\n");
-      if (ok) {
-        const sentAt = Date.now();
-        updateRecordSerialSent(record.id, sentAt);
-        markSerialTransfer(plate, sentAt);
-        logSerialLine(`[串口发送] 已转发车牌: ${plate}`);
-      } else {
-        logSerialLine(`[串口发送] 转发失败: ${plate}`);
-      }
-    }
+// 添加记录到批处理队列
+ function addRecordToBatch(data) {
+   recordBatchQueue.push(data);
+   
+   // 监控队列状态（调试用）
+   if (recordBatchQueue.length > 5) {
+     console.log(`批处理队列长度: ${recordBatchQueue.length}`);
+   }
+   
+   // 如果没有正在处理的定时器，启动一个
+   if (!batchProcessingTimer) {
+     batchProcessingTimer = setTimeout(processRecordBatch, BATCH_PROCESS_DELAY);
+   }
+ }
+ 
+ // 监控批处理队列状态
+ function monitorBatchQueue() {
+   if (recordBatchQueue.length > 0) {
+     console.log(`批处理队列监控: ${recordBatchQueue.length} 条记录等待处理`);
+   }
+ }
+ 
+ // 启动队列监控（每5秒检查一次）
+ setInterval(monitorBatchQueue, 5000);
+
+function initEventStream() {
+  const evtSource = new EventSource("/api/events/stream");
+  const handleLpr = async (data) => {
+    const plate = String(data?.plate || "").trim();
+    if (!plate) return;
+    logLine(`[车牌识别] 收到车牌号：${plate}`);
+    
+    // 将记录添加到批处理队列
+    addRecordToBatch(data);
   };
 
   evtSource.onmessage = (event) => {
