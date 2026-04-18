@@ -3503,7 +3503,18 @@ app.get("/api/plates/image/:id", (req, res) => {
   if (!rel) return res.status(404).end();
   const abs = path.resolve(uploadsDir, rel);
   if (!abs.startsWith(path.resolve(uploadsDir) + path.sep) && abs !== path.resolve(uploadsDir)) return res.status(403).end();
-  res.sendFile(abs, { headers: { "Cache-Control": "no-store" } }, (err) => {
+  
+  // 从路径中提取原始文件名
+  const pathParts = rel.split(/[\\/]/);
+  const originalFilename = pathParts.length > 0 ? pathParts[pathParts.length - 1] : "image.jpg";
+  
+  res.sendFile(abs, { 
+    headers: { 
+      "Cache-Control": "no-store",
+      // 设置Content-Disposition头，使用原始文件名
+      "Content-Disposition": `attachment; filename="${encodeURIComponent(originalFilename)}"`
+    } 
+  }, (err) => {
     if (err) {
       try {
         res.status(err.statusCode || 404).end();
