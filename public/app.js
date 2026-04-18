@@ -72,7 +72,7 @@ const els = {
   plateViewTableBtn: document.getElementById("plateViewTableBtn"),
   plateTableWrap: document.getElementById("plateTableWrap"),
   plateTableBody: document.getElementById("plateTableBody"),
-  plateTableSummary: document.getElementById("plateTableSummary"),
+
   platePageSize: document.getElementById("platePageSize"),
   platePrevPageBtn: document.getElementById("platePrevPageBtn"),
   plateNextPageBtn: document.getElementById("plateNextPageBtn"),
@@ -684,7 +684,7 @@ const plateSelectedIds = new Set();
 const plateUiState = { view: "cards" };
 const plateTableState = {
   page: 1,
-  pageSize: 50,
+  pageSize: 10,
   sortKey: "time",
   sortDir: "desc"
 };
@@ -920,7 +920,7 @@ function applyPlateFilters({ plateText, date } = {}) {
   }
   
   if (plateUiState.view === "cards") {
-    const pageSize = Math.max(1, Math.min(200, Number(plateTableState.pageSize) || 50));
+    const pageSize = Math.max(1, Math.min(200, Number(plateTableState.pageSize) || 10));
     const totalPages = Math.max(1, Math.ceil(visibleCards.length / pageSize));
     plateTableState.page = Math.max(1, Math.min(totalPages, Number(plateTableState.page) || 1));
     
@@ -1361,15 +1361,9 @@ function updatePlateDashboard() {
   if (els.dashUpdatedAt) els.dashUpdatedAt.textContent = `更新：${formatTimeOnly(nowMs)}`;
 }
 
-function updatePlateTableSummary({ total, filteredCount }) {
-  if (!els.plateTableSummary) return;
-  const selected = plateSelectedIds.size;
-  els.plateTableSummary.textContent = `共 ${total} 条，筛选 ${filteredCount} 条，已选 ${selected} 条`;
-}
+
 
 function updatePlatePageInfo() {
-  if (!els.platePageInfo) return;
-  
   const plateListEl = document.getElementById("plateList");
   if (!plateListEl) return;
   
@@ -1385,11 +1379,20 @@ function updatePlatePageInfo() {
     return matchPlate && matchDate;
   });
   
-  const pageSize = Math.max(1, Math.min(200, Number(plateTableState.pageSize) || 50));
+  const pageSize = Math.max(1, Math.min(200, Number(plateTableState.pageSize) || 10));
   const totalPages = Math.max(1, Math.ceil(visibleCards.length / pageSize));
   const currentPage = Math.max(1, Math.min(totalPages, Number(plateTableState.page) || 1));
   
-  els.platePageInfo.textContent = `${currentPage} / ${totalPages}`;
+  if (els.platePageInfo) {
+    els.platePageInfo.textContent = `${currentPage} / ${totalPages}`;
+  }
+  
+  if (els.platePrevPageBtn) {
+    els.platePrevPageBtn.disabled = currentPage <= 1;
+  }
+  if (els.plateNextPageBtn) {
+    els.plateNextPageBtn.disabled = currentPage >= totalPages;
+  }
 }
 
 function updatePlateSortHeaderUi() {
@@ -1416,7 +1419,7 @@ function renderPlateTable() {
 
   filtered.sort((a, b) => compareRecords(a, b, plateTableState.sortKey, plateTableState.sortDir));
 
-  const pageSize = Math.max(1, Math.min(200, Number(plateTableState.pageSize) || 50));
+  const pageSize = Math.max(1, Math.min(200, Number(plateTableState.pageSize) || 10));
   plateTableState.pageSize = pageSize;
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   plateTableState.page = Math.max(1, Math.min(totalPages, Number(plateTableState.page) || 1));
@@ -1473,11 +1476,9 @@ function renderPlateTable() {
     els.plateTableBody.appendChild(tr);
   }
 
-  if (els.platePageInfo) els.platePageInfo.textContent = `${plateTableState.page} / ${totalPages}`;
-  if (els.platePrevPageBtn) els.platePrevPageBtn.disabled = plateTableState.page <= 1;
-  if (els.plateNextPageBtn) els.plateNextPageBtn.disabled = plateTableState.page >= totalPages;
+  updatePlatePageInfo();
 
-  updatePlateTableSummary({ total: all.length, filteredCount: filtered.length });
+
   updatePlateSortHeaderUi();
   updatePlateDashboard();
   updatePlateBulkUi();
@@ -1489,7 +1490,7 @@ function initPlateTableUi() {
   if (els.platePageSize) {
     els.platePageSize.value = String(plateTableState.pageSize);
     els.platePageSize.addEventListener("change", () => {
-      plateTableState.pageSize = Number(els.platePageSize.value || 50) || 50;
+      plateTableState.pageSize = Number(els.platePageSize.value || 10) || 10;
       plateTableState.page = 1;
       if (plateUiState.view === "table") {
         renderPlateTable();

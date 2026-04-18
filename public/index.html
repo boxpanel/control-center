@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>综合管理平台</title>
-    <link rel="stylesheet" href="/style.css?v=51" />
+    <link rel="stylesheet" href="/style.css?v=57" />
   </head>
   <body class="app-page">
     <div class="app-page-bg" aria-hidden="true"></div>
@@ -63,40 +63,36 @@
             <div class="plate-header">
               <h2>车牌接收列表</h2>
               <div class="plate-viewToggle" role="tablist" aria-label="浏览模式">
-                <button id="plateViewCardsBtn" type="button" class="viewBtn active" aria-selected="true">卡片</button>
-                <button id="plateViewTableBtn" type="button" class="viewBtn" aria-selected="false">表格</button>
+                <button id="plateViewCardsBtn" type="button" class="plate-viewBtn active" aria-selected="true">卡片</button>
+                <button id="plateViewTableBtn" type="button" class="plate-viewBtn" aria-selected="false">表格</button>
               </div>
             </div>
-            <div class="plate-actions">
-              <label class="plate-selectAll">
-                <input id="plateSelectAll" type="checkbox" />
-                全选
-              </label>
-              <input id="plateSearchInput" type="text" placeholder="查询车牌..." autocomplete="off" />
-              <input id="plateDateInput" type="date" />
-              <button id="plateQueryBtn" type="button">查询</button>
-              <button id="plateDeleteBtn" type="button" disabled>删除</button>
+
+            <div class="plate-pagination">
+              <div class="plate-search">
+                <input id="plateSearchInput" type="text" placeholder="查询车牌..." autocomplete="off" />
+                <input id="plateDateInput" type="date" />
+                <button id="plateQueryBtn" type="button">查询</button>
+                <button id="plateDeleteBtn" type="button" disabled>删除</button>
+              </div>
+              <div class="plate-tablePager">
+                <label for="platePageSize" class="plate-pageLabel">每页</label>
+                <select id="platePageSize" class="plate-pageSize">
+                  <option value="10" selected>10</option>
+                  <option value="20">20</option>
+                  <option value="50">50</option>
+                  <option value="100">100</option>
+                </select>
+                <button id="platePrevPageBtn" type="button">上一页</button>
+                <div id="platePageInfo" class="plate-pageInfo">1 / 1</div>
+                <button id="plateNextPageBtn" type="button">下一页</button>
+              </div>
             </div>
             <section class="plate-list-section">
               <div id="plateList" class="plate-list">
                 <div class="empty-hint">暂无车牌数据，等待接收...</div>
               </div>
               <div id="plateTableWrap" class="plate-tableWrap view-hidden">
-                <div class="plate-tableToolbar">
-                  <div id="plateTableSummary" class="plate-tableSummary"></div>
-                  <div class="plate-tablePager">
-                    <label for="platePageSize" class="plate-pageLabel">每页</label>
-                    <select id="platePageSize" class="plate-pageSize">
-                      <option value="10">10</option>
-                      <option value="20">20</option>
-                      <option value="50" selected>50</option>
-                      <option value="100">100</option>
-                    </select>
-                    <button id="platePrevPageBtn" type="button">上一页</button>
-                    <div id="platePageInfo" class="plate-pageInfo">1 / 1</div>
-                    <button id="plateNextPageBtn" type="button">下一页</button>
-                  </div>
-                </div>
                 <div class="plate-tableScroll">
                   <table class="plate-table" cellspacing="0" cellpadding="0">
                     <thead>
