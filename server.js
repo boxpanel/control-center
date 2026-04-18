@@ -3504,9 +3504,24 @@ app.get("/api/plates/image/:id", (req, res) => {
   const abs = path.resolve(uploadsDir, rel);
   if (!abs.startsWith(path.resolve(uploadsDir) + path.sep) && abs !== path.resolve(uploadsDir)) return res.status(403).end();
   
-  // 从路径中提取原始文件名
-  const pathParts = rel.split(/[\\/]/);
-  const originalFilename = pathParts.length > 0 ? pathParts[pathParts.length - 1] : "image.jpg";
+  // 提取原始文件名 - 优先使用ftpRemotePath，其次使用imagePath
+  let originalFilename = "image.jpg";
+  
+  // 首先尝试从ftpRemotePath中提取文件名
+  const ftpRemotePath = String(row.ftpRemotePath || "");
+  if (ftpRemotePath) {
+    const ftpPathParts = ftpRemotePath.split(/[\\/]/);
+    if (ftpPathParts.length > 0) {
+      originalFilename = ftpPathParts[ftpPathParts.length - 1];
+    }
+  }
+  // 如果没有ftpRemotePath，从imagePath中提取
+  else {
+    const pathParts = rel.split(/[\\/]/);
+    if (pathParts.length > 0) {
+      originalFilename = pathParts[pathParts.length - 1];
+    }
+  }
   
   res.sendFile(abs, { 
     headers: { 

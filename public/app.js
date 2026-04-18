@@ -1678,7 +1678,8 @@ function initPlateModule() {
               id: record.id,
               plate: record.plate || "未知车牌",
               receivedAt: record.receivedAt || new Date().toISOString(),
-              imagePath: record.imagePath || ""
+              imagePath: record.imagePath || "",
+              ftpRemotePath: record.ftpRemotePath || ""
             });
           }
         }
@@ -1730,26 +1731,34 @@ async function downloadPlateImage(record) {
     
     const blob = await response.blob();
     
-    // 从imagePath中提取原始文件名
+    // 提取原始文件名 - 优先使用ftpRemotePath，其次使用imagePath
     let filename = "image.jpg"; // 默认文件名
     
-    if (record.imagePath) {
+    // 首先尝试从ftpRemotePath中提取文件名
+    if (record.ftpRemotePath) {
+      const ftpPathParts = record.ftpRemotePath.split(/[\\/]/);
+      if (ftpPathParts.length > 0) {
+        filename = ftpPathParts[ftpPathParts.length - 1];
+      }
+    }
+    // 如果没有ftpRemotePath，尝试从imagePath中提取
+    else if (record.imagePath) {
       // 从路径中提取文件名（处理Windows和Unix路径）
       const pathParts = record.imagePath.split(/[\\/]/);
       if (pathParts.length > 0) {
         filename = pathParts[pathParts.length - 1];
       }
-      
-      // 确保文件名有扩展名
-      if (!filename.includes('.')) {
-        filename += '.jpg';
-      }
     } else {
-      // 如果没有imagePath，使用车牌和时间戳作为文件名
+      // 如果都没有，使用车牌和时间戳作为文件名
       const plate = record.plate || "未知车牌";
       const date = record.receivedAt ? new Date(record.receivedAt) : new Date();
       const timestamp = date.toISOString().replace(/[:.]/g, "-").slice(0, 19);
       filename = `${plate}_${timestamp}.jpg`;
+    }
+    
+    // 确保文件名有扩展名
+    if (!filename.includes('.')) {
+      filename += '.jpg';
     }
     
     // 创建下载链接
