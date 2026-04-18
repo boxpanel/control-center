@@ -3517,26 +3517,39 @@ if (els.video) {
 // 批量记录处理队列
 const recordBatchQueue = [];
 let batchProcessingTimer = null;
-const BATCH_PROCESS_DELAY = 50; // 50毫秒批处理延迟
-const MAX_BATCH_SIZE = 10; // 最大批处理大小
+const BATCH_PROCESS_DELAY = 10; // 减少到10毫秒批处理延迟
+const MAX_BATCH_SIZE = 5; // 减少最大批处理大小
+const RECORD_DEBOUNCE_TIME = 1000; // 记录去重时间窗口1秒
+const lastRecordTimes = new Map(); // 记录最近处理时间，用于去重
 
 // 批量处理记录
-async function processRecordBatch() {
-  if (recordBatchQueue.length === 0) {
-    batchProcessingTimer = null;
-    return;
-  }
-  
-  // 获取一批记录进行处理
-  const batch = recordBatchQueue.splice(0, Math.min(MAX_BATCH_SIZE, recordBatchQueue.length));
-  
-  if (batch.length === 0) {
-    batchProcessingTimer = null;
-    return;
-  }
-  
-  // 处理批量记录
-  const processedRecords = [];
+ async function processRecordBatch() {
+   if (recordBatchQueue.length === 0) {
+     batchProcessingTimer = null;
+     return;
+   }
+   
+   const processStartTime = Date.now();
+   const timeStr = new Date().toLocaleTimeString('zh-CN', { 
+     hour12: false,
+     hour: '2-digit',
+     minute: '2-digit',
+     second: '2-digit',
+     fractionalSecondDigits: 3
+   });
+   
+   // 获取一批记录进行处理
+   const batch = recordBatchQueue.splice(0, Math.min(MAX_BATCH_SIZE, recordBatchQueue.length));
+   
+   if (batch.length === 0) {
+     batchProcessingTimer = null;
+     return;
+   }
+   
+   console.log(`[批处理开始] ${timeStr} 处理 ${batch.length} 条记录，队列剩余: ${recordBatchQueue.length}`);
+   
+   // 处理批量记录
+   const processedRecords = [];
   
   for (const data of batch) {
     const plate = String(data?.plate || "").trim();
@@ -3616,27 +3629,53 @@ async function processRecordBatch() {
    }
   
   // 如果队列中还有记录，继续处理
-  if (recordBatchQueue.length > 0) {
-    batchProcessingTimer = setTimeout(processRecordBatch, BATCH_PROCESS_DELAY);
-  } else {
-    batchProcessingTimer = null;
-  }
+    if (recordBatchQueue.length > 0) {
+      batchProcessingTimer = setTimeout(processRecordBatch, BATCH_PROCESS_DELAY);
+    } else {
+      batchProcessingTimer = null;
+    }
+    
+    const processEndTime = Date.now();
+    const processDuration = processEndTime - processStartTime;
+    console.log(`[批处理完成] 耗时 ${processDuration}ms，处理了 ${processedRecords.length} 条记录`);
 }
 
-// 添加记录到批处理队列
- function addRecordToBatch(data) {
-   recordBatchQueue.push(data);
-   
-   // 监控队列状态（调试用）
-   if (recordBatchQueue.length > 5) {
-     console.log(`批处理队列长度: ${recordBatchQueue.length}`);
-   }
-   
-   // 如果没有正在处理的定时器，启动一个
-   if (!batchProcessingTimer) {
-     batchProcessingTimer = setTimeout(processRecordBatch, BATCH_PROCESS_DELAY);
-   }
- }
+// 添加记录到批处理队列（带去重）
+  function addRecordToBatch(data) {
+    const plate = String(data?.plate || "").trim();
+    if (!plate) return;
+    
+    // 去重检查：避免短时间内重复处理相同车牌
+    const now = Date.now();
+    const lastTime = lastRecordTimes.get(plate);
+    
+    if (lastTime && (now - lastTime) < RECORD_DEBOUNCE_TIME) {
+      console.log(`去重：跳过重复车牌 ${plate}，上次处理时间 ${new Date(lastTime).toISOString()}`);
+      return; // 跳过重复记录
+    }
+    
+    // 更新最后处理时间
+    lastRecordTimes.set(plate, now);
+    
+    // 清理过期的记录时间（避免内存泄漏）
+    for (const [key, time] of lastRecordTimes.entries()) {
+      if (now - time > RECORD_DEBOUNCE_TIME * 5) {
+        lastRecordTimes.delete(key);
+      }
+    }
+    
+    recordBatchQueue.push(data);
+    
+    // 监控队列状态（调试用）
+    if (recordBatchQueue.length > 2) {
+      console.log(`批处理队列长度: ${recordBatchQueue.length}`);
+    }
+    
+    // 如果没有正在处理的定时器，启动一个
+    if (!batchProcessingTimer) {
+      batchProcessingTimer = setTimeout(processRecordBatch, BATCH_PROCESS_DELAY);
+    }
+  }
  
  // 监控批处理队列状态
  function monitorBatchQueue() {
@@ -3649,39 +3688,100 @@ async function processRecordBatch() {
  setInterval(monitorBatchQueue, 5000);
 
 function initEventStream() {
-  const evtSource = new EventSource("/api/events/stream");
-  const handleLpr = async (data) => {
-    const plate = String(data?.plate || "").trim();
-    if (!plate) return;
-    logLine(`[车牌识别] 收到车牌号：${plate}`);
-    
-    // 将记录添加到批处理队列
-    addRecordToBatch(data);
-  };
-
-  evtSource.onmessage = (event) => {
-    let data;
-    try {
-      data = JSON.parse(event.data);
-    } catch {
-      return;
-    }
-    if (data?.type === "lpr") {
-      void handleLpr(data);
-      return;
-    }
-    if (data?.type === "serial-sent") {
-      const recordId = String(data?.id || "");
-      const sentAt = Number(data?.sentAt || 0);
-      void updateRecordSerialSent(recordId, sentAt);
-      const record = plateById.get(recordId);
-      const plate = String(record?.plate || "").trim();
-      if (plate && Number.isFinite(sentAt) && sentAt > 0) {
-        markSerialTransfer(plate, sentAt);
-        logSerialLine(`[串口发送] 已转发车牌: ${plate}`);
-      }
-    }
-  };
+   let evtSource = null;
+   let reconnectAttempts = 0;
+   const MAX_RECONNECT_ATTEMPTS = 10;
+   const RECONNECT_DELAY = 3000; // 3秒重连延迟
+   
+   function connectEventStream() {
+     if (evtSource) {
+       evtSource.close();
+     }
+     
+     console.log(`[EventSource] 连接服务器事件流... (尝试 ${reconnectAttempts + 1}/${MAX_RECONNECT_ATTEMPTS})`);
+     evtSource = new EventSource("/api/events/stream");
+     
+     evtSource.onopen = () => {
+       console.log('[EventSource] 连接已建立');
+       reconnectAttempts = 0; // 重置重连计数
+     };
+     
+     evtSource.onerror = (error) => {
+       console.error('[EventSource] 连接错误:', error);
+       
+       // 关闭当前连接
+       if (evtSource) {
+         evtSource.close();
+         evtSource = null;
+       }
+       
+       // 尝试重连
+       if (reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
+         reconnectAttempts++;
+         console.log(`[EventSource] ${RECONNECT_DELAY/1000}秒后尝试重连 (${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS})`);
+         setTimeout(connectEventStream, RECONNECT_DELAY);
+       } else {
+         console.error('[EventSource] 达到最大重连次数，停止重连');
+       }
+     };
+     
+     // 事件处理函数
+     const handleLpr = async (data) => {
+       const plate = String(data?.plate || "").trim();
+       if (!plate) return;
+       
+       const now = new Date();
+       const timestamp = now.toISOString();
+       const timeStr = now.toLocaleTimeString('zh-CN', { 
+         hour12: false,
+         hour: '2-digit',
+         minute: '2-digit',
+         second: '2-digit',
+         fractionalSecondDigits: 3
+       });
+       
+       console.log(`[事件接收] ${timeStr} 收到车牌: ${plate}, ID: ${data?.id || '无'}`);
+       logLine(`[车牌识别] ${timeStr} 收到车牌：${plate}`);
+       
+       // 将记录添加到批处理队列
+       addRecordToBatch(data);
+     };
+     
+     // 设置消息处理器
+     evtSource.onmessage = (event) => {
+       let data;
+       try {
+         data = JSON.parse(event.data);
+       } catch {
+         return;
+       }
+       
+       // 添加事件ID跟踪，避免重复处理
+       const eventId = data?.id || data?.eventId || `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+       const eventType = data?.type || 'unknown';
+       
+       console.log(`[事件处理] 类型: ${eventType}, ID: ${eventId}`);
+       
+       if (data?.type === "lpr") {
+         void handleLpr(data);
+         return;
+       }
+       if (data?.type === "serial-sent") {
+         const recordId = String(data?.id || "");
+         const sentAt = Number(data?.sentAt || 0);
+         void updateRecordSerialSent(recordId, sentAt);
+         const record = plateById.get(recordId);
+         const plate = String(record?.plate || "").trim();
+         if (plate && Number.isFinite(sentAt) && sentAt > 0) {
+           markSerialTransfer(plate, sentAt);
+           logSerialLine(`[串口发送] 已转发车牌: ${plate}`);
+         }
+       }
+     };
+   }
+   
+   // 启动连接
+   connectEventStream();
 }
 
 updateCanvasVisibility();
