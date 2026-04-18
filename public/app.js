@@ -3650,25 +3650,130 @@ function initRecordWorker() {
 function handleProcessedRecords(records, queueLength) {
   if (!records || records.length === 0) return;
   
-  const now = Date.now();
-  const firstPlate = records[0]?.plate || '';
-  console.log(`[主线程] 收到 ${records.length} 条处理完成的记录, 第一条车牌: ${firstPlate}, 时间戳: ${now}, Worker队列长度: ${queueLength !== undefined ? queueLength : 'N/A'}`);
-  
-  for (const record of records) {
-    plateById.set(record.id, record);
-    renderPlateCard(record, { prepend: true, skipFilterApply: true });
-    if (record.imageDataUrl) enrichRecordImageMeta(record.id, record.imageDataUrl);
+  // 减少日志频率，只在处理较大批量时记录
+  if (records.length >= 3) {
+    const firstPlate = records[0]?.plate || '';
+    console.log(`[主线程] 批量处理 ${records.length} 条记录, 第一条车牌: ${firstPlate}, Worker队列长度: ${queueLength !== undefined ? queueLength : 'N/A'}`);
   }
   
-  // 使用最后一条记录进行轻量级UI更新
-  const lastRecord = records[records.length - 1];
-  updatePlateDashboardLight(lastRecord);
-  updatePlatePageInfoLight();
+  // 批量添加记录到存储
+  for (const record of records) {
+    plateById.set(record.id, record);
+  }
+  
+  // 批量渲染记录 - 优化性能
+  batchRenderRecords(records);
+  
+  // 批量更新轻量级UI
+  updateBatchDashboardLight(records);
   
   // 批量串口转发（如果需要）
   if (serialState.forwardEnabled && !serialState.backendPort && records.length > 0) {
     processSerialForwarding(records);
   }
+}
+
+// 创建车牌卡片元素（不添加到DOM，用于批量渲染）
+function createPlateCardElement(record) {
+  const card = document.createElement("div");
+  card.className = "plate-card";
+  card.dataset.recordId = String(record.id || "");
+  card.dataset.plate = String(record.plate || "");
+  card.dataset.ts = String(record.eventAt || record.receivedAt || 0);
+
+  const timeStr = formatDateTime(record.eventAt || record.receivedAt) || formatDateTime(record.receivedAt);
+  const imgSrc = getImgSrcOrFallback(record.imageDataUrl);
+  const plateText = String(record.plate || "");
+  const hasImage = Boolean(String(record.imageDataUrl || ""));
+  const serialSent = Boolean(Number(record.serialSentAt || 0));
+
+  const checkWrap = document.createElement("div");
+  checkWrap.className = "plate-checkWrap";
+  const checkbox = document.createElement("input");
+  checkbox.className = "plate-check";
+  checkbox.type = "checkbox";
+  checkbox.setAttribute("aria-label", "选择");
+  checkWrap.appendChild(checkbox);
+
+  const img = document.createElement("img");
+  img.src = imgSrc;
+  img.className = "plate-img";
+  img.alt = "车牌截图";
+
+  const info = document.createElement("div");
+  info.className = "plate-info";
+  const textEl = document.createElement("div");
+  textEl.className = "plate-text";
+  textEl.textContent = plateText;
+  const metaRow = document.createElement("div");
+  metaRow.className = "plate-metaRow";
+  const timeEl = document.createElement("span");
+  timeEl.className = "plate-metaTime";
+  timeEl.textContent = timeStr;
+  metaRow.appendChild(timeEl);
+  metaRow.appendChild(createPlateMetaTag({ className: "plate-metaImage", text: hasImage ? "图片：有" : "图片：无", muted: !hasImage }));
+  metaRow.appendChild(createPlateMetaTag({ className: "plate-metaSerial", text: serialSent ? "串口：已发送" : "串口：未发送", muted: !serialSent }));
+  info.append(textEl, metaRow);
+
+  card.replaceChildren(checkWrap, img, info);
+  
+  if (checkbox instanceof HTMLInputElement) {
+    const id = String(card.dataset.recordId || "");
+    checkbox.checked = plateSelectedIds.has(id);
+    card.classList.toggle("selected", checkbox.checked);
+    checkbox.addEventListener("click", (ev) => ev.stopPropagation());
+    checkbox.addEventListener("dblclick", (ev) => ev.stopPropagation());
+    checkbox.addEventListener("change", () => setPlateSelectedById(id, checkbox.checked));
+  }
+
+  card.addEventListener("dblclick", (ev) => {
+    if (ev.target instanceof HTMLInputElement) return;
+    const id = String(card.dataset.recordId || "");
+    if (!id) return;
+    openPlateDetailById(id);
+  });
+
+  return card;
+}
+
+// 批量渲染记录 - 优化性能
+function batchRenderRecords(records) {
+  if (!records || records.length === 0) return;
+  
+  // 获取列表容器
+  const plateListEl = document.getElementById("plateList");
+  if (!plateListEl) return;
+  
+  // 创建文档片段，批量添加DOM元素
+  const fragment = document.createDocumentFragment();
+  
+  for (const record of records) {
+    // 创建卡片元素
+    const cardEl = createPlateCardElement(record);
+    if (cardEl) {
+      fragment.appendChild(cardEl);
+    }
+    
+    // 处理图片元数据
+    if (record.imageDataUrl) {
+      enrichRecordImageMeta(record.id, record.imageDataUrl);
+    }
+  }
+  
+  // 批量添加到DOM（添加到开头）
+  if (fragment.children.length > 0) {
+    plateListEl.insertBefore(fragment, plateListEl.firstChild);
+  }
+}
+
+// 批量更新轻量级仪表板
+function updateBatchDashboardLight(records) {
+  if (!records || records.length === 0) return;
+  
+  // 使用最后一条记录更新UI（简单优化）
+  const lastRecord = records[records.length - 1];
+  updatePlateDashboardLight(lastRecord);
+  updatePlatePageInfoLight();
 }
 
 // 处理串口转发

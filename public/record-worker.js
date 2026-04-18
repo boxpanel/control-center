@@ -1,8 +1,8 @@
 // 记录处理Worker - 多线程优化
 const recordBatchQueue = [];
 let batchProcessingTimer = null;
-const BATCH_PROCESS_DELAY = 0; // 0毫秒批处理延迟 - 逐条处理
-const MAX_BATCH_SIZE = 1; // 最大批处理大小 - 逐条处理
+const BATCH_PROCESS_DELAY = 20; // 20毫秒批处理延迟 - 小批量处理
+const MAX_BATCH_SIZE = 3; // 最大批处理大小 - 小批量处理
 
 // 处理单个记录
 function processRecord(data) {
@@ -44,10 +44,14 @@ function processRecordBatch() {
     return;
   }
   
-  console.log(`[Worker] 开始批处理, 当前队列长度: ${recordBatchQueue.length}, 时间戳: ${Date.now()}`);
+  // 减少日志频率，只在处理较大批量时记录
+  const batchSize = Math.min(MAX_BATCH_SIZE, recordBatchQueue.length);
+  if (batchSize >= MAX_BATCH_SIZE) {
+    console.log(`[Worker] 开始批处理, 批量大小: ${batchSize}, 队列长度: ${recordBatchQueue.length}`);
+  }
   
   // 获取一批记录进行处理
-  const batch = recordBatchQueue.splice(0, Math.min(MAX_BATCH_SIZE, recordBatchQueue.length));
+  const batch = recordBatchQueue.splice(0, batchSize);
   
   if (batch.length === 0) {
     batchProcessingTimer = null;
@@ -69,33 +73,38 @@ function processRecordBatch() {
     self.postMessage({
       type: 'records-processed',
       records: processedRecords,
-      queueLength: recordBatchQueue.length
+      queueLength: recordBatchQueue.length,
+      batchSize: processedRecords.length
     });
   }
   
-  // 如果队列中还有记录，继续处理 - 逐条处理模式
+  // 如果队列中还有记录，继续处理 - 小批量处理模式
   if (recordBatchQueue.length > 0) {
-    // 逐条处理：立即处理下一条记录
-    batchProcessingTimer = setTimeout(processRecordBatch, 0);
+    // 小批量处理：延迟处理下一批记录
+    batchProcessingTimer = setTimeout(processRecordBatch, BATCH_PROCESS_DELAY);
   } else {
     batchProcessingTimer = null;
   }
 }
 
-// 添加记录到批处理队列 - 逐条处理模式
+// 添加记录到批处理队列 - 小批量处理模式
 function addRecordToBatch(data) {
   recordBatchQueue.push(data);
   const plate = String(data?.plate || "").trim();
-  console.log(`[Worker] 记录到达: ${plate}, 时间戳: ${Date.now()}, 队列长度: ${recordBatchQueue.length}`);
   
-  // 监控队列状态
-  if (recordBatchQueue.length > 5) {
-    console.log(`[Worker] 批处理队列长度: ${recordBatchQueue.length}`);
+  // 只在队列长度较小时记录，避免过多日志
+  if (recordBatchQueue.length <= 3) {
+    console.log(`[Worker] 记录到达: ${plate}, 队列长度: ${recordBatchQueue.length}`);
   }
   
-  // 逐条处理策略：立即处理
+  // 监控队列状态
+  if (recordBatchQueue.length > 10) {
+    console.warn(`[Worker] 批处理队列长度较高: ${recordBatchQueue.length}`);
+  }
+  
+  // 小批量处理策略：延迟处理，收集多条记录后批量处理
   if (!batchProcessingTimer) {
-    batchProcessingTimer = setTimeout(processRecordBatch, 0);
+    batchProcessingTimer = setTimeout(processRecordBatch, BATCH_PROCESS_DELAY);
   }
 }
 
