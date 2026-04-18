@@ -3540,7 +3540,7 @@ function initRecordWorker() {
         case 'records-processed':
           // 处理Worker返回的记录
           if (records && records.length > 0) {
-            handleProcessedRecords(records);
+            handleProcessedRecords(records, queueLength);
           }
           
           // 监控队列状态
@@ -3576,10 +3576,12 @@ function initRecordWorker() {
 }
 
 // 处理Worker返回的记录
-function handleProcessedRecords(records) {
+function handleProcessedRecords(records, queueLength) {
   if (!records || records.length === 0) return;
   
-  console.log(`[主线程] 收到 ${records.length} 条处理完成的记录`);
+  const now = Date.now();
+  const firstPlate = records[0]?.plate || '';
+  console.log(`[主线程] 收到 ${records.length} 条处理完成的记录, 第一条车牌: ${firstPlate}, 时间戳: ${now}, Worker队列长度: ${queueLength !== undefined ? queueLength : 'N/A'}`);
   
   for (const record of records) {
     plateById.set(record.id, record);
@@ -3635,6 +3637,9 @@ function addRecordToWorker(data) {
     return;
   }
   
+  const plate = String(data?.plate || "").trim();
+  console.log(`[主线程] 发送记录到Worker: ${plate}, 时间戳: ${Date.now()}`);
+  
   recordWorker.postMessage({
     type: 'add-record',
     data: data
@@ -3645,6 +3650,7 @@ function addRecordToWorker(data) {
 function addRecordToBatchFallback(data) {
   const plate = String(data?.plate || "").trim();
   if (!plate) return;
+  console.log(`[备用处理] 接收到记录: ${plate}, 时间戳: ${Date.now()}`);
   
   const id = String(data?.id || "") || `${Date.now()}-${Math.random().toString(16).slice(2)}`;
   const receivedAt = Number(data?.receivedAt || Date.now()) || Date.now();

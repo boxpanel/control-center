@@ -1,8 +1,8 @@
 // 记录处理Worker - 多线程优化
 const recordBatchQueue = [];
 let batchProcessingTimer = null;
-const BATCH_PROCESS_DELAY = 30; // 30毫秒批处理延迟
-const MAX_BATCH_SIZE = 10; // 最大批处理大小
+const BATCH_PROCESS_DELAY = 10; // 10毫秒批处理延迟
+const MAX_BATCH_SIZE = 3; // 最大批处理大小
 
 // 处理单个记录
 function processRecord(data) {
@@ -44,6 +44,8 @@ function processRecordBatch() {
     return;
   }
   
+  console.log(`[Worker] 开始批处理, 当前队列长度: ${recordBatchQueue.length}, 时间戳: ${Date.now()}`);
+  
   // 获取一批记录进行处理
   const batch = recordBatchQueue.splice(0, Math.min(MAX_BATCH_SIZE, recordBatchQueue.length));
   
@@ -73,7 +75,9 @@ function processRecordBatch() {
   
   // 如果队列中还有记录，继续处理
   if (recordBatchQueue.length > 0) {
-    batchProcessingTimer = setTimeout(processRecordBatch, BATCH_PROCESS_DELAY);
+    // 动态决定下一批处理的延迟
+    const delay = recordBatchQueue.length <= 2 ? 0 : BATCH_PROCESS_DELAY;
+    batchProcessingTimer = setTimeout(processRecordBatch, delay);
   } else {
     batchProcessingTimer = null;
   }
@@ -82,15 +86,31 @@ function processRecordBatch() {
 // 添加记录到批处理队列
 function addRecordToBatch(data) {
   recordBatchQueue.push(data);
+  const plate = String(data?.plate || "").trim();
+  console.log(`[Worker] 记录到达: ${plate}, 时间戳: ${Date.now()}, 队列长度: ${recordBatchQueue.length}`);
   
   // 监控队列状态
   if (recordBatchQueue.length > 5) {
     console.log(`[Worker] 批处理队列长度: ${recordBatchQueue.length}`);
   }
   
-  // 如果没有正在处理的定时器，启动一个
+  // 动态处理策略
   if (!batchProcessingTimer) {
-    batchProcessingTimer = setTimeout(processRecordBatch, BATCH_PROCESS_DELAY);
+    // 如果没有定时器，根据队列长度决定立即处理还是延迟处理
+    if (recordBatchQueue.length >= MAX_BATCH_SIZE || recordBatchQueue.length <= 2) {
+      // 队列已满或记录较少，立即处理（延迟0毫秒）
+      batchProcessingTimer = setTimeout(processRecordBatch, 0);
+    } else {
+      // 中等长度队列，按常规延迟处理
+      batchProcessingTimer = setTimeout(processRecordBatch, BATCH_PROCESS_DELAY);
+    }
+  } else {
+    // 已有定时器，检查是否需要加速处理
+    if (recordBatchQueue.length >= MAX_BATCH_SIZE * 2) {
+      // 队列积压严重，取消当前定时器，立即处理
+      clearTimeout(batchProcessingTimer);
+      batchProcessingTimer = setTimeout(processRecordBatch, 0);
+    }
   }
 }
 
