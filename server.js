@@ -104,6 +104,9 @@ const stmtPlateGetBySourceEventKey = plateDb.prepare(
 const stmtPlateListLatest = plateDb.prepare(
   `SELECT id, plate, receivedAt, eventAt, imagePath, ftpRemotePath, serialSentAt, parsedMetaJson FROM plate_records ORDER BY receivedAt DESC LIMIT ?`
 );
+const stmtPlateSearch = plateDb.prepare(
+  `SELECT id, plate, receivedAt, eventAt, imagePath, ftpRemotePath, serialSentAt, parsedMetaJson FROM plate_records WHERE (plate LIKE ? OR ? IS NULL) AND (DATE(receivedAt) = ? OR ? IS NULL) ORDER BY receivedAt DESC LIMIT 5000`
+);
 const stmtPlateUpdateSerialSent = plateDb.prepare(`UPDATE plate_records SET serialSentAt = ? WHERE id = ?`);
 
 const stmtAuthGet = plateDb.prepare(`SELECT username, salt, hash, iterations FROM auth_users WHERE username = ?`);
@@ -3459,6 +3462,18 @@ app.get("/api/plates/latest", (req, res) => {
   const limit = toPositiveInt(req.query?.limit, 2000);
   const max = Math.max(1, Math.min(5000, limit));
   const rows = stmtPlateListLatest.all(max);
+  const items = rows.map(rowToPlateDto);
+  res.json({ ok: true, items });
+});
+
+app.get("/api/plates/search", (req, res) => {
+  const plate = String(req.query?.plate || "").trim();
+  const date = String(req.query?.date || "").trim();
+  
+  const plateParam = plate ? `%${plate}%` : null;
+  const dateParam = date || null;
+  
+  const rows = stmtPlateSearch.all(plateParam, plateParam, dateParam, dateParam);
   const items = rows.map(rowToPlateDto);
   res.json({ ok: true, items });
 });

@@ -895,56 +895,90 @@ function filterPlateRecords(records, { plateText, date } = {}) {
   return out;
 }
 
-function applyPlateFilters({ plateText, date } = {}) {
+async function applyPlateFilters({ plateText, date } = {}) {
   lastPlateQueryState = { plateText: String(plateText || ""), date: String(date || "") };
-  const q = String(plateText || "").trim().toLowerCase();
+  const q = String(plateText || "").trim();
   const dateVal = String(date || "").trim();
   const plateListEl = document.getElementById("plateList");
   if (!plateListEl) return;
   
-  const allCards = Array.from(plateListEl.querySelectorAll(".plate-card"));
-  const visibleCards = [];
+  // 显示加载状态
+  plateListEl.textContent = "";
+  const loadingHint = document.createElement("div");
+  loadingHint.className = "empty-hint";
+  loadingHint.textContent = "查询中...";
+  plateListEl.appendChild(loadingHint);
   
-  for (const card of allCards) {
-    const plate = String(card.dataset.plate || "").toLowerCase();
-    const ts = Number(card.dataset.ts || 0) || 0;
-    const day = toLocalIsoDate(ts);
-    const matchPlate = !q || plate.includes(q);
-    const matchDate = !dateVal || day === dateVal;
-    const visible = matchPlate && matchDate;
+  try {
+    let items = [];
     
-    if (visible) {
-      visibleCards.push(card);
-    }
-    card.classList.toggle("hidden", !visible);
-  }
-  
-  if (plateUiState.view === "cards") {
-    const pageSize = Math.max(1, Math.min(200, Number(plateTableState.pageSize) || 10));
-    const totalPages = Math.max(1, Math.ceil(visibleCards.length / pageSize));
-    plateTableState.page = Math.max(1, Math.min(totalPages, Number(plateTableState.page) || 1));
-    
-    const startIdx = (plateTableState.page - 1) * pageSize;
-    const endIdx = startIdx + pageSize;
-    
-    for (let i = 0; i < visibleCards.length; i++) {
-      const card = visibleCards[i];
-      const inCurrentPage = i >= startIdx && i < endIdx;
-      card.classList.toggle("hidden", !inCurrentPage);
+    // 如果查询条件为空，则加载所有数据
+    if (!q && !dateVal) {
+      const r = await fetchJsonGet("/api/plates/latest?limit=2000");
+      items = Array.isArray(r?.items) ? r.items : [];
+    } else {
+      // 构建查询参数
+      const params = new URLSearchParams();
+      if (q) params.set("plate", q);
+      if (dateVal) params.set("date", dateVal);
+      
+      // 调用搜索API
+      const r = await fetchJsonGet(`/api/plates/search?${params.toString()}`);
+      items = Array.isArray(r?.items) ? r.items : [];
     }
     
-    updatePlatePageInfo();
+    // 清空当前数据
+    plateListEl.textContent = "";
+    plateById.clear();
+    
+    // 加载新数据
+    for (const rec of items) {
+      if (!rec?.id) continue;
+      plateById.set(String(rec.id), rec);
+    }
+    
+    // 渲染卡片
+    for (const rec of items) {
+      renderPlateCard(rec, { prepend: false, skipFilterApply: true });
+    }
+    
+    // 更新分页信息
+    if (plateUiState.view === "cards") {
+      const pageSize = Math.max(1, Math.min(200, Number(plateTableState.pageSize) || 10));
+      const totalPages = Math.max(1, Math.ceil(items.length / pageSize));
+      plateTableState.page = Math.max(1, Math.min(totalPages, Number(plateTableState.page) || 1));
+      
+      const allCards = Array.from(plateListEl.querySelectorAll(".plate-card"));
+      const startIdx = (plateTableState.page - 1) * pageSize;
+      const endIdx = startIdx + pageSize;
+      
+      for (let i = 0; i < allCards.length; i++) {
+        const card = allCards[i];
+        const inCurrentPage = i >= startIdx && i < endIdx;
+        card.classList.toggle("hidden", !inCurrentPage);
+      }
+      
+      updatePlatePageInfo();
+    }
+    
+    ensureEmptyHint(plateListEl);
+    renderPlateTable();
+    updatePlateDashboard();
+    updatePlateBulkUi();
+    
+  } catch (error) {
+    console.error("查询失败:", error);
+    plateListEl.textContent = "";
+    const errorHint = document.createElement("div");
+    errorHint.className = "empty-hint";
+    errorHint.textContent = "查询失败，请重试";
+    plateListEl.appendChild(errorHint);
   }
-  
-  ensureEmptyHint(plateListEl);
-  renderPlateTable();
-  updatePlateDashboard();
-  updatePlateBulkUi();
 }
 
-function applyPlateFiltersFromUi() {
+async function applyPlateFiltersFromUi() {
   const state = getPlateQueryStateFromUi();
-  applyPlateFilters(state);
+  await applyPlateFilters(state);
 }
 
 function getImgSrcOrFallback(imageDataUrl) {
@@ -1054,7 +1088,10 @@ function renderPlateCard(record, { prepend, skipFilterApply } = {}) {
 
   if (prepend) plateListEl.prepend(card);
   else plateListEl.appendChild(card);
-  if (!skipFilterApply) applyPlateFiltersFromUi();
+  if (!skipFilterApply) {
+    // 异步调用，但不等待，避免阻塞渲染
+    applyPlateFiltersFromUi().catch(err => console.error("过滤失败:", err));
+  }
 }
 
 async function enrichRecordImageMeta(id, imageDataUrl) {
@@ -1218,8 +1255,13 @@ async function loadPlateHistoryToUi() {
     if (!id) continue;
     if (rec.imageDataUrl && (!rec.imageWidth || !rec.imageHeight)) enrichRecordImageMeta(id, rec.imageDataUrl);
   }
-  applyPlateFiltersFromUi();
-  updatePlatePageInfo();
+  // 异步调用查询过滤
+  applyPlateFiltersFromUi().then(() => {
+    updatePlatePageInfo();
+  }).catch(err => {
+    console.error("加载后过滤失败:", err);
+    updatePlatePageInfo();
+  });
 }
 
 function randomFrom(arr) {
@@ -1294,7 +1336,8 @@ function setPlateView(view) {
     els.plateViewTableBtn.setAttribute("aria-selected", v === "table" ? "true" : "false");
   }
   renderPlateTable();
-  applyPlateFiltersFromUi();
+  // 异步调用过滤
+  applyPlateFiltersFromUi().catch(err => console.error("切换视图时过滤失败:", err));
   updatePlateBulkUi();
 }
 
@@ -1495,7 +1538,7 @@ function initPlateTableUi() {
       if (plateUiState.view === "table") {
         renderPlateTable();
       } else {
-        applyPlateFiltersFromUi();
+        applyPlateFiltersFromUi().catch(err => console.error("更改页大小时过滤失败:", err));
       }
     });
   }
@@ -1505,7 +1548,7 @@ function initPlateTableUi() {
       if (plateUiState.view === "table") {
         renderPlateTable();
       } else {
-        applyPlateFiltersFromUi();
+        applyPlateFiltersFromUi().catch(err => console.error("上一页过滤失败:", err));
       }
     });
   }
@@ -1515,7 +1558,7 @@ function initPlateTableUi() {
       if (plateUiState.view === "table") {
         renderPlateTable();
       } else {
-        applyPlateFiltersFromUi();
+        applyPlateFiltersFromUi().catch(err => console.error("下一页过滤失败:", err));
       }
     });
   }
@@ -1561,7 +1604,9 @@ function initPlateModule() {
   initPlateTableUi();
   initPlateDashboardUi();
   loadPlateHistoryToUi().catch(() => {});
-  const runQuery = () => applyPlateFiltersFromUi();
+  const runQuery = () => {
+    applyPlateFiltersFromUi().catch(err => console.error("查询失败:", err));
+  };
   if (els.plateQueryBtn) els.plateQueryBtn.addEventListener("click", runQuery);
   if (els.plateSearchInput) {
     els.plateSearchInput.addEventListener("keydown", (ev) => {
@@ -1603,7 +1648,8 @@ function initPlateModule() {
         }
         const plateListEl = document.getElementById("plateList");
         if (plateListEl) ensureEmptyHint(plateListEl);
-        applyPlateFiltersFromUi();
+        // 异步调用过滤
+        applyPlateFiltersFromUi().catch(err => console.error("删除后过滤失败:", err));
         logLine(`已删除 ${ids.length} 条记录`);
       } catch {
         logLine("删除记录失败");
