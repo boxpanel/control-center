@@ -1776,19 +1776,25 @@ function initPlateModule() {
       if (els.plateDeleteBtn) els.plateDeleteBtn.disabled = true;
       try {
         await fetchJson("/api/plates/delete", { ids });
-        for (const id of ids) {
-          plateById.delete(id);
-          plateSelectedIds.delete(id);
-          const el = document.querySelector(`.plate-card[data-record-id="${CSS.escape(id)}"]`);
-          if (el) el.remove();
-        }
-        const plateListEl = document.getElementById("plateList");
-        if (plateListEl) ensureEmptyHint(plateListEl);
-        
-        // 删除后直接更新UI，不重新加载数据
-        updatePlateDashboard().catch(err => console.error("删除后更新仪表板失败:", err));
-        updatePlatePageInfo();
-        logLine(`已删除 ${ids.length} 条记录`);
+    for (const id of ids) {
+      plateById.delete(id);
+      plateSelectedIds.delete(id);
+      
+      // 删除卡片视图中的元素
+      const cardEl = document.querySelector(`.plate-card[data-record-id="${CSS.escape(id)}"]`);
+      if (cardEl) cardEl.remove();
+      
+      // 删除表格视图中的行
+      const rowEl = document.querySelector(`.plate-row[data-record-id="${CSS.escape(id)}"]`);
+      if (rowEl) rowEl.remove();
+    }
+    const plateListEl = document.getElementById("plateList");
+    if (plateListEl) ensureEmptyHint(plateListEl);
+    
+    // 删除后直接更新UI，不重新加载数据
+    updatePlateDashboard().catch(err => console.error("删除后更新仪表板失败:", err));
+    updatePlatePageInfo();
+    logLine(`已删除 ${ids.length} 条记录`);
       } catch {
         logLine("删除记录失败");
       } finally {
