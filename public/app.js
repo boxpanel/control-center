@@ -67,6 +67,7 @@ const els = {
   plateSearchInput: document.getElementById("plateSearchInput"),
   plateDateInput: document.getElementById("plateDateInput"),
   plateQueryBtn: document.getElementById("plateQueryBtn"),
+  plateDownloadBtn: document.getElementById("plateDownloadBtn"),
   plateDeleteBtn: document.getElementById("plateDeleteBtn"),
   plateViewCardsBtn: document.getElementById("plateViewCardsBtn"),
   plateViewTableBtn: document.getElementById("plateViewTableBtn"),
