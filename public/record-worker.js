@@ -1,8 +1,8 @@
 // 记录处理Worker - 多线程优化
 const recordBatchQueue = [];
 let batchProcessingTimer = null;
-const BATCH_PROCESS_DELAY = 20; // 20毫秒批处理延迟 - 小批量处理
-const MAX_BATCH_SIZE = 3; // 最大批处理大小 - 小批量处理
+const BATCH_PROCESS_DELAY = 0; // 0毫秒批处理延迟 - 实时处理
+const MAX_BATCH_SIZE = 1; // 最大批处理大小1条 - 逐条实时处理
 
 // 处理单个记录
 function processRecord(data) {
@@ -78,10 +78,19 @@ function processRecordBatch() {
     });
   }
   
-  // 如果队列中还有记录，继续处理 - 小批量处理模式
+  // 如果队列中还有记录，继续处理 - 实时处理模式
   if (recordBatchQueue.length > 0) {
-    // 小批量处理：延迟处理下一批记录
-    batchProcessingTimer = setTimeout(processRecordBatch, BATCH_PROCESS_DELAY);
+    if (BATCH_PROCESS_DELAY <= 0) {
+      // 0延迟时使用微任务立即处理下一批记录
+      batchProcessingTimer = 1; // 标记定时器为运行状态
+      queueMicrotask(() => {
+        batchProcessingTimer = null;
+        processRecordBatch();
+      });
+    } else {
+      // 有延迟时使用定时器
+      batchProcessingTimer = setTimeout(processRecordBatch, BATCH_PROCESS_DELAY);
+    }
   } else {
     batchProcessingTimer = null;
   }
@@ -102,9 +111,15 @@ function addRecordToBatch(data) {
     console.warn(`[Worker] 批处理队列长度较高: ${recordBatchQueue.length}`);
   }
   
-  // 小批量处理策略：延迟处理，收集多条记录后批量处理
+  // 实时处理策略：0延迟立即处理
   if (!batchProcessingTimer) {
-    batchProcessingTimer = setTimeout(processRecordBatch, BATCH_PROCESS_DELAY);
+    if (BATCH_PROCESS_DELAY <= 0) {
+      // 0延迟时立即处理
+      processRecordBatch();
+    } else {
+      // 有延迟时使用定时器
+      batchProcessingTimer = setTimeout(processRecordBatch, BATCH_PROCESS_DELAY);
+    }
   }
 }
 
