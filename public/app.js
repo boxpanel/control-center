@@ -1373,7 +1373,6 @@ function compareRecords(a, b, key, dir) {
 
 function updatePlateDashboard() {
   const all = getAllPlateRecords();
-  console.log(`[调试] updatePlateDashboard: plateById大小=${plateById.size}, all长度=${all.length}`);
   
   const filtered = filterPlateRecords(all, lastPlateQueryState);
   const nowMs = Date.now();
@@ -1397,8 +1396,6 @@ function updatePlateDashboard() {
     if (ts >= lastHourStart) lastHourCount += 1;
     if (!latest || ts > getRecordTs(latest)) latest = rec;
   }
-
-  console.log(`[调试] 即将设置总记录数: ${all.length}`);
   if (els.dashTotal) els.dashTotal.textContent = String(all.length);
   if (els.dashToday) els.dashToday.textContent = String(todayCount);
   if (els.dashLastHour) els.dashLastHour.textContent = String(lastHourCount);
@@ -3538,7 +3535,7 @@ function initRecordWorker() {
     recordWorker = new Worker('/record-worker.js');
     
     recordWorker.onmessage = function(event) {
-      const { type, records, queueLength, message, timestamp } = event.data;
+      const { type, records, queueLength, message, timestamp, hasTimer } = event.data;
       
       switch (type) {
         case 'worker-ready':
