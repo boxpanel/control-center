@@ -916,8 +916,16 @@ async function applyPlateFilters({ plateText, date } = {}) {
     
     // 如果查询条件为空，则加载所有数据
     if (!q && !dateVal) {
-      const r = await fetchJsonGet("/api/plates/latest?limit=2000");
+      // 先获取总记录数，然后加载所有记录
+      const countResponse = await fetchJsonGet("/api/plates/count");
+      const totalCount = Number(countResponse?.total || 0);
+      console.log(`[调试] applyPlateFilters: 数据库总记录数=${totalCount}`);
+      
+      // 加载所有记录（最多5000条，避免性能问题）
+      const limit = Math.min(totalCount, 5000);
+      const r = await fetchJsonGet(`/api/plates/latest?limit=${limit}`);
       items = Array.isArray(r?.items) ? r.items : [];
+      console.log(`[调试] applyPlateFilters: 加载了 ${items.length} 条记录`);
     } else {
       // 构建查询参数
       const params = new URLSearchParams();
@@ -927,6 +935,7 @@ async function applyPlateFilters({ plateText, date } = {}) {
       // 调用搜索API
       const r = await fetchJsonGet(`/api/plates/search?${params.toString()}`);
       items = Array.isArray(r?.items) ? r.items : [];
+      console.log(`[调试] applyPlateFilters: 搜索到 ${items.length} 条记录`);
     }
     
     // 清空当前数据
@@ -1240,7 +1249,14 @@ async function loadPlateHistoryToUi() {
   let list = [];
   try {
     console.log(`[调试] loadPlateHistoryToUi: 开始从API加载记录`);
-    const r = await fetchJsonGet("/api/plates/latest?limit=2000");
+    // 先获取总记录数，然后加载所有记录
+    const countResponse = await fetchJsonGet("/api/plates/count");
+    const totalCount = Number(countResponse?.total || 0);
+    console.log(`[调试] loadPlateHistoryToUi: 数据库总记录数=${totalCount}`);
+    
+    // 加载所有记录（最多5000条，避免性能问题）
+    const limit = Math.min(totalCount, 5000);
+    const r = await fetchJsonGet(`/api/plates/latest?limit=${limit}`);
     list = Array.isArray(r?.items) ? r.items : [];
     console.log(`[调试] loadPlateHistoryToUi: API返回 ${list.length} 条记录`);
   } catch (error) {
@@ -1374,18 +1390,40 @@ function compareRecords(a, b, key, dir) {
 async function updatePlateDashboard() {
   // 获取总记录数（从服务器API）
   let totalCount = 0;
+  let filteredCount = 0;
+  
   try {
-    const response = await fetchJsonGet("/api/plates/count");
-    totalCount = Number(response?.total || 0);
+    // 获取总记录数
+    const countResponse = await fetchJsonGet("/api/plates/count");
+    totalCount = Number(countResponse?.total || 0);
+    
+    // 如果有筛选条件，获取筛选结果数量
+    const q = String(lastPlateQueryState.plateText || "").trim();
+    const dateVal = String(lastPlateQueryState.date || "").trim();
+    
+    if (q || dateVal) {
+      // 调用搜索API获取筛选结果数量
+      const params = new URLSearchParams();
+      if (q) params.set("plate", q);
+      if (dateVal) params.set("date", dateVal);
+      
+      const searchResponse = await fetchJsonGet(`/api/plates/search?${params.toString()}`);
+      const searchItems = Array.isArray(searchResponse?.items) ? searchResponse.items : [];
+      filteredCount = searchItems.length;
+    } else {
+      // 没有筛选条件，筛选结果数等于总记录数
+      filteredCount = totalCount;
+    }
   } catch (error) {
-    console.warn("获取总记录数失败，使用本地数据:", error);
+    console.warn("获取服务器数据失败，使用本地数据:", error);
     // 如果API失败，使用本地数据作为备选
     const all = getAllPlateRecords();
     totalCount = all.length;
+    const filtered = filterPlateRecords(all, lastPlateQueryState);
+    filteredCount = filtered.length;
   }
   
   const all = getAllPlateRecords();
-  const filtered = filterPlateRecords(all, lastPlateQueryState);
   const nowMs = Date.now();
   const startOfToday = new Date();
   startOfToday.setHours(0, 0, 0, 0);
@@ -1411,7 +1449,7 @@ async function updatePlateDashboard() {
   if (els.dashToday) els.dashToday.textContent = String(todayCount);
   if (els.dashLastHour) els.dashLastHour.textContent = String(lastHourCount);
   if (els.dashUniqueToday) els.dashUniqueToday.textContent = String(uniqueToday.size);
-  if (els.dashFiltered) els.dashFiltered.textContent = String(filtered.length);
+  if (els.dashFiltered) els.dashFiltered.textContent = String(filteredCount);
   if (els.dashLatest) {
     if (!latest) els.dashLatest.textContent = "--";
     else {
