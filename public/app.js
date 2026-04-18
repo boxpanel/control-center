@@ -3520,10 +3520,6 @@ let batchProcessingTimer = null;
 const BATCH_PROCESS_DELAY = 30; // 30毫秒批处理延迟
 const MAX_BATCH_SIZE = 10; // 最大批处理大小
 
-// 记录去重缓存（防止重复处理）
-const recordDedupeCache = new Map();
-const DEDUPE_WINDOW_MS = 5000; // 5秒去重窗口
-
 // 批量处理记录
 async function processRecordBatch() {
   if (recordBatchQueue.length === 0) {
@@ -3546,20 +3542,7 @@ async function processRecordBatch() {
     const plate = String(data?.plate || "").trim();
     if (!plate) continue;
     
-    // 生成稳定的ID：使用车牌号和时间戳的哈希
-    const generateStableId = (plate, timestamp) => {
-      const str = `${plate}_${timestamp}`;
-      let hash = 0;
-      for (let i = 0; i < str.length; i++) {
-        const char = str.charCodeAt(i);
-        hash = ((hash << 5) - hash) + char;
-        hash = hash & hash; // 转换为32位整数
-      }
-      return `rec_${Math.abs(hash).toString(16)}`;
-    };
-    
-    const timestampForId = data?.timestamp || data?.receivedAt || Date.now();
-    const id = String(data?.id || "") || generateStableId(plate, timestampForId);
+    const id = String(data?.id || "") || `${Date.now()}-${Math.random().toString(16).slice(2)}`;
     const receivedAt = Number(data?.receivedAt || Date.now()) || Date.now();
     const eventAt = Number(data?.eventAt || 0) || (() => {
       if (data?.timestamp) {
@@ -3575,13 +3558,6 @@ async function processRecordBatch() {
         ? data.imageUrl
         : "";
 
-    // 检查是否已经存在相同ID的记录
-    const existingRecord = plateById.get(id);
-    if (existingRecord) {
-      console.log(`[去重] 记录已存在，跳过: ${plate} (ID: ${id})`);
-      continue; // 跳过已存在的记录
-    }
-    
     const record = {
       id,
       plate,
@@ -3649,35 +3625,6 @@ async function processRecordBatch() {
 
 // 添加记录到批处理队列
  function addRecordToBatch(data) {
-   // 去重检查
-   const plate = String(data?.plate || "").trim();
-   if (!plate) return; // 无效车牌，不处理
-   
-   // 使用车牌号和时间戳创建去重键
-   const timestamp = data?.timestamp || data?.receivedAt || Date.now();
-   const dedupeKey = `${plate}_${timestamp}`;
-   
-   // 检查是否在去重窗口内已经处理过
-   const now = Date.now();
-   const lastProcessedTime = recordDedupeCache.get(dedupeKey);
-   
-   if (lastProcessedTime && (now - lastProcessedTime) < DEDUPE_WINDOW_MS) {
-     console.log(`[去重] 跳过重复记录: ${plate} (${new Date(timestamp).toLocaleTimeString()})`);
-     return; // 跳过重复记录
-   }
-   
-   // 更新去重缓存
-   recordDedupeCache.set(dedupeKey, now);
-   
-   // 清理过期的去重缓存
-   if (recordDedupeCache.size > 1000) {
-     for (const [key, time] of recordDedupeCache.entries()) {
-       if (now - time > DEDUPE_WINDOW_MS) {
-         recordDedupeCache.delete(key);
-       }
-     }
-   }
-   
    recordBatchQueue.push(data);
    
    // 监控队列状态（调试用）
