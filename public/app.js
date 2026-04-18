@@ -1406,7 +1406,58 @@ function updatePlateDashboard() {
   if (els.dashUpdatedAt) els.dashUpdatedAt.textContent = `更新：${formatTimeOnly(nowMs)}`;
 }
 
+function updatePlateDashboardLight(newRecord) {
+  // 轻量级仪表板更新，只更新必要的统计数据
+  const all = Array.from(plateById.values());
+  const nowMs = Date.now();
+  const startOfToday = new Date();
+  startOfToday.setHours(0, 0, 0, 0);
+  const todayStartMs = startOfToday.getTime();
+  const lastHourStart = nowMs - 60 * 60 * 1000;
 
+  // 只更新总数和最新记录
+  if (els.dashTotal) els.dashTotal.textContent = String(all.length);
+  
+  // 更新最新记录
+  let latest = null;
+  for (const rec of all) {
+    const ts = getRecordTs(rec);
+    if (ts <= 0) continue;
+    if (!latest || ts > getRecordTs(latest)) latest = rec;
+  }
+  
+  if (els.dashLatest) {
+    if (!latest) els.dashLatest.textContent = "--";
+    else {
+      const ts = getRecordTs(latest);
+      const plate = String(latest.plate || "");
+      els.dashLatest.textContent = `${plate} @ ${formatDateTime(ts) || formatTimeOnly(ts)}`.trim();
+    }
+  }
+  
+  // 更新时间戳
+  if (els.dashUpdatedAt) els.dashUpdatedAt.textContent = `更新：${formatTimeOnly(nowMs)}`;
+  
+  // 其他统计数据可以延迟更新或定期更新
+  // 今天数量和最近一小时数量可以定期计算，不需要实时更新
+  
+  // 调度完整统计数据更新
+  scheduleDashboardFullUpdate();
+}
+
+// 定期更新完整统计数据
+let dashboardUpdateTimer = null;
+function scheduleDashboardFullUpdate() {
+  if (dashboardUpdateTimer) {
+    clearTimeout(dashboardUpdateTimer);
+  }
+  
+  // 延迟1秒后更新完整统计数据
+  dashboardUpdateTimer = setTimeout(() => {
+    updatePlateDashboard();
+    dashboardUpdateTimer = null;
+  }, 1000);
+}
 
 function updatePlatePageInfo() {
   const plateListEl = document.getElementById("plateList");
@@ -1435,6 +1486,32 @@ function updatePlatePageInfo() {
   if (els.platePrevPageBtn) {
     els.platePrevPageBtn.disabled = currentPage <= 1;
   }
+  if (els.plateNextPageBtn) {
+    els.plateNextPageBtn.disabled = currentPage >= totalPages;
+  }
+}
+
+function updatePlatePageInfoLight() {
+  // 轻量级页面信息更新，不进行过滤计算
+  const plateListEl = document.getElementById("plateList");
+  if (!plateListEl) return;
+  
+  // 只获取所有卡片数量，不进行过滤
+  const allCards = plateListEl.querySelectorAll(".plate-card");
+  const totalCards = allCards.length;
+  
+  const pageSize = Math.max(1, Math.min(200, Number(plateTableState.pageSize) || 10));
+  const totalPages = Math.max(1, Math.ceil(totalCards / pageSize));
+  const currentPage = Math.max(1, Math.min(totalPages, Number(plateTableState.page) || 1));
+  
+  if (els.platePageInfo) {
+    els.platePageInfo.textContent = `${currentPage} / ${totalPages}`;
+  }
+  
+  if (els.platePrevPageBtn) {
+    els.platePrevPageBtn.disabled = currentPage <= 1;
+  }
+  
   if (els.plateNextPageBtn) {
     els.plateNextPageBtn.disabled = currentPage >= totalPages;
   }
@@ -3472,8 +3549,12 @@ function initEventStream() {
     };
 
     plateById.set(record.id, record);
-    renderPlateCard(record, { prepend: true });
+    renderPlateCard(record, { prepend: true, skipFilterApply: true });
     if (record.imageDataUrl) enrichRecordImageMeta(record.id, record.imageDataUrl);
+    
+    // 轻量级更新UI，不触发完整查询
+    updatePlateDashboardLight(record);
+    updatePlatePageInfoLight();
 
     if (serialState.forwardEnabled && !serialState.backendPort) {
       logSerialLine(`[串口发送] 已接收车牌，准备转发: ${plate}`);
