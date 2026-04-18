@@ -1718,6 +1718,12 @@ function initPlateTableUi() {
         renderPlateTable();
         return;
       }
+      // 移除单击表格行弹出详细页面的逻辑，改为双击
+    });
+    
+    // 添加双击事件监听器
+    els.plateTableWrap.addEventListener("dblclick", (ev) => {
+      const target = ev.target;
       const row = target instanceof HTMLElement ? target.closest(".plate-row") : null;
       if (row instanceof HTMLTableRowElement) {
         const id = String(row.dataset.recordId || "");
