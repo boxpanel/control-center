@@ -3520,9 +3520,9 @@ let batchProcessingTimer = null;
 const BATCH_PROCESS_DELAY = 30; // 30毫秒批处理延迟
 const MAX_BATCH_SIZE = 10; // 最大批处理大小
 
-// 记录去重集合 - 使用车牌号+时间戳作为唯一标识
-const processedRecordSet = new Set();
-const RECORD_DEDUPE_WINDOW = 5000; // 5秒内的重复记录将被忽略
+// 记录去重缓存（防止重复处理）
+const recordDedupeCache = new Map();
+const DEDUPE_WINDOW_MS = 5000; // 5秒去重窗口
 
 // 批量处理记录
 async function processRecordBatch() {
@@ -3539,30 +3539,27 @@ async function processRecordBatch() {
     return;
   }
   
-  // 处理批量记录 - 添加批处理内去重
+  // 处理批量记录
   const processedRecords = [];
-  const batchProcessedKeys = new Set(); // 用于批处理内的去重
   
   for (const data of batch) {
     const plate = String(data?.plate || "").trim();
     if (!plate) continue;
     
-    // 批处理内去重检查
-    const recordKey = getRecordKey(data);
-    if (batchProcessedKeys.has(recordKey)) {
-      console.log(`批处理内跳过重复记录: ${recordKey}`);
-      continue;
-    }
-    batchProcessedKeys.add(recordKey);
+    // 生成稳定的ID：使用车牌号和时间戳的哈希
+    const generateStableId = (plate, timestamp) => {
+      const str = `${plate}_${timestamp}`;
+      let hash = 0;
+      for (let i = 0; i < str.length; i++) {
+        const char = str.charCodeAt(i);
+        hash = ((hash << 5) - hash) + char;
+        hash = hash & hash; // 转换为32位整数
+      }
+      return `rec_${Math.abs(hash).toString(16)}`;
+    };
     
-    // 检查是否已经存在相同的记录（基于车牌和时间）
-    const existingRecord = findExistingRecord(plate, receivedAt);
-    if (existingRecord) {
-      console.log(`记录已存在，跳过: ${plate} @ ${new Date(receivedAt).toLocaleString()}`);
-      continue;
-    }
-    
-    const id = String(data?.id || "") || `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    const timestampForId = data?.timestamp || data?.receivedAt || Date.now();
+    const id = String(data?.id || "") || generateStableId(plate, timestampForId);
     const receivedAt = Number(data?.receivedAt || Date.now()) || Date.now();
     const eventAt = Number(data?.eventAt || 0) || (() => {
       if (data?.timestamp) {
@@ -3578,6 +3575,13 @@ async function processRecordBatch() {
         ? data.imageUrl
         : "";
 
+    // 检查是否已经存在相同ID的记录
+    const existingRecord = plateById.get(id);
+    if (existingRecord) {
+      console.log(`[去重] 记录已存在，跳过: ${plate} (ID: ${id})`);
+      continue; // 跳过已存在的记录
+    }
+    
     const record = {
       id,
       plate,
@@ -3643,76 +3647,49 @@ async function processRecordBatch() {
   }
 }
 
-// 生成记录的唯一标识符
- function getRecordKey(data) {
+// 添加记录到批处理队列
+ function addRecordToBatch(data) {
+   // 去重检查
    const plate = String(data?.plate || "").trim();
+   if (!plate) return; // 无效车牌，不处理
+   
+   // 使用车牌号和时间戳创建去重键
    const timestamp = data?.timestamp || data?.receivedAt || Date.now();
-   return `${plate}_${timestamp}`;
- }
- 
- // 查找已存在的记录
- function findExistingRecord(plate, timestamp) {
-   if (!plate) return null;
+   const dedupeKey = `${plate}_${timestamp}`;
    
-   const allRecords = Array.from(plateById.values());
-   const TIME_TOLERANCE = 3000; // 3秒时间容差
+   // 检查是否在去重窗口内已经处理过
+   const now = Date.now();
+   const lastProcessedTime = recordDedupeCache.get(dedupeKey);
    
-   for (const record of allRecords) {
-     if (record.plate === plate) {
-       const recordTime = record.receivedAt || record.eventAt;
-       const timeDiff = Math.abs(recordTime - timestamp);
-       
-       // 如果车牌相同且时间相差在3秒内，认为是同一记录
-       if (timeDiff <= TIME_TOLERANCE) {
-         return record;
+   if (lastProcessedTime && (now - lastProcessedTime) < DEDUPE_WINDOW_MS) {
+     console.log(`[去重] 跳过重复记录: ${plate} (${new Date(timestamp).toLocaleTimeString()})`);
+     return; // 跳过重复记录
+   }
+   
+   // 更新去重缓存
+   recordDedupeCache.set(dedupeKey, now);
+   
+   // 清理过期的去重缓存
+   if (recordDedupeCache.size > 1000) {
+     for (const [key, time] of recordDedupeCache.entries()) {
+       if (now - time > DEDUPE_WINDOW_MS) {
+         recordDedupeCache.delete(key);
        }
      }
    }
    
-   return null;
+   recordBatchQueue.push(data);
+   
+   // 监控队列状态（调试用）
+   if (recordBatchQueue.length > 5) {
+     console.log(`批处理队列长度: ${recordBatchQueue.length}`);
+   }
+   
+   // 如果没有正在处理的定时器，启动一个
+   if (!batchProcessingTimer) {
+     batchProcessingTimer = setTimeout(processRecordBatch, BATCH_PROCESS_DELAY);
+   }
  }
- 
- // 检查记录是否重复
- function isDuplicateRecord(data) {
-  const recordKey = getRecordKey(data);
-  
-  // 检查是否已经在处理集合中
-  if (processedRecordSet.has(recordKey)) {
-    console.log(`检测到重复记录: ${recordKey}`);
-    return true;
-  }
-  
-  // 添加到处理集合
-  processedRecordSet.add(recordKey);
-  
-  // 5秒后从集合中移除，避免内存泄漏
-  setTimeout(() => {
-    processedRecordSet.delete(recordKey);
-  }, RECORD_DEDUPE_WINDOW);
-  
-  return false;
-}
-
-// 添加记录到批处理队列
-function addRecordToBatch(data) {
-  // 检查是否重复记录
-  if (isDuplicateRecord(data)) {
-    console.log(`跳过重复记录: ${data?.plate || "未知车牌"}`);
-    return;
-  }
-  
-  recordBatchQueue.push(data);
-  
-  // 监控队列状态（调试用）
-  if (recordBatchQueue.length > 5) {
-    console.log(`批处理队列长度: ${recordBatchQueue.length}`);
-  }
-  
-  // 如果没有正在处理的定时器，启动一个
-  if (!batchProcessingTimer) {
-    batchProcessingTimer = setTimeout(processRecordBatch, BATCH_PROCESS_DELAY);
-  }
-}
  
  // 监控批处理队列状态
  function monitorBatchQueue() {
