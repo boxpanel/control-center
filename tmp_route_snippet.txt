@@ -1,0 +1,85 @@
+    }
+    devices.unshift(device);
+    await saveDeviceInfoPatch({ devices });
+    res.json({ ok: true, item: device });
+  } catch (err) {
+    next(err);
+  }
+});
+
+app.put("/api/devices/:id", async (req, res, next) => {
+  try {
+    const targetId = String(req.params.id || "").trim();
+    const info = await loadOrInitDeviceInfo();
+    const devices = normalizeManagedDeviceList(info?.devices);
+    const index = devices.findIndex((item) => item.id === targetId);
+    if (index < 0) {
+      const err = new Error("设备不存�?);
+      err.statusCode = 404;
+      throw err;
+    }
+    const updated = normalizeManagedDevice(req.body?.device || {}, devices[index]);
+    devices[index] = updated;
+    await saveDeviceInfoPatch({ devices });
+    res.json({ ok: true, item: updated });
+  } catch (err) {
+    next(err);
+  }
+});
+
+app.delete("/api/devices/:id", async (req, res, next) => {
+  try {
+    const targetId = String(req.params.id || "").trim();
+    const info = await loadOrInitDeviceInfo();
+    const devices = normalizeManagedDeviceList(info?.devices);
+    const nextDevices = devices.filter((item) => item.id !== targetId);
+    if (nextDevices.length === devices.length) {
+      const err = new Error("设备不存�?);
+      err.statusCode = 404;
+      throw err;
+    }
+    await saveDeviceInfoPatch({ devices: nextDevices });
+    res.json({ ok: true });
+  } catch (err) {
+    next(err);
+  }
+});
+
+app.post("/api/devices/:id/check", async (req, res, next) => {
+  try {
+    const targetId = String(req.params.id || "").trim();
+    const info = await loadOrInitDeviceInfo();
+    const devices = normalizeManagedDeviceList(info?.devices);
+    const index = devices.findIndex((item) => item.id === targetId);
+    if (index < 0) {
+      const err = new Error("设备不存�?);
+      err.statusCode = 404;
+      throw err;
+    }
+    const device = devices[index];
+    const checkedAt = Date.now();
+    try {
+      const result = await requestHikvisionIsapi({
+        host: device.host,
+        port: device.port,
+        username: device.username,
+        password: device.password,
+        pathname: "/ISAPI/System/deviceInfo",
+        method: "GET"
+      });
+      const summary = summarizeIsapiDeviceInfo(result.text);
+      devices[index] = normalizeManagedDevice({
+        ...device,
+        onlineState: "online",
+        checkedAt,
+        summary
+      });
+      await saveDeviceInfoPatch({ devices });
+      res.json({ ok: true, item: devices[index], rawText: result.text, requestUrl: result.url });
+    } catch (e) {
+      devices[index] = normalizeManagedDevice({
+        ...device,
+        onlineState: "offline",
+        checkedAt
+      });
+      await saveDeviceInfoPatch({ devices });

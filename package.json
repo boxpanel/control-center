@@ -5,20 +5,24 @@
   "type": "module",
   "scripts": {
     "start": "node server.js",
-    "setup": "bash ./install.sh"
+    "setup": "bash ./install.sh",
+    "build:release": "node ./scripts/build-release.mjs",
+    "postinstall": "patch-package"
   },
   "dependencies": {
     "basic-ftp": "^5.0.5",
+    "better-sqlite3": "^11.10.0",
     "digest-fetch": "^3.1.1",
     "express": "^4.19.2",
     "ftp-srv": "^4.6.3",
     "hls.js": "^1.6.7",
     "node-onvif": "^0.1.7",
     "onvif": "^0.8.1",
-    "serialport": "^13.0.0",
-    "better-sqlite3": "^11.10.0"
+    "patch-package": "^8.0.1",
+    "serialport": "^13.0.0"
   },
   "devDependencies": {
+    "javascript-obfuscator": "^5.4.1",
     "puppeteer": "^24.40.0"
   }
 }

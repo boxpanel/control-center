@@ -8,11 +8,14 @@ START_APP=0
 ENABLE_SERVICE=0
 SERVICE_NAME="${SERVICE_NAME:-control-center}"
 SERVICE_PORT="${SERVICE_PORT:-3000}"
+ADMIN_USERNAME="${ADMIN_USERNAME:-admin}"
+ADMIN_PASSWORD="${ADMIN_PASSWORD:-}"
 INSTALL_OK=0
 SERVICE_FILE=""
 SERVICE_CREATED=0
 BOOTSTRAP_MODE=0
 SKIP_BOOTSTRAP=0
+SKIP_PROMPTS=0
 CLONED_FRESH=0
 BACKUP_DIR=""
 
@@ -37,6 +40,16 @@ while [[ $# -gt 0 ]]; do
       SERVICE_PORT="${1:-3000}"
       PASS_ARGS+=("--service-port" "$SERVICE_PORT")
       ;;
+    --admin-user)
+      shift
+      ADMIN_USERNAME="${1:-admin}"
+      PASS_ARGS+=("--admin-user" "$ADMIN_USERNAME")
+      ;;
+    --admin-pass)
+      shift
+      ADMIN_PASSWORD="${1:-}"
+      PASS_ARGS+=("--admin-pass" "$ADMIN_PASSWORD")
+      ;;
     --repo-url)
       shift
       REPO_URL="${1:-$REPO_URL}"
@@ -51,6 +64,9 @@ while [[ $# -gt 0 ]]; do
     --skip-bootstrap)
       SKIP_BOOTSTRAP=1
       ;;
+    --skip-prompts)
+      SKIP_PROMPTS=1
+      ;;
     -h|--help)
       cat <<'EOF'
 Usage:
@@ -61,6 +77,8 @@ Options:
   --enable-service        Install and register systemd service
   --service-name NAME     systemd service name (default: control-center)
   --service-port PORT     Service port (default: 3000)
+  --admin-user NAME       Initial login username
+  --admin-pass PASSWORD   Initial login password
 
 Bootstrap options (for one-click installs / running outside repo dir):
   --bootstrap             Force clone/update repo then run installer
@@ -71,6 +89,7 @@ Examples:
   ./install.sh
   ./install.sh --start
   ./install.sh --enable-service --service-port 3000
+  ./install.sh --enable-service --service-port 3001 --admin-user boxpanel --admin-pass 'change-me'
   curl -fsSL https://raw.githubusercontent.com/boxpanel/control-center/main/install.sh | bash
 EOF
       exit 0
@@ -85,6 +104,33 @@ done
 
 step() {
   printf "\n==> %s\n" "$1"
+}
+
+tty_read() {
+  local prompt="$1"
+  local value=""
+  if [[ ! -r /dev/tty ]]; then
+    printf "Interactive input requires a terminal. Use --service-port, --admin-user, and --admin-pass instead.\n" >&2
+    exit 1
+  fi
+  printf "%s" "$prompt" > /dev/tty
+  IFS= read -r value < /dev/tty
+  printf "%s" "$value"
+}
+
+tty_read_secret() {
+  local prompt="$1"
+  local value=""
+  if [[ ! -r /dev/tty ]]; then
+    printf "Interactive password input requires a terminal. Use --admin-pass instead.\n" >&2
+    exit 1
+  fi
+  printf "%s" "$prompt" > /dev/tty
+  stty -echo < /dev/tty
+  IFS= read -r value < /dev/tty
+  stty echo < /dev/tty
+  printf "\n" > /dev/tty
+  printf "%s" "$value"
 }
 
 run_root() {
@@ -159,6 +205,84 @@ repair_git_index_if_needed() {
   fi
 }
 
+is_control_center_root() {
+  local dir="$1"
+  [[ -f "$dir/server.js" ]] || return 1
+  [[ -f "$dir/package.json" ]] || return 1
+  [[ -f "$dir/public/index.html" ]] || return 1
+  grep -q '"name":[[:space:]]*"onvif-ipcam"' "$dir/package.json"
+}
+
+prompt_install_settings() {
+  if [[ "$SKIP_PROMPTS" -eq 1 && -n "${ADMIN_PASSWORD:-}" && -n "${ADMIN_USERNAME// }" ]]; then
+    return
+  fi
+  local current_port="${SERVICE_PORT:-3000}"
+  local input=""
+  while true; do
+    input="$(tty_read "Web port [${current_port}]: ")"
+    input="${input:-$current_port}"
+    if [[ "$input" =~ ^[0-9]+$ ]] && (( input >= 1 && input <= 65535 )); then
+      SERVICE_PORT="$input"
+      break
+    fi
+    printf "Please enter a valid port between 1 and 65535.\n" > /dev/tty
+  done
+
+  local current_user="${ADMIN_USERNAME:-admin}"
+  while true; do
+    input="$(tty_read "Admin username [${current_user}]: ")"
+    input="${input:-$current_user}"
+    if [[ -n "${input// }" ]]; then
+      ADMIN_USERNAME="$input"
+      break
+    fi
+    printf "Username cannot be empty.\n" > /dev/tty
+  done
+
+  if [[ -n "$ADMIN_PASSWORD" ]]; then
+    return
+  fi
+
+  local password=""
+  local confirm=""
+  while true; do
+    password="$(tty_read_secret "Admin password: ")"
+    if [[ -z "$password" ]]; then
+      printf "Password cannot be empty.\n" > /dev/tty
+      continue
+    fi
+    confirm="$(tty_read_secret "Confirm password: ")"
+    if [[ "$password" != "$confirm" ]]; then
+      printf "Passwords do not match. Please try again.\n" > /dev/tty
+      continue
+    fi
+    ADMIN_PASSWORD="$password"
+    break
+  done
+}
+
+ensure_install_settings_present() {
+  if [[ -z "${SERVICE_PORT:-}" || ! "$SERVICE_PORT" =~ ^[0-9]+$ ]] || (( SERVICE_PORT < 1 || SERVICE_PORT > 65535 )); then
+    printf "Missing or invalid service port. Re-run the installer and enter a valid port, or pass --service-port.\n" >&2
+    exit 1
+  fi
+  if [[ -z "${ADMIN_USERNAME// }" ]]; then
+    printf "Missing admin username. Re-run the installer and enter a username, or pass --admin-user.\n" >&2
+    exit 1
+  fi
+  if [[ -z "${ADMIN_PASSWORD:-}" ]]; then
+    printf "Missing admin password. Re-run the installer and enter a password, or pass --admin-pass.\n" >&2
+    exit 1
+  fi
+}
+
+ensure_upgrade_backup_dir() {
+  local parent_dir
+  parent_dir="$(dirname "$INSTALL_DIR")"
+  printf "%s/.control-center-upgrade-backup-%s\n" "$parent_dir" "$(date +%Y%m%d-%H%M%S)"
+}
+
 ensure_base_packages() {
   local missing=()
   local required=(curl ca-certificates gnupg build-essential python3 make g++ pkg-config libudev-dev ffmpeg)
@@ -207,7 +331,7 @@ bootstrap_repo_then_run() {
     step "Updating repository in ${INSTALL_DIR}"
     repair_git_index_if_needed "$INSTALL_DIR"
     if [[ -n "$(git -C "$INSTALL_DIR" status --porcelain 2>/dev/null || true)" ]]; then
-      BACKUP_DIR="$INSTALL_DIR/.upgrade-backup-$(date +%Y%m%d-%H%M%S)"
+      BACKUP_DIR="$(ensure_upgrade_backup_dir)"
       printf "[WARN] Local changes detected. Backing them up to:\n"
       printf "       %s\n" "$BACKUP_DIR"
       mkdir -p "$BACKUP_DIR"
@@ -226,7 +350,10 @@ bootstrap_repo_then_run() {
   if [[ "$START_APP" -eq 0 && "$ENABLE_SERVICE" -eq 0 ]]; then
     args+=("--enable-service")
   fi
-  args+=("--skip-bootstrap")
+  args+=("--service-port" "$SERVICE_PORT")
+  args+=("--admin-user" "$ADMIN_USERNAME")
+  args+=("--admin-pass" "$ADMIN_PASSWORD")
+  args+=("--skip-bootstrap" "--skip-prompts")
 
   chmod +x "$INSTALL_DIR/install.sh"
   "$INSTALL_DIR/install.sh" "${args[@]}"
@@ -235,6 +362,51 @@ bootstrap_repo_then_run() {
     printf "\n[INFO] Previous local changes were backed up to:\n"
     printf "       %s\n" "$BACKUP_DIR"
   fi
+}
+
+write_install_auth_config() {
+  local config_path="$ROOT_DIR/.device-info.json"
+  step "Writing install-time access settings"
+  node --input-type=module - "$config_path" "$ADMIN_USERNAME" "$ADMIN_PASSWORD" <<'EOF'
+import crypto from "node:crypto";
+import fs from "node:fs";
+
+const configPath = process.argv[2];
+const username = String(process.argv[3] || "").trim();
+const password = String(process.argv[4] || "");
+if (!username || !password) {
+  throw new Error("Missing admin username or password");
+}
+
+let parsed = {};
+if (fs.existsSync(configPath)) {
+  parsed = JSON.parse(fs.readFileSync(configPath, "utf8"));
+}
+
+const salt = crypto.randomBytes(16).toString("base64url");
+const iterations = 120000;
+const hash = crypto.pbkdf2Sync(password, salt, iterations, 32, "sha256").toString("base64url");
+
+const next = {
+  installDate: parsed.installDate || new Date().toISOString().slice(0, 10),
+  secret: parsed.secret || crypto.randomBytes(32).toString("base64"),
+  createdAtMs: Number(parsed.createdAtMs || 0) || Date.now(),
+  connection: typeof parsed.connection === "object" && parsed.connection ? parsed.connection : { host: "", port: 80, username: "", password: "" },
+  probe: typeof parsed.probe === "object" && parsed.probe ? parsed.probe : { enabled: true, group: "239.255.255.250", port: 10086 },
+  serial: typeof parsed.serial === "object" && parsed.serial ? parsed.serial : { baudRate: 115200, forwardEnabled: false, backendPort: "" },
+  system: typeof parsed.system === "object" && parsed.system ? parsed.system : { name: "", clientMode: false, ipMode: "auto", preferredIp: "", manualIp: "" },
+  ingest: typeof parsed.ingest === "object" && parsed.ingest ? parsed.ingest : { ftpServer: { enabled: false, port: 21, rootDir: "", username: "", password: "" } },
+  auth: {
+    username,
+    salt,
+    hash,
+    iterations,
+    applyOnNextStart: true
+  }
+};
+
+fs.writeFileSync(configPath, JSON.stringify(next), "utf8");
+EOF
 }
 
 sanitize_legacy_serial_config() {
@@ -297,8 +469,8 @@ print_access_info() {
   printf "Service name        : %s\n" "$SERVICE_NAME"
   printf "Install path        : %s\n" "$ROOT_DIR"
   printf "Base port           : %s\n" "$base_port"
-  printf "Default username    : admin\n"
-  printf "Default password    : admin\n"
+  printf "Admin username      : %s\n" "$ADMIN_USERNAME"
+  printf "Admin password      : %s\n" "$ADMIN_PASSWORD"
   printf "Local access        : http://127.0.0.1:%s/login.html\n" "$base_port"
   local_ips="$(hostname -I 2>/dev/null || true)"
   for ip in $local_ips; do
@@ -344,15 +516,25 @@ EOF
   printf "Service status  : sudo systemctl status %s\n" "$SERVICE_NAME"
 }
 
-ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_SOURCE="${BASH_SOURCE[0]:-}"
+if [[ -n "$SCRIPT_SOURCE" ]]; then
+  ROOT_DIR="$(cd "$(dirname "$SCRIPT_SOURCE")" && pwd)"
+else
+  ROOT_DIR="$(pwd)"
+fi
 cd "$ROOT_DIR"
 
 if [[ "$SKIP_BOOTSTRAP" -eq 0 ]]; then
-  if [[ "$BOOTSTRAP_MODE" -eq 1 || ! -f "$ROOT_DIR/package.json" || ! -f "$ROOT_DIR/server.js" ]]; then
+  if [[ "$BOOTSTRAP_MODE" -eq 1 ]] || ! is_control_center_root "$ROOT_DIR"; then
+    prompt_install_settings
+    ensure_install_settings_present
     bootstrap_repo_then_run
     exit 0
   fi
 fi
+
+prompt_install_settings
+ensure_install_settings_present
 
 step "Preparing Ubuntu dependencies"
 ensure_base_packages
@@ -363,6 +545,7 @@ printf "Platform: Ubuntu/Linux\n"
 step "Creating app folders"
 mkdir -p data uploads uploads/ftp uploads/plates streams
 sanitize_legacy_serial_config
+write_install_auth_config
 
 step "Installing dependencies"
 if [[ -f package-lock.json ]]; then

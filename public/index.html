@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>综合管理平台</title>
-    <link rel="stylesheet" href="/style.css?v=50" />
+    <link rel="stylesheet" href="/style.css?v=51" />
   </head>
   <body class="app-page">
     <div class="app-page-bg" aria-hidden="true"></div>
@@ -78,7 +78,6 @@
               <input id="plateDateInput" type="date" />
               <button id="plateQueryBtn" type="button">查询</button>
               <button id="plateDeleteBtn" type="button" disabled>删除</button>
-              <button id="plateMockBtn" type="button">模拟数据</button>
             </div>
             <section class="plate-list-section">
               <div id="plateList" class="plate-list">
@@ -119,38 +118,33 @@
           </div>
 
           <div id="networkPage" class="mainPage view-hidden">
-            <section class="panel top-control-bar" style="margin:0;">
-              <div class="top-inputs">
-                <div class="field">
-                  <label for="hostInput">IP / Host</label>
-                  <input id="hostInput" type="text" placeholder="例如：192.168.1.64" autocomplete="off" />
-                </div>
-                <div class="field" style="flex: 0 0 80px;">
-                  <label for="portInput">端口</label>
-                  <input id="portInput" type="number" placeholder="80" value="80" />
-                </div>
-                <div class="field">
-                  <label for="userInput">用户名</label>
-                  <input id="userInput" type="text" autocomplete="off" />
-                </div>
-                <div class="field">
-                  <label for="passInput">密码</label>
-                  <input id="passInput" type="password" autocomplete="off" />
-                </div>
-                <div class="actions" style="align-self: flex-end; padding-bottom: 2px;">
-                  <button id="discoverBtn" type="button">搜索</button>
-                  <button id="connectBtn" type="button">连接</button>
-                  <button id="stopBtn" type="button" disabled>停止</button>
-                </div>
+            <section class="panel">
+              <div class="logHeader">
+                <div>已接入设备</div>
+                <button id="refreshDeviceListBtn" type="button">刷新列表</button>
+              </div>
+              <div class="actions" style="margin-top:10px;">
+                <button id="addDeviceBtn" type="button">增加设备</button>
+                <button id="updateDeviceBtn" type="button" disabled>修改设备</button>
+                <button id="deleteDeviceBtn" type="button" disabled>删除设备</button>
+                <button id="checkDeviceBtn" type="button" disabled>检测在线</button>
+              </div>
+              <div id="managedDeviceHint" style="margin-top:10px; font-size:12px; color:#6b7280;"></div>
+              <div class="plate-tableScroll" style="margin-top:10px;">
+                <table class="plate-table" cellspacing="0" cellpadding="0">
+                  <thead>
+                    <tr>
+                      <th style="width: 90px;">在线状态</th>
+                      <th style="width: 160px;">设备名</th>
+                      <th style="width: 180px;">地址</th>
+                      <th style="width: 90px;">协议</th>
+                      <th>摘要</th>
+                    </tr>
+                  </thead>
+                  <tbody id="managedDeviceTableBody"></tbody>
+                </table>
               </div>
             </section>
-            <section class="panel" id="discoverIpWrapSection">
-              <div id="discoverIpWrap">
-                <label>搜索结果 IP:端口 列表</label>
-                <select id="discoverIpList" multiple size="10" style="margin:6px 0; width:100%;"></select>
-              </div>
-            </section>
-
             <section class="panel">
               <div class="logHeader">
                 <div>预览画面</div>
@@ -189,13 +183,6 @@
               </div>
             </section>
 
-            <section class="panel">
-              <div class="logHeader">
-                <div>状态</div>
-                <button id="clearLogBtn" type="button">清空</button>
-              </div>
-              <pre id="log" class="log"></pre>
-            </section>
           </div>
 
           <div id="serialPage" class="mainPage view-hidden">
@@ -226,11 +213,13 @@
                 </div>
               </div>
               <div class="actions" style="margin-top:10px;">
+                <button id="serialSaveBtn" type="button">保存设置</button>
                 <button id="serialSendBtn" type="button">发送</button>
               </div>
               <div id="serialHint" style="margin-top:10px; font-size:12px; color:#6b7280; display:none;">
                 当前浏览器不支持 Web Serial，无法使用串口功能。
               </div>
+              <div id="serialSaveHint" style="margin-top:10px; font-size:12px; color:#6b7280;"></div>
             </section>
 
             <section class="panel">
@@ -269,6 +258,18 @@
                 <div class="field span-4">
                   <label for="systemIpInput">设备 IP（用于对外展示、注册）</label>
                   <input id="systemIpInput" type="text" autocomplete="off" placeholder="例如：192.168.1.22" />
+                </div>
+                <div class="field span-4">
+                  <label for="systemPrefixInput">子网掩码</label>
+                  <input id="systemPrefixInput" type="text" autocomplete="off" placeholder="例如：255.255.255.0" />
+                </div>
+                <div class="field span-4">
+                  <label for="systemGatewayInput">网关</label>
+                  <input id="systemGatewayInput" type="text" autocomplete="off" placeholder="例如：192.168.1.1" />
+                </div>
+                <div class="field span-4">
+                  <label>当前操作网卡</label>
+                  <div id="systemIfaceInfo" class="fingerprintBox" style="margin-top:6px;">加载中...</div>
                 </div>
                 <div class="field span-4">
                   <label for="systemOldPassword">当前密码</label>
@@ -353,14 +354,89 @@
               <div class="kv"><div class="k">图片大小</div><div id="plateDetailImageSize" class="v"></div></div>
               <div class="kv"><div class="k">串口发送时间</div><div id="plateDetailSerialSentAt" class="v"></div></div>
               <div class="kv"><div class="k">FTP 路径</div><div id="plateDetailFtpPath" class="v"></div></div>
+              <div class="kv"><div class="k">解析信息</div><div id="plateDetailParsedMeta" class="v"></div></div>
             </div>
           </div>
         </div>
       </div>
     </div>
 
+    <div id="deviceConfigModal" class="modal" aria-hidden="true">
+      <div class="modalBackdrop" data-close="1"></div>
+      <div class="modalPanel" role="dialog" aria-modal="true" aria-label="设备接入配置">
+        <div class="modalHeader">
+          <div id="deviceConfigModalTitle" class="modalTitle">新增</div>
+          <button id="deviceConfigModalCloseBtn" type="button" class="iconBtn" aria-label="关闭">×</button>
+        </div>
+        <div class="modalBody">
+          <div class="deviceConfigGrid">
+            <input id="portInput" type="hidden" value="80" />
+            <div class="deviceFormRow">
+              <label for="deviceProtocolSelect">接入协议</label>
+              <div class="deviceFormControl">
+                <select id="deviceProtocolSelect">
+                  <option value="">请选择</option>
+                  <option value="gb28181">国标GB28181（2016/2022）</option>
+                  <option value="ehome">国家电网B接口</option>
+                  <option value="jt1078-terminal">交通部JT1078终端设备</option>
+                  <option value="jt1078-platform">交通部JT1078下级平台</option>
+                  <option value="onvif">ONVIF 2.0</option>
+                  <option value="hikvision-isapi">海康ISAPI</option>
+                  <option value="hikvision-private">海康私有协议</option>
+                  <option value="dahua-http">大华HTTP</option>
+                  <option value="dahua-private">大华私有协议</option>
+                  <option value="grid-platform">网力平台接入（PVG6.x/PVG10.x）</option>
+                  <option value="custom-rtmp-rtsp">自定义设备（RTMP/RTSP）</option>
+                </select>
+              </div>
+            </div>
+            <div class="deviceFormRow">
+              <label for="deviceIdInput">设备ID</label>
+              <div class="deviceFormControl">
+                <input id="deviceIdInput" type="text" maxlength="20" placeholder="可选，最多20位" autocomplete="off" />
+                <span class="deviceFormCounter">20/20</span>
+              </div>
+            </div>
+            <div class="deviceFormRow">
+              <label for="hostInput">设备地址</label>
+              <div class="deviceFormControl">
+                <input id="hostInput" type="text" placeholder="例如：192.168.1.64:80" autocomplete="off" />
+              </div>
+            </div>
+            <div class="deviceFormRow">
+              <label for="userInput">用户名</label>
+              <div class="deviceFormControl">
+                <input id="userInput" type="text" autocomplete="off" />
+              </div>
+            </div>
+            <div class="deviceFormRow">
+              <label for="passInput">密码</label>
+              <div class="deviceFormControl">
+                <input id="passInput" type="password" autocomplete="off" />
+              </div>
+            </div>
+            <div class="deviceFormRow">
+              <label for="deviceNameInput">设备名</label>
+              <div class="deviceFormControl">
+                <input id="deviceNameInput" type="text" placeholder="海康ISAPI协议设备" autocomplete="off" />
+              </div>
+            </div>
+            <div class="deviceActionRow">
+              <button id="discoverBtn" type="button" class="secondaryBtn">搜索</button>
+              <button id="testIsapiBtn" type="button" class="secondaryBtn">测试连接</button>
+              <button id="connectBtn" type="button" class="primaryBtn">保存</button>
+              <button id="stopBtn" type="button" class="ghost">取消</button>
+            </div>
+            <div id="isapiDeviceStatus" class="deviceStatusText">日志</div>
+            <div id="isapiDeviceSummary" class="deviceSummaryText"></div>
+            <pre id="isapiDeviceRaw" class="log deviceRawLog"></pre>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <script src="/vendor/hls/hls.min.js"></script>
-    <script type="module" src="/app.js?v=58"></script>
+<script type="module" src="/app.js?v=67"></script>
   </body>
 </html>
 
