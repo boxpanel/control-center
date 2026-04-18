@@ -1239,17 +1239,23 @@ async function loadPlateHistoryToUi() {
   if (!plateListEl) return;
   let list = [];
   try {
+    console.log(`[调试] loadPlateHistoryToUi: 开始从API加载记录`);
     const r = await fetchJsonGet("/api/plates/latest?limit=2000");
     list = Array.isArray(r?.items) ? r.items : [];
-  } catch {
+    console.log(`[调试] loadPlateHistoryToUi: API返回 ${list.length} 条记录`);
+  } catch (error) {
+    console.error(`[调试] loadPlateHistoryToUi: API调用失败`, error);
     ensureEmptyHint(plateListEl);
     return;
   }
   plateListEl.textContent = "";
+  console.log(`[调试] loadPlateHistoryToUi: 开始添加到plateById, 当前大小=${plateById.size}`);
   for (const rec of list.reverse()) {
     if (!rec?.id) continue;
     plateById.set(String(rec.id), rec);
   }
+  console.log(`[调试] loadPlateHistoryToUi: 添加后plateById大小=${plateById.size}`);
+  
   for (const rec of list) renderPlateCard(rec, { prepend: false, skipFilterApply: true });
   ensureEmptyHint(plateListEl);
   for (const rec of list) {
@@ -1367,6 +1373,8 @@ function compareRecords(a, b, key, dir) {
 
 function updatePlateDashboard() {
   const all = getAllPlateRecords();
+  console.log(`[调试] updatePlateDashboard: plateById大小=${plateById.size}, all长度=${all.length}`);
+  
   const filtered = filterPlateRecords(all, lastPlateQueryState);
   const nowMs = Date.now();
   const startOfToday = new Date();
@@ -1390,6 +1398,7 @@ function updatePlateDashboard() {
     if (!latest || ts > getRecordTs(latest)) latest = rec;
   }
 
+  console.log(`[调试] 即将设置总记录数: ${all.length}`);
   if (els.dashTotal) els.dashTotal.textContent = String(all.length);
   if (els.dashToday) els.dashToday.textContent = String(todayCount);
   if (els.dashLastHour) els.dashLastHour.textContent = String(lastHourCount);
