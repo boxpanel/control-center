@@ -104,6 +104,9 @@ const stmtPlateGetBySourceEventKey = plateDb.prepare(
 const stmtPlateListLatest = plateDb.prepare(
   `SELECT id, plate, receivedAt, eventAt, imagePath, ftpRemotePath, serialSentAt, parsedMetaJson FROM plate_records ORDER BY receivedAt DESC LIMIT ?`
 );
+const stmtPlateCount = plateDb.prepare(
+  `SELECT COUNT(*) as total FROM plate_records`
+);
 const stmtPlateSearch = plateDb.prepare(
   `SELECT id, plate, receivedAt, eventAt, imagePath, ftpRemotePath, serialSentAt, parsedMetaJson FROM plate_records WHERE (plate LIKE ? OR ? IS NULL) AND (DATE(receivedAt) = ? OR ? IS NULL) ORDER BY receivedAt DESC LIMIT 5000`
 );
@@ -3456,6 +3459,18 @@ app.post("/api/serial/send", async (req, res, next) => {
     res.json({ ok: true, backend: nextStatus });
   } catch (err) {
     next(err);
+  }
+});
+
+app.get("/api/plates/count", (req, res) => {
+  try {
+    const result = stmtPlateCount.get();
+    const total = Number(result?.total || 0);
+    console.log(`[服务器调试] /api/plates/count: 总记录数=${total}`);
+    res.json({ ok: true, total });
+  } catch (error) {
+    console.error(`[服务器调试] /api/plates/count 错误:`, error);
+    res.status(500).json({ ok: false, error: "获取记录数失败" });
   }
 });
 

@@ -965,7 +965,7 @@ async function applyPlateFilters({ plateText, date } = {}) {
     
     ensureEmptyHint(plateListEl);
     renderPlateTable();
-    updatePlateDashboard();
+    updatePlateDashboard().catch(err => console.error("更新仪表板失败:", err));
     updatePlateBulkUi();
     
   } catch (error) {
@@ -1137,7 +1137,7 @@ async function updateRecordSerialSent(id, sentAt) {
   } catch {}
   updatePlateCardMeta(key);
   renderPlateTable();
-  updatePlateDashboard();
+  updatePlateDashboard().catch(err => console.error("更新仪表板失败:", err));
 }
 
 function setModalOpen(open) {
@@ -1371,9 +1371,20 @@ function compareRecords(a, b, key, dir) {
   return (av - bv) * direction;
 }
 
-function updatePlateDashboard() {
-  const all = getAllPlateRecords();
+async function updatePlateDashboard() {
+  // 获取总记录数（从服务器API）
+  let totalCount = 0;
+  try {
+    const response = await fetchJsonGet("/api/plates/count");
+    totalCount = Number(response?.total || 0);
+  } catch (error) {
+    console.warn("获取总记录数失败，使用本地数据:", error);
+    // 如果API失败，使用本地数据作为备选
+    const all = getAllPlateRecords();
+    totalCount = all.length;
+  }
   
+  const all = getAllPlateRecords();
   const filtered = filterPlateRecords(all, lastPlateQueryState);
   const nowMs = Date.now();
   const startOfToday = new Date();
@@ -1396,7 +1407,7 @@ function updatePlateDashboard() {
     if (ts >= lastHourStart) lastHourCount += 1;
     if (!latest || ts > getRecordTs(latest)) latest = rec;
   }
-  if (els.dashTotal) els.dashTotal.textContent = String(all.length);
+  if (els.dashTotal) els.dashTotal.textContent = String(totalCount);
   if (els.dashToday) els.dashToday.textContent = String(todayCount);
   if (els.dashLastHour) els.dashLastHour.textContent = String(lastHourCount);
   if (els.dashUniqueToday) els.dashUniqueToday.textContent = String(uniqueToday.size);
@@ -1460,7 +1471,7 @@ function scheduleDashboardFullUpdate() {
   
   // 延迟1秒后更新完整统计数据
   dashboardUpdateTimer = setTimeout(() => {
-    updatePlateDashboard();
+    updatePlateDashboard().catch(err => console.error("更新仪表板失败:", err));
     dashboardUpdateTimer = null;
   }, 1000);
 }
@@ -1608,7 +1619,7 @@ function renderPlateTable() {
 
 
   updatePlateSortHeaderUi();
-  updatePlateDashboard();
+  updatePlateDashboard().catch(err => console.error("更新仪表板失败:", err));
   updatePlateBulkUi();
 }
 
@@ -1680,8 +1691,10 @@ function initPlateTableUi() {
 }
 
 function initPlateDashboardUi() {
-  updatePlateDashboard();
-  setInterval(() => updatePlateDashboard(), 5000);
+  updatePlateDashboard().catch(err => console.error("更新仪表板失败:", err));
+  setInterval(() => {
+    updatePlateDashboard().catch(err => console.error("定时更新仪表板失败:", err));
+  }, 5000);
 }
 
 function initPlateModule() {
@@ -1735,7 +1748,7 @@ function initPlateModule() {
         if (plateListEl) ensureEmptyHint(plateListEl);
         
         // 删除后直接更新UI，不重新加载数据
-        updatePlateDashboard();
+        updatePlateDashboard().catch(err => console.error("删除后更新仪表板失败:", err));
         updatePlatePageInfo();
         logLine(`已删除 ${ids.length} 条记录`);
       } catch {
