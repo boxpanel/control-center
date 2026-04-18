@@ -378,6 +378,9 @@ async function requireAuth(req, res, next) {
   if (urlPath === "/login.html" || urlPath === "/login.js") return next();
   if (urlPath === "/style.css" || urlPath.startsWith("/vendor/")) return next();
   if (urlPath.startsWith("/api/auth/")) return next();
+  
+  // 允许公开访问图片API，因为图片需要在卡片和详细页面中显示
+  if (urlPath.startsWith("/api/plates/image/")) return next();
 
   const cookies = parseCookies(req.headers.cookie);
   const token = cookies.cc_token || "";
