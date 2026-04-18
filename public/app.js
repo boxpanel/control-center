@@ -901,16 +901,41 @@ function applyPlateFilters({ plateText, date } = {}) {
   const dateVal = String(date || "").trim();
   const plateListEl = document.getElementById("plateList");
   if (!plateListEl) return;
-  const cards = Array.from(plateListEl.querySelectorAll(".plate-card"));
-  for (const card of cards) {
+  
+  const allCards = Array.from(plateListEl.querySelectorAll(".plate-card"));
+  const visibleCards = [];
+  
+  for (const card of allCards) {
     const plate = String(card.dataset.plate || "").toLowerCase();
     const ts = Number(card.dataset.ts || 0) || 0;
     const day = toLocalIsoDate(ts);
     const matchPlate = !q || plate.includes(q);
     const matchDate = !dateVal || day === dateVal;
     const visible = matchPlate && matchDate;
+    
+    if (visible) {
+      visibleCards.push(card);
+    }
     card.classList.toggle("hidden", !visible);
   }
+  
+  if (plateUiState.view === "cards") {
+    const pageSize = Math.max(1, Math.min(200, Number(plateTableState.pageSize) || 50));
+    const totalPages = Math.max(1, Math.ceil(visibleCards.length / pageSize));
+    plateTableState.page = Math.max(1, Math.min(totalPages, Number(plateTableState.page) || 1));
+    
+    const startIdx = (plateTableState.page - 1) * pageSize;
+    const endIdx = startIdx + pageSize;
+    
+    for (let i = 0; i < visibleCards.length; i++) {
+      const card = visibleCards[i];
+      const inCurrentPage = i >= startIdx && i < endIdx;
+      card.classList.toggle("hidden", !inCurrentPage);
+    }
+    
+    updatePlatePageInfo();
+  }
+  
   ensureEmptyHint(plateListEl);
   renderPlateTable();
   updatePlateDashboard();
@@ -1194,6 +1219,7 @@ async function loadPlateHistoryToUi() {
     if (rec.imageDataUrl && (!rec.imageWidth || !rec.imageHeight)) enrichRecordImageMeta(id, rec.imageDataUrl);
   }
   applyPlateFiltersFromUi();
+  updatePlatePageInfo();
 }
 
 function randomFrom(arr) {
@@ -1268,6 +1294,7 @@ function setPlateView(view) {
     els.plateViewTableBtn.setAttribute("aria-selected", v === "table" ? "true" : "false");
   }
   renderPlateTable();
+  applyPlateFiltersFromUi();
   updatePlateBulkUi();
 }
 
@@ -1340,6 +1367,31 @@ function updatePlateTableSummary({ total, filteredCount }) {
   els.plateTableSummary.textContent = `共 ${total} 条，筛选 ${filteredCount} 条，已选 ${selected} 条`;
 }
 
+function updatePlatePageInfo() {
+  if (!els.platePageInfo) return;
+  
+  const plateListEl = document.getElementById("plateList");
+  if (!plateListEl) return;
+  
+  const allCards = Array.from(plateListEl.querySelectorAll(".plate-card"));
+  const visibleCards = allCards.filter(card => {
+    const plate = String(card.dataset.plate || "").toLowerCase();
+    const ts = Number(card.dataset.ts || 0) || 0;
+    const day = toLocalIsoDate(ts);
+    const q = String(lastPlateQueryState.plateText || "").trim().toLowerCase();
+    const dateVal = String(lastPlateQueryState.date || "").trim();
+    const matchPlate = !q || plate.includes(q);
+    const matchDate = !dateVal || day === dateVal;
+    return matchPlate && matchDate;
+  });
+  
+  const pageSize = Math.max(1, Math.min(200, Number(plateTableState.pageSize) || 50));
+  const totalPages = Math.max(1, Math.ceil(visibleCards.length / pageSize));
+  const currentPage = Math.max(1, Math.min(totalPages, Number(plateTableState.page) || 1));
+  
+  els.platePageInfo.textContent = `${currentPage} / ${totalPages}`;
+}
+
 function updatePlateSortHeaderUi() {
   const wrap = els.plateTableWrap;
   if (!wrap) return;
@@ -1374,6 +1426,7 @@ function renderPlateTable() {
   plateTableVisibleIds = pageItems.map((r) => String(r.id || "")).filter(Boolean);
 
   els.plateTableBody.textContent = "";
+  updatePlatePageInfo();
   for (const rec of pageItems) {
     const id = String(rec?.id || "");
     if (!id) continue;
@@ -1438,19 +1491,31 @@ function initPlateTableUi() {
     els.platePageSize.addEventListener("change", () => {
       plateTableState.pageSize = Number(els.platePageSize.value || 50) || 50;
       plateTableState.page = 1;
-      renderPlateTable();
+      if (plateUiState.view === "table") {
+        renderPlateTable();
+      } else {
+        applyPlateFiltersFromUi();
+      }
     });
   }
   if (els.platePrevPageBtn) {
     els.platePrevPageBtn.addEventListener("click", () => {
       plateTableState.page = Math.max(1, plateTableState.page - 1);
-      renderPlateTable();
+      if (plateUiState.view === "table") {
+        renderPlateTable();
+      } else {
+        applyPlateFiltersFromUi();
+      }
     });
   }
   if (els.plateNextPageBtn) {
     els.plateNextPageBtn.addEventListener("click", () => {
       plateTableState.page = plateTableState.page + 1;
-      renderPlateTable();
+      if (plateUiState.view === "table") {
+        renderPlateTable();
+      } else {
+        applyPlateFiltersFromUi();
+      }
     });
   }
   if (els.plateTableWrap) {
