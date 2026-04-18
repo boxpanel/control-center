@@ -108,7 +108,7 @@ const stmtPlateCount = plateDb.prepare(
   `SELECT COUNT(*) as total FROM plate_records`
 );
 const stmtPlateSearch = plateDb.prepare(
-  `SELECT id, plate, receivedAt, eventAt, imagePath, ftpRemotePath, serialSentAt, parsedMetaJson FROM plate_records WHERE (plate LIKE ? OR ? IS NULL) AND (DATE(receivedAt) = ? OR ? IS NULL) ORDER BY receivedAt DESC LIMIT 5000`
+  `SELECT id, plate, receivedAt, eventAt, imagePath, ftpRemotePath, serialSentAt, parsedMetaJson FROM plate_records WHERE (plate LIKE ? OR ? IS NULL) AND (DATE(receivedAt) = ? OR ? IS NULL) ORDER BY receivedAt DESC LIMIT 10000`
 );
 const stmtPlateUpdateSerialSent = plateDb.prepare(`UPDATE plate_records SET serialSentAt = ? WHERE id = ?`);
 
@@ -3476,7 +3476,7 @@ app.get("/api/plates/count", (req, res) => {
 
 app.get("/api/plates/latest", (req, res) => {
   const limit = toPositiveInt(req.query?.limit, 2000);
-  const max = Math.max(1, Math.min(5000, limit));
+  const max = Math.max(1, Math.min(10000, limit)); // 增加最大限制到10000条
   console.log(`[服务器调试] /api/plates/latest: limit=${limit}, max=${max}`);
   const rows = stmtPlateListLatest.all(max);
   console.log(`[服务器调试] 数据库查询返回 ${rows.length} 条记录`);

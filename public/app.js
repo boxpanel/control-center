@@ -921,8 +921,8 @@ async function applyPlateFilters({ plateText, date } = {}) {
       const totalCount = Number(countResponse?.total || 0);
       console.log(`[调试] applyPlateFilters: 数据库总记录数=${totalCount}`);
       
-      // 加载所有记录（最多5000条，避免性能问题）
-      const limit = Math.min(totalCount, 5000);
+      // 加载所有记录（最多10000条，避免性能问题）
+      const limit = Math.min(totalCount, 10000);
       const r = await fetchJsonGet(`/api/plates/latest?limit=${limit}`);
       items = Array.isArray(r?.items) ? r.items : [];
       console.log(`[调试] applyPlateFilters: 加载了 ${items.length} 条记录`);
@@ -1254,8 +1254,8 @@ async function loadPlateHistoryToUi() {
     const totalCount = Number(countResponse?.total || 0);
     console.log(`[调试] loadPlateHistoryToUi: 数据库总记录数=${totalCount}`);
     
-    // 加载所有记录（最多5000条，避免性能问题）
-    const limit = Math.min(totalCount, 5000);
+    // 加载所有记录（最多10000条，避免性能问题）
+    const limit = Math.min(totalCount, 10000);
     const r = await fetchJsonGet(`/api/plates/latest?limit=${limit}`);
     list = Array.isArray(r?.items) ? r.items : [];
     console.log(`[调试] loadPlateHistoryToUi: API返回 ${list.length} 条记录`);
