@@ -3462,7 +3462,9 @@ app.post("/api/serial/send", async (req, res, next) => {
 app.get("/api/plates/latest", (req, res) => {
   const limit = toPositiveInt(req.query?.limit, 2000);
   const max = Math.max(1, Math.min(5000, limit));
+  console.log(`[服务器调试] /api/plates/latest: limit=${limit}, max=${max}`);
   const rows = stmtPlateListLatest.all(max);
+  console.log(`[服务器调试] 数据库查询返回 ${rows.length} 条记录`);
   const items = rows.map(rowToPlateDto);
   res.json({ ok: true, items });
 });
