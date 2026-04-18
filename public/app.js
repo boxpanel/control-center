@@ -3517,7 +3517,7 @@ if (els.video) {
 // 批量记录处理队列
 const recordBatchQueue = [];
 let batchProcessingTimer = null;
-const BATCH_PROCESS_DELAY = 50; // 50毫秒批处理延迟
+const BATCH_PROCESS_DELAY = 30; // 30毫秒批处理延迟
 const MAX_BATCH_SIZE = 10; // 最大批处理大小
 
 // 批量处理记录
