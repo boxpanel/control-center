@@ -741,7 +741,7 @@ canvas {
 
 .modalPanel {
   position: relative;
-  width: min(1000px, calc(100vw - 32px));
+  width: min(1050px, calc(100vw - 32px));
   max-height: calc(100vh - 32px);
   background: linear-gradient(180deg, rgba(248, 250, 252, 0.96) 0%, rgba(255, 255, 255, 0.99) 18%, #ffffff 100%);
   border-radius: 20px;
@@ -927,12 +927,12 @@ canvas {
 
 .plateDetailGrid {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(260px, 320px);
+  grid-template-columns: 690px minmax(260px, 320px);
   gap: 14px;
   align-items: start;
 }
 
-.plateDetailBox {
+.plateDetailImageWrap {
   border-radius: 10px;
   background: #000;
   overflow: hidden;
