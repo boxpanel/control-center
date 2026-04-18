@@ -1,4 +1,4 @@
-﻿const els = {
+const els = {
   discoverBtn: document.getElementById("discoverBtn"),
   connectBtn: document.getElementById("connectBtn"),
   stopBtn: document.getElementById("stopBtn"),
@@ -682,7 +682,12 @@ let plateDbPromise = null;
 const plateById = new Map();
 const plateSelectedIds = new Set();
 const plateUiState = { view: "cards" };
-const plateTableState = { page: 1, pageSize: 20, sortKey: "time", sortDir: "desc" };
+const plateTableState = {
+  page: 1,
+  pageSize: 50,
+  sortKey: "time",
+  sortDir: "desc"
+};
 let plateTableVisibleIds = [];
 let lastPlateQueryState = { plateText: "", date: "" };
 
@@ -1359,7 +1364,7 @@ function renderPlateTable() {
 
   filtered.sort((a, b) => compareRecords(a, b, plateTableState.sortKey, plateTableState.sortDir));
 
-  const pageSize = Math.max(1, Math.min(200, Number(plateTableState.pageSize) || 20));
+  const pageSize = Math.max(1, Math.min(200, Number(plateTableState.pageSize) || 50));
   plateTableState.pageSize = pageSize;
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   plateTableState.page = Math.max(1, Math.min(totalPages, Number(plateTableState.page) || 1));
@@ -1431,7 +1436,7 @@ function initPlateTableUi() {
   if (els.platePageSize) {
     els.platePageSize.value = String(plateTableState.pageSize);
     els.platePageSize.addEventListener("change", () => {
-      plateTableState.pageSize = Number(els.platePageSize.value || 20) || 20;
+      plateTableState.pageSize = Number(els.platePageSize.value || 50) || 50;
       plateTableState.page = 1;
       renderPlateTable();
     });

@@ -937,8 +937,8 @@ canvas {
   border-radius: 10px;
   background: #000;
   overflow: auto;
-  max-height: 42vh;
-  max-width: min(100%, 420px);
+  max-height: 58vh;
+  max-width: min(100%, 760px);
   width: 100%;
   display: flex;
   align-items: center;
@@ -949,11 +949,10 @@ canvas {
 
 .plateDetailImg {
   display: block;
-  width: auto;
-  height: auto;
-  max-width: min(100%, 396px);
-  max-height: 36vh;
+  width: 678px;
+  height: 427px;
   object-fit: contain;
+  background: #000;
 }
 
 .plateDetailInfo {
