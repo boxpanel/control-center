@@ -484,6 +484,17 @@ canvas {
   border-color: #1d4ed8;
 }
 
+#plateDownloadBtn {
+  background: #10b981;
+  border-color: #10b981;
+  color: #fff;
+}
+
+#plateDownloadBtn:hover:not(:disabled) {
+  background: #059669;
+  border-color: #059669;
+}
+
 #plateDeleteBtn {
   background: #ef4444;
   border-color: #ef4444;

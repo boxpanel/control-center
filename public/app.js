@@ -805,6 +805,7 @@ function ensureEmptyHint(plateListEl) {
 
 function updatePlateBulkUi() {
   if (els.plateDeleteBtn) els.plateDeleteBtn.disabled = plateSelectedIds.size === 0;
+  if (els.plateDownloadBtn) els.plateDownloadBtn.disabled = plateSelectedIds.size === 0;
   if (els.plateSelectAll) {
     let visibleIds = [];
     if (plateUiState.view === "table") {
@@ -1657,6 +1658,100 @@ function initPlateModule() {
         updatePlateBulkUi();
       }
     });
+  }
+  if (els.plateDownloadBtn) {
+    els.plateDownloadBtn.addEventListener("click", async () => {
+      const ids = Array.from(plateSelectedIds);
+      if (!ids.length) return;
+      if (els.plateDownloadBtn) els.plateDownloadBtn.disabled = true;
+      
+      try {
+        logLine(`开始下载 ${ids.length} 张图片...`);
+        
+        // 获取选中记录的图片信息
+        const recordsToDownload = [];
+        for (const id of ids) {
+          const record = plateById.get(id);
+          if (record && record.id) {
+            recordsToDownload.push({
+              id: record.id,
+              plate: record.plate || "未知车牌",
+              receivedAt: record.receivedAt || new Date().toISOString()
+            });
+          }
+        }
+        
+        if (recordsToDownload.length === 0) {
+          logLine("选中的记录没有图片可下载");
+          return;
+        }
+        
+        // 批量下载图片
+        let downloadedCount = 0;
+        for (const record of recordsToDownload) {
+          try {
+            await downloadPlateImage(record);
+            downloadedCount++;
+            logLine(`已下载: ${record.plate} (${downloadedCount}/${recordsToDownload.length})`);
+          } catch (error) {
+            console.error(`下载图片失败 ${record.plate}:`, error);
+            logLine(`下载失败: ${record.plate}`);
+          }
+        }
+        
+        logLine(`下载完成: ${downloadedCount}/${recordsToDownload.length} 张图片`);
+        
+      } catch (error) {
+        console.error("下载过程出错:", error);
+        logLine("下载过程出错");
+      } finally {
+        updatePlateBulkUi();
+      }
+    });
+  }
+}
+
+async function downloadPlateImage(record) {
+  if (!record || !record.id) {
+    throw new Error("无效的记录");
+  }
+  
+  try {
+    // 构建图片URL - 使用记录ID
+    const imageUrl = `/api/plates/image/${encodeURIComponent(record.id)}`;
+    
+    // 获取图片数据
+    const response = await fetch(imageUrl);
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+    
+    const blob = await response.blob();
+    
+    // 生成文件名：车牌_时间戳.jpg
+    const plate = record.plate || "未知车牌";
+    const date = record.receivedAt ? new Date(record.receivedAt) : new Date();
+    const timestamp = date.toISOString().replace(/[:.]/g, "-").slice(0, 19);
+    const filename = `${plate}_${timestamp}.jpg`;
+    
+    // 创建下载链接
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    a.style.display = "none";
+    document.body.appendChild(a);
+    a.click();
+    
+    // 清理
+    setTimeout(() => {
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+    }, 100);
+    
+  } catch (error) {
+    console.error("下载图片失败:", error);
+    throw error;
   }
 }
 
