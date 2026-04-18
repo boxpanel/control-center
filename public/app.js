@@ -3514,149 +3514,230 @@ if (els.video) {
   });
 }
 
-// 批量记录处理队列
-const recordBatchQueue = [];
-let batchProcessingTimer = null;
-const BATCH_PROCESS_DELAY = 30; // 30毫秒批处理延迟
-const MAX_BATCH_SIZE = 10; // 最大批处理大小
+// Web Worker多线程处理
+let recordWorker = null;
+let workerReady = false;
 
-// 批量处理记录
-async function processRecordBatch() {
-  if (recordBatchQueue.length === 0) {
-    batchProcessingTimer = null;
-    return;
+// 初始化Web Worker
+function initRecordWorker() {
+  if (typeof Worker === 'undefined') {
+    console.warn('浏览器不支持Web Worker，将使用单线程模式');
+    return false;
   }
   
-  // 获取一批记录进行处理
-  const batch = recordBatchQueue.splice(0, Math.min(MAX_BATCH_SIZE, recordBatchQueue.length));
-  
-  if (batch.length === 0) {
-    batchProcessingTimer = null;
-    return;
-  }
-  
-  // 处理批量记录
-  const processedRecords = [];
-  
-  for (const data of batch) {
-    const plate = String(data?.plate || "").trim();
-    if (!plate) continue;
+  try {
+    recordWorker = new Worker('/record-worker.js');
     
-    const id = String(data?.id || "") || `${Date.now()}-${Math.random().toString(16).slice(2)}`;
-    const receivedAt = Number(data?.receivedAt || Date.now()) || Date.now();
-    const eventAt = Number(data?.eventAt || 0) || (() => {
-      if (data?.timestamp) {
-        const t = new Date(data.timestamp).getTime();
-        if (Number.isFinite(t) && t > 0) return t;
+    recordWorker.onmessage = function(event) {
+      const { type, records, queueLength, message, timestamp } = event.data;
+      
+      switch (type) {
+        case 'worker-ready':
+          console.log('[Worker]', message);
+          workerReady = true;
+          break;
+          
+        case 'records-processed':
+          // 处理Worker返回的记录
+          if (records && records.length > 0) {
+            handleProcessedRecords(records);
+          }
+          
+          // 监控队列状态
+          if (queueLength > 10) {
+            console.log(`[Worker] 队列剩余: ${queueLength} 条记录`);
+          }
+          break;
+          
+        case 'queue-status':
+          console.log(`[Worker] 队列状态: ${queueLength} 条记录, 定时器: ${hasTimer ? '运行中' : '停止'}`);
+          break;
+          
+        case 'queue-cleared':
+          console.log('[Worker]', message);
+          break;
+          
+        case 'pong':
+          console.log(`[Worker] 响应时间: ${Date.now() - timestamp}ms`);
+          break;
       }
-      return 0;
-    })();
-    const imageDataUrl =
-      typeof data?.image === "string" && data.image
-        ? data.image
-        : typeof data?.imageUrl === "string" && data.imageUrl
-        ? data.imageUrl
-        : "";
-
-    const record = {
-      id,
-      plate,
-      receivedAt,
-      eventAt,
-      imageDataUrl,
-      serialSentAt: Number(data?.serialSentAt || 0) || 0,
-      ftpRemotePath: typeof data?.ftpRemotePath === "string" ? data.ftpRemotePath : "",
-      parsedMeta: data?.parsedMeta && typeof data.parsedMeta === "object" ? data.parsedMeta : null
     };
-
-    plateById.set(record.id, record);
-    renderPlateCard(record, { prepend: true, skipFilterApply: true });
-    if (record.imageDataUrl) enrichRecordImageMeta(record.id, record.imageDataUrl);
     
-    processedRecords.push(record);
-  }
-  
-  // 批量UI更新
-   if (processedRecords.length > 0) {
-     logLine(`[批量处理] 已添加 ${processedRecords.length} 条记录`);
-     
-     // 使用最后一条记录进行轻量级UI更新
-     const lastRecord = processedRecords[processedRecords.length - 1];
-     updatePlateDashboardLight(lastRecord);
-     updatePlatePageInfoLight();
-     
-     // 批量串口转发（如果需要）
-     if (serialState.forwardEnabled && !serialState.backendPort && processedRecords.length > 0) {
-       // 收集需要转发的车牌
-       const platesToForward = processedRecords
-         .filter(record => record.plate && record.plate.trim())
-         .map(record => record.plate.trim());
-       
-       if (platesToForward.length > 0) {
-         logSerialLine(`[串口发送] 准备批量转发 ${platesToForward.length} 个车牌`);
-         
-         // 批量转发
-         for (const plate of platesToForward) {
-           const ok = await serialEnqueueSend(plate + "\r\n");
-           if (ok) {
-             const sentAt = Date.now();
-             // 更新对应记录的串口发送时间
-             const record = processedRecords.find(r => r.plate.trim() === plate);
-             if (record) {
-               updateRecordSerialSent(record.id, sentAt);
-               markSerialTransfer(plate, sentAt);
-             }
-             logSerialLine(`[串口发送] 已转发车牌: ${plate}`);
-           } else {
-             logSerialLine(`[串口发送] 转发失败: ${plate}`);
-           }
-         }
-       }
-     }
-   }
-  
-  // 如果队列中还有记录，继续处理
-  if (recordBatchQueue.length > 0) {
-    batchProcessingTimer = setTimeout(processRecordBatch, BATCH_PROCESS_DELAY);
-  } else {
-    batchProcessingTimer = null;
+    recordWorker.onerror = function(error) {
+      console.error('[Worker] 错误:', error);
+      workerReady = false;
+    };
+    
+    return true;
+  } catch (error) {
+    console.error('初始化Web Worker失败:', error);
+    return false;
   }
 }
 
-// 添加记录到批处理队列
- function addRecordToBatch(data) {
-   recordBatchQueue.push(data);
-   
-   // 监控队列状态（调试用）
-   if (recordBatchQueue.length > 5) {
-     console.log(`批处理队列长度: ${recordBatchQueue.length}`);
-   }
-   
-   // 如果没有正在处理的定时器，启动一个
-   if (!batchProcessingTimer) {
-     batchProcessingTimer = setTimeout(processRecordBatch, BATCH_PROCESS_DELAY);
-   }
- }
- 
- // 监控批处理队列状态
- function monitorBatchQueue() {
-   if (recordBatchQueue.length > 0) {
-     console.log(`批处理队列监控: ${recordBatchQueue.length} 条记录等待处理`);
-   }
- }
- 
- // 启动队列监控（每5秒检查一次）
- setInterval(monitorBatchQueue, 5000);
+// 处理Worker返回的记录
+function handleProcessedRecords(records) {
+  if (!records || records.length === 0) return;
+  
+  console.log(`[主线程] 收到 ${records.length} 条处理完成的记录`);
+  
+  for (const record of records) {
+    plateById.set(record.id, record);
+    renderPlateCard(record, { prepend: true, skipFilterApply: true });
+    if (record.imageDataUrl) enrichRecordImageMeta(record.id, record.imageDataUrl);
+  }
+  
+  // 使用最后一条记录进行轻量级UI更新
+  const lastRecord = records[records.length - 1];
+  updatePlateDashboardLight(lastRecord);
+  updatePlatePageInfoLight();
+  
+  // 批量串口转发（如果需要）
+  if (serialState.forwardEnabled && !serialState.backendPort && records.length > 0) {
+    processSerialForwarding(records);
+  }
+}
+
+// 处理串口转发
+async function processSerialForwarding(records) {
+  // 收集需要转发的车牌
+  const platesToForward = records
+    .filter(record => record.plate && record.plate.trim())
+    .map(record => record.plate.trim());
+  
+  if (platesToForward.length > 0) {
+    logSerialLine(`[串口发送] 准备批量转发 ${platesToForward.length} 个车牌`);
+    
+    // 批量转发
+    for (const plate of platesToForward) {
+      const ok = await serialEnqueueSend(plate + "\r\n");
+      if (ok) {
+        const sentAt = Date.now();
+        // 更新对应记录的串口发送时间
+        const record = records.find(r => r.plate.trim() === plate);
+        if (record) {
+          updateRecordSerialSent(record.id, sentAt);
+          markSerialTransfer(plate, sentAt);
+        }
+        logSerialLine(`[串口发送] 已转发车牌: ${plate}`);
+      } else {
+        logSerialLine(`[串口发送] 转发失败: ${plate}`);
+      }
+    }
+  }
+}
+
+// 添加记录到Worker处理
+function addRecordToWorker(data) {
+  if (!workerReady || !recordWorker) {
+    console.warn('Worker未就绪，使用备用处理');
+    addRecordToBatchFallback(data);
+    return;
+  }
+  
+  recordWorker.postMessage({
+    type: 'add-record',
+    data: data
+  });
+}
+
+// Worker备用处理（当Worker不可用时）
+function addRecordToBatchFallback(data) {
+  const plate = String(data?.plate || "").trim();
+  if (!plate) return;
+  
+  const id = String(data?.id || "") || `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  const receivedAt = Number(data?.receivedAt || Date.now()) || Date.now();
+  const eventAt = Number(data?.eventAt || 0) || (() => {
+    if (data?.timestamp) {
+      const t = new Date(data.timestamp).getTime();
+      if (Number.isFinite(t) && t > 0) return t;
+    }
+    return 0;
+  })();
+  const imageDataUrl =
+    typeof data?.image === "string" && data.image
+      ? data.image
+      : typeof data?.imageUrl === "string" && data.imageUrl
+      ? data.imageUrl
+      : "";
+
+  const record = {
+    id,
+    plate,
+    receivedAt,
+    eventAt,
+    imageDataUrl,
+    serialSentAt: Number(data?.serialSentAt || 0) || 0,
+    ftpRemotePath: typeof data?.ftpRemotePath === "string" ? data.ftpRemotePath : "",
+    parsedMeta: data?.parsedMeta && typeof data.parsedMeta === "object" ? data.parsedMeta : null
+  };
+
+  plateById.set(record.id, record);
+  renderPlateCard(record, { prepend: true, skipFilterApply: true });
+  if (record.imageDataUrl) enrichRecordImageMeta(record.id, record.imageDataUrl);
+  
+  updatePlateDashboardLight(record);
+  updatePlatePageInfoLight();
+  
+  // 串口转发（如果需要）
+  if (serialState.forwardEnabled && !serialState.backendPort) {
+    handleSerialForwarding(record);
+  }
+}
+
+// 单条记录串口转发
+async function handleSerialForwarding(record) {
+  const plate = record.plate.trim();
+  if (!plate) return;
+  
+  logSerialLine(`[串口发送] 已接收车牌，准备转发: ${plate}`);
+  const ok = await serialEnqueueSend(plate + "\r\n");
+  if (ok) {
+    const sentAt = Date.now();
+    updateRecordSerialSent(record.id, sentAt);
+    markSerialTransfer(plate, sentAt);
+    logSerialLine(`[串口发送] 已转发车牌: ${plate}`);
+  } else {
+    logSerialLine(`[串口发送] 转发失败: ${plate}`);
+  }
+}
+
+// 监控Worker状态
+function monitorWorkerStatus() {
+  if (workerReady && recordWorker) {
+    recordWorker.postMessage({ type: 'get-queue-status' });
+  }
+}
+
+// 启动Worker监控（每10秒检查一次）
+setInterval(monitorWorkerStatus, 10000);
+
+
+
+
 
 function initEventStream() {
+  // 初始化Web Worker
+  const workerInitialized = initRecordWorker();
+  if (workerInitialized) {
+    console.log('[主线程] Web Worker多线程处理已启用');
+  } else {
+    console.log('[主线程] 使用单线程处理模式');
+  }
+  
   const evtSource = new EventSource("/api/events/stream");
   const handleLpr = async (data) => {
     const plate = String(data?.plate || "").trim();
     if (!plate) return;
     logLine(`[车牌识别] 收到车牌号：${plate}`);
     
-    // 将记录添加到批处理队列
-    addRecordToBatch(data);
+    // 将记录添加到Worker处理（多线程）或备用处理
+    if (workerInitialized) {
+      addRecordToWorker(data);
+    } else {
+      addRecordToBatchFallback(data);
+    }
   };
 
   evtSource.onmessage = (event) => {
