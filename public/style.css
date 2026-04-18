@@ -741,7 +741,7 @@ canvas {
 
 .modalPanel {
   position: relative;
-  width: min(900px, calc(100vw - 32px));
+  width: min(1000px, calc(100vw - 32px));
   max-height: calc(100vh - 32px);
   background: linear-gradient(180deg, rgba(248, 250, 252, 0.96) 0%, rgba(255, 255, 255, 0.99) 18%, #ffffff 100%);
   border-radius: 20px;
@@ -932,17 +932,16 @@ canvas {
   align-items: start;
 }
 
-.plateDetailImageWrap {
-  border: 1px solid #e5e7eb;
+.plateDetailBox {
   border-radius: 10px;
   background: #000;
-  overflow: auto;
-  width: 678px;
-  height: 427px;
+  overflow: hidden;
+  width: 690px;
+  height: 440px;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 12px;
+  padding: 0;
   box-sizing: border-box;
 }
 
