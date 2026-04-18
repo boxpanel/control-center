@@ -136,6 +136,7 @@ function rowToPlateDto(row) {
     plate: String(row.plate || ""),
     receivedAt: Number(row.receivedAt || 0) || 0,
     eventAt: Number(row.eventAt || 0) || 0,
+    imagePath, // 添加原始图片路径
     imageDataUrl: imagePath ? `/api/plates/image/${encodeURIComponent(id)}` : "",
     ftpRemotePath,
     serialSentAt: Number(row.serialSentAt || 0) || 0,

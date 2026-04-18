@@ -1676,7 +1676,8 @@ function initPlateModule() {
             recordsToDownload.push({
               id: record.id,
               plate: record.plate || "未知车牌",
-              receivedAt: record.receivedAt || new Date().toISOString()
+              receivedAt: record.receivedAt || new Date().toISOString(),
+              imagePath: record.imagePath || ""
             });
           }
         }
@@ -1728,11 +1729,27 @@ async function downloadPlateImage(record) {
     
     const blob = await response.blob();
     
-    // 生成文件名：车牌_时间戳.jpg
-    const plate = record.plate || "未知车牌";
-    const date = record.receivedAt ? new Date(record.receivedAt) : new Date();
-    const timestamp = date.toISOString().replace(/[:.]/g, "-").slice(0, 19);
-    const filename = `${plate}_${timestamp}.jpg`;
+    // 从imagePath中提取原始文件名
+    let filename = "image.jpg"; // 默认文件名
+    
+    if (record.imagePath) {
+      // 从路径中提取文件名（处理Windows和Unix路径）
+      const pathParts = record.imagePath.split(/[\\/]/);
+      if (pathParts.length > 0) {
+        filename = pathParts[pathParts.length - 1];
+      }
+      
+      // 确保文件名有扩展名
+      if (!filename.includes('.')) {
+        filename += '.jpg';
+      }
+    } else {
+      // 如果没有imagePath，使用车牌和时间戳作为文件名
+      const plate = record.plate || "未知车牌";
+      const date = record.receivedAt ? new Date(record.receivedAt) : new Date();
+      const timestamp = date.toISOString().replace(/[:.]/g, "-").slice(0, 19);
+      filename = `${plate}_${timestamp}.jpg`;
+    }
     
     // 创建下载链接
     const url = window.URL.createObjectURL(blob);
