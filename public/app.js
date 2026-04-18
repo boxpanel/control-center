@@ -1689,20 +1689,42 @@ function initPlateModule() {
           return;
         }
         
-        // 批量下载图片
-        let downloadedCount = 0;
-        for (const record of recordsToDownload) {
-          try {
-            await downloadPlateImage(record);
-            downloadedCount++;
-            logLine(`已下载: ${record.plate} (${downloadedCount}/${recordsToDownload.length})`);
-          } catch (error) {
-            console.error(`下载图片失败 ${record.plate}:`, error);
-            logLine(`下载失败: ${record.plate}`);
-          }
+        // 批量下载图片 - 使用限制并行的方式提高速度
+        logLine(`开始下载 ${recordsToDownload.length} 张图片...`);
+        
+        // 限制并行下载数量，避免浏览器过载
+        const MAX_CONCURRENT_DOWNLOADS = 3;
+        let successfulDownloads = 0;
+        let failedDownloads = 0;
+        let completedDownloads = 0;
+        
+        // 分批下载函数
+        const downloadBatch = async (batch) => {
+          const batchPromises = batch.map(record => 
+            downloadPlateImage(record).then(() => {
+              completedDownloads++;
+              logLine(`已下载: ${record.plate} (${completedDownloads}/${recordsToDownload.length})`);
+              successfulDownloads++;
+              return { success: true, plate: record.plate };
+            }).catch(error => {
+              completedDownloads++;
+              console.error(`下载图片失败 ${record.plate}:`, error);
+              logLine(`下载失败: ${record.plate} (${completedDownloads}/${recordsToDownload.length})`);
+              failedDownloads++;
+              return { success: false, plate: record.plate, error };
+            })
+          );
+          
+          await Promise.allSettled(batchPromises);
+        };
+        
+        // 分批下载
+        for (let i = 0; i < recordsToDownload.length; i += MAX_CONCURRENT_DOWNLOADS) {
+          const batch = recordsToDownload.slice(i, i + MAX_CONCURRENT_DOWNLOADS);
+          await downloadBatch(batch);
         }
         
-        logLine(`下载完成: ${downloadedCount}/${recordsToDownload.length} 张图片`);
+        logLine(`下载完成: ${successfulDownloads} 成功, ${failedDownloads} 失败`);
         
       } catch (error) {
         console.error("下载过程出错:", error);
@@ -1723,10 +1745,27 @@ async function downloadPlateImage(record) {
     // 构建图片URL - 使用记录ID
     const imageUrl = `/api/plates/image/${encodeURIComponent(record.id)}`;
     
-    // 获取图片数据
-    const response = await fetch(imageUrl);
+    // 获取图片数据 - 使用更高效的请求方式
+    const response = await fetch(imageUrl, {
+      // 使用缓存策略，避免重复请求
+      cache: 'no-cache',
+      // 设置优先级
+      priority: 'high',
+      // 添加超时处理
+      signal: AbortSignal.timeout(30000) // 30秒超时
+    });
+    
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+    
+    // 检查内容类型和大小
+    const contentType = response.headers.get('content-type') || '';
+    const contentLength = response.headers.get('content-length');
+    
+    if (contentLength) {
+      const sizeMB = (parseInt(contentLength) / (1024 * 1024)).toFixed(2);
+      console.log(`下载图片 ${record.plate}: ${sizeMB} MB`);
     }
     
     const blob = await response.blob();

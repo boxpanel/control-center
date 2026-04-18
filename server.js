@@ -3527,8 +3527,15 @@ app.get("/api/plates/image/:id", (req, res) => {
     headers: { 
       "Cache-Control": "no-store",
       // 设置Content-Disposition头，使用原始文件名
-      "Content-Disposition": `attachment; filename="${encodeURIComponent(originalFilename)}"`
-    } 
+      "Content-Disposition": `attachment; filename="${encodeURIComponent(originalFilename)}"`,
+      // 添加性能优化头
+      "Accept-Ranges": "bytes",
+      "Content-Type": "image/jpeg",
+      // 启用压缩（如果支持）
+      "Vary": "Accept-Encoding"
+    },
+    // 启用缓存（对于大文件有帮助）
+    cacheControl: false
   }, (err) => {
     if (err) {
       try {
