@@ -1243,7 +1243,7 @@ function formatParsedMetaText(meta) {
     if (tokens.length >= 3) parts.push(`未知字段：${tokens[2]}`); // 070
     if (tokens.length >= 4) parts.push(`未知字段：${tokens[3]}`); // 正常
     if (tokens.length >= 5) parts.push(`未知字段：${tokens[4]}`); // 无
-    if (tokens.length >= 6) parts.push(`未知字段：${tokens[5]}`); // 其它色
+    if (tokens.length >= 6) parts.push(`车辆颜色：${tokens[5]}`); // 其它色
     if (tokens.length >= 7) parts.push(`未知字段：${tokens[6]}`); // 12357
     if (tokens.length >= 8) parts.push(`未知字段：${tokens[7]}`); // 01
   }
