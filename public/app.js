@@ -1238,7 +1238,7 @@ function formatParsedMetaText(meta) {
   if (Array.isArray(meta.unmatchedTokens) && meta.unmatchedTokens.length) {
     const tokens = meta.unmatchedTokens;
     // 根据示例格式分配字段
-    if (tokens.length >= 1) parts.push(`未知字段：${tokens[0]}`); // 0008
+    if (tokens.length >= 1) parts.push(`设备编号：${tokens[0]}`); // 0008
     if (tokens.length >= 2) parts.push(`车辆速度：${tokens[1]}`); // 023 (如果speed字段不存在)
     if (tokens.length >= 3) parts.push(`未知字段：${tokens[2]}`); // 070
     if (tokens.length >= 4) parts.push(`未知字段：${tokens[3]}`); // 正常
