@@ -1230,7 +1230,7 @@ function formatParsedMetaText(meta) {
   }
   
   // 已知字段
-  if (meta.deviceIp) parts.push(`设备IP: ${meta.deviceIp}`);
+  if (meta.deviceIp) parts.push(`设备IP：${meta.deviceIp}`);
   if (meta.vehicleType) parts.push(`车辆类型：${meta.vehicleType}`);
   if (meta.speed) parts.push(`车辆速度：${meta.speed}`);
   
