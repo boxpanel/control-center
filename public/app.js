@@ -64,6 +64,7 @@ const els = {
   serialSaveHint: document.getElementById("serialSaveHint"),
   serialForwardEnabled: document.getElementById("serialForwardEnabled"),
   plateSelectAll: document.getElementById("plateSelectAll"),
+  plateSelectAllBtn: document.getElementById("plateSelectAllBtn"),
   plateSearchInput: document.getElementById("plateSearchInput"),
   plateDateInput: document.getElementById("plateDateInput"),
   plateQueryBtn: document.getElementById("plateQueryBtn"),
@@ -1825,6 +1826,27 @@ function initPlateModule() {
         if (!id) continue;
         setPlateSelectedById(id, on);
       }
+    });
+  }
+  if (els.plateSelectAllBtn) {
+    els.plateSelectAllBtn.addEventListener("click", () => {
+      // 获取当前页所有可见的记录ID
+      let visibleIds = [];
+      if (plateUiState.view === "table") {
+        visibleIds = plateTableVisibleIds.slice();
+      } else {
+        const cards = Array.from(document.querySelectorAll(".plate-card:not(.hidden)"));
+        visibleIds = cards.map((el) => String(el.dataset.recordId || "")).filter(Boolean);
+      }
+      
+      if (!visibleIds.length) return;
+      
+      // 全选当前页所有记录
+      for (const id of visibleIds) {
+        setPlateSelectedById(id, true);
+      }
+      
+      logLine(`已全选当前页 ${visibleIds.length} 条记录`);
     });
   }
   if (els.plateDeleteBtn) {
