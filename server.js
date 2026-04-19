@@ -2819,6 +2819,7 @@ function normalizeIpv4PrefixValue(value) {
 
 function normalizeSystemConfig(raw) {
   const name = String(raw?.name || "").trim() || os.hostname();
+  if (!name || name.trim() === "") return { name: os.hostname(), clientMode: false, ipMode: "auto", preferredIp: "", manualIp: "", manualPrefix: "", manualGateway: "" };
   const clientMode = Boolean(raw?.clientMode);
   const ipMode = String(raw?.ipMode || "auto").trim().toLowerCase() === "manual" ? "manual" : "auto";
   const preferredIpRaw = String(raw?.preferredIp || "").trim();
@@ -2836,7 +2837,11 @@ function normalizeSystemPatch(raw) {
   if (!raw || typeof raw !== "object") return null;
   const out = {};
   if (Object.prototype.hasOwnProperty.call(raw, "name")) {
-    out.name = String(raw.name || "").trim().slice(0, 80);
+    const name = String(raw.name || "").trim().slice(0, 80);
+    // 确保名称不为空或无效值
+    if (name && name.trim() !== "" && name !== "---") {
+      out.name = name;
+    }
   }
   if (Object.prototype.hasOwnProperty.call(raw, "clientMode")) {
     out.clientMode = Boolean(raw.clientMode);
@@ -2970,6 +2975,10 @@ async function startProbeResponder({ port, reporter }) {
       displayName = system.name || displayName;
       systemCfg = system;
     } catch {}
+    // 确保displayName不为空或无效值
+    if (!displayName || displayName.trim() === "" || displayName === "---") {
+      displayName = os.hostname();
+    }
     const match = {
       t: "match",
       clientId: fp,
