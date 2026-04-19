@@ -471,6 +471,8 @@ async function initSystemUi() {
   const manualGateway = String(system?.manualGateway || "");
   const manualNetmask = formatNetmaskDisplay(manualPrefix, "");
   els.systemNameInput.value = name;
+  els.systemNameInput.readOnly = true;
+  els.systemNameInput.title = "操作系统主机名（自动获取，不可修改）";
   if (els.systemClientMode instanceof HTMLInputElement) els.systemClientMode.checked = clientMode;
   els.systemIpMode.value = ipMode;
 

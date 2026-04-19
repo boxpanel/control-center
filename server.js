@@ -2818,7 +2818,7 @@ function normalizeIpv4PrefixValue(value) {
 }
 
 function normalizeSystemConfig(raw) {
-  const name = String(raw?.name || "").trim();
+  const name = os.hostname(); // 始终使用操作系统主机名
   const clientMode = Boolean(raw?.clientMode);
   const ipMode = String(raw?.ipMode || "auto").trim().toLowerCase() === "manual" ? "manual" : "auto";
   const preferredIpRaw = String(raw?.preferredIp || "").trim();
@@ -2835,9 +2835,7 @@ function normalizeSystemConfig(raw) {
 function normalizeSystemPatch(raw) {
   if (!raw || typeof raw !== "object") return null;
   const out = {};
-  if (Object.prototype.hasOwnProperty.call(raw, "name")) {
-    out.name = String(raw.name || "").trim().slice(0, 80);
-  }
+  // name字段已移除，始终使用操作系统主机名
   if (Object.prototype.hasOwnProperty.call(raw, "clientMode")) {
     out.clientMode = Boolean(raw.clientMode);
   }
