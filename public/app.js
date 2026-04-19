@@ -1841,12 +1841,21 @@ function initPlateModule() {
       
       if (!visibleIds.length) return;
       
-      // 全选当前页所有记录
+      // 检查当前页是否已经全部选中
+      const allSelected = visibleIds.every(id => plateSelectedIds.has(id));
+      
+      // 切换选择状态：如果已全选则取消全选，否则全选
+      const newState = !allSelected;
+      
       for (const id of visibleIds) {
-        setPlateSelectedById(id, true);
+        setPlateSelectedById(id, newState);
       }
       
-      logLine(`已全选当前页 ${visibleIds.length} 条记录`);
+      if (newState) {
+        logLine(`已全选当前页 ${visibleIds.length} 条记录`);
+      } else {
+        logLine(`已取消全选当前页 ${visibleIds.length} 条记录`);
+      }
     });
   }
   if (els.plateDeleteBtn) {
