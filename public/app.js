@@ -471,8 +471,8 @@ async function initSystemUi() {
   const manualGateway = String(system?.manualGateway || "");
   const manualNetmask = formatNetmaskDisplay(manualPrefix, "");
   els.systemNameInput.value = name;
-  els.systemNameInput.readOnly = true;
-  els.systemNameInput.title = "操作系统主机名（自动获取，不可修改）";
+  els.systemNameInput.readOnly = false;
+  els.systemNameInput.title = "操作系统主机名（可修改）";
   if (els.systemClientMode instanceof HTMLInputElement) els.systemClientMode.checked = clientMode;
   els.systemIpMode.value = ipMode;
 
@@ -539,8 +539,24 @@ async function initSystemUi() {
       setSystemHint("");
       setSystemPassHint("");
       const result = await fetchJson("/api/device/config", payload);
+      
+      // 处理主机名修改结果
+      const hostnameResult = result?.hostnameChangeResult;
+      let hostnameMsg = "";
+      if (hostnameResult) {
+        if (hostnameResult.success) {
+          hostnameMsg = `主机名修改: ${hostnameResult.message || "成功"}`;
+          if (hostnameResult.needsRestart) {
+            hostnameMsg += " (可能需要重启系统)";
+          }
+        } else {
+          hostnameMsg = `主机名修改失败: ${hostnameResult.error || "未知错误"}`;
+        }
+      }
+      
       const networkMsg = String(result?.networkApplyResult?.message || "").trim();
-      setSystemHint(networkMsg || "保存成功");
+      const finalMsg = [hostnameMsg, networkMsg].filter(Boolean).join("; ") || "保存成功";
+      setSystemHint(finalMsg);
 
       const oldPwd = String(els.systemOldPassword?.value || "");
       const newPwd = String(els.systemNewPassword?.value || "");

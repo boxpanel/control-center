@@ -2818,7 +2818,7 @@ function normalizeIpv4PrefixValue(value) {
 }
 
 function normalizeSystemConfig(raw) {
-  const name = os.hostname(); // 始终使用操作系统主机名
+  const name = String(raw?.name || "").trim() || os.hostname();
   const clientMode = Boolean(raw?.clientMode);
   const ipMode = String(raw?.ipMode || "auto").trim().toLowerCase() === "manual" ? "manual" : "auto";
   const preferredIpRaw = String(raw?.preferredIp || "").trim();
@@ -2835,7 +2835,9 @@ function normalizeSystemConfig(raw) {
 function normalizeSystemPatch(raw) {
   if (!raw || typeof raw !== "object") return null;
   const out = {};
-  // name字段已移除，始终使用操作系统主机名
+  if (Object.prototype.hasOwnProperty.call(raw, "name")) {
+    out.name = String(raw.name || "").trim().slice(0, 80);
+  }
   if (Object.prototype.hasOwnProperty.call(raw, "clientMode")) {
     out.clientMode = Boolean(raw.clientMode);
   }
@@ -3106,6 +3108,64 @@ function execFileAsync(command, args = [], options = {}) {
       resolve({ stdout: String(stdout || ""), stderr: String(stderr || "") });
     });
   });
+}
+
+// 修改操作系统主机名
+async function setSystemHostname(newHostname) {
+  if (!newHostname || typeof newHostname !== "string") {
+    throw new Error("主机名必须是非空字符串");
+  }
+  
+  const trimmedName = newHostname.trim();
+  if (trimmedName.length === 0 || trimmedName.length > 63) {
+    throw new Error("主机名长度必须在1-63个字符之间");
+  }
+  
+  // 验证主机名格式（字母、数字、连字符，不能以连字符开头或结尾）
+  if (!/^[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?$/.test(trimmedName)) {
+    throw new Error("主机名只能包含字母、数字和连字符，不能以连字符开头或结尾");
+  }
+  
+  const currentHostname = os.hostname();
+  if (trimmedName === currentHostname) {
+    return { success: true, message: "主机名未改变", current: currentHostname };
+  }
+  
+  try {
+    if (process.platform === "win32") {
+      // Windows: 使用wmic命令修改主机名
+      await execFileAsync("wmic", ["computersystem", "where", "name=\"%COMPUTERNAME%\"", "call", "rename", `name="${trimmedName}"`]);
+    } else if (process.platform === "linux") {
+      // Linux: 使用hostnamectl命令
+      await execFileAsync("hostnamectl", ["set-hostname", trimmedName]);
+    } else if (process.platform === "darwin") {
+      // macOS: 使用scutil命令
+      await execFileAsync("scutil", ["--set", "HostName", trimmedName]);
+      await execFileAsync("scutil", ["--set", "LocalHostName", trimmedName]);
+      await execFileAsync("scutil", ["--set", "ComputerName", trimmedName]);
+    } else {
+      // 其他平台使用通用的hostname命令（可能需要root权限）
+      await execFileAsync("hostname", [trimmedName]);
+    }
+    
+    // 验证修改是否成功
+    const verifyHostname = os.hostname();
+    if (verifyHostname !== trimmedName) {
+      // 有时需要重启才能生效
+      return { 
+        success: true, 
+        message: "主机名修改已提交，可能需要重启系统才能完全生效", 
+        requested: trimmedName, 
+        current: verifyHostname,
+        needsRestart: true
+      };
+    }
+    
+    return { success: true, message: "主机名修改成功", requested: trimmedName, current: verifyHostname };
+  } catch (error) {
+    console.error("[System] 修改主机名失败:", error);
+    throw new Error(`修改主机名失败: ${error.message || "未知错误"}`);
+  }
 }
 
 function parseIpRouteGateway(text, ifaceName) {
@@ -3827,7 +3887,20 @@ app.post("/api/device/config", async (req, res, next) => {
     }
 
     let networkApplyResult = null;
+    let hostnameChangeResult = null;
     if (patch.system) {
+      // 检查是否需要修改操作系统主机名
+      if (req.body?.system?.name !== undefined && typeof req.body.system.name === "string") {
+        try {
+          hostnameChangeResult = await setSystemHostname(req.body.system.name);
+          console.log("[System] 主机名修改结果:", hostnameChangeResult);
+        } catch (error) {
+          console.error("[System] 主机名修改失败:", error);
+          // 不阻止其他设置的保存，但记录错误
+          hostnameChangeResult = { success: false, error: error.message };
+        }
+      }
+      
       const nextSystem = normalizeSystemConfig({ ...(currentConfig?.system || {}), ...patch.system });
       networkApplyResult = await applyUbuntuSystemNetwork(nextSystem, currentConfig?.system || {});
     }
@@ -3855,7 +3928,7 @@ app.post("/api/device/config", async (req, res, next) => {
       err.statusCode = 502;
       throw err;
     }
-    res.json({ ok: true, config, networkApplyResult });
+    res.json({ ok: true, config, networkApplyResult, hostnameChangeResult });
   } catch (err) {
     next(err);
   }
