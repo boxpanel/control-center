@@ -788,7 +788,14 @@ async function plateDbListLatest(limit = 200) {
 function formatDateTime(ms) {
   const n = Number(ms);
   if (!Number.isFinite(n) || n <= 0) return "";
-  return new Date(n).toLocaleString("zh-CN", { hour12: false });
+  const d = new Date(n);
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  const hour = String(d.getHours()).padStart(2, "0");
+  const minute = String(d.getMinutes()).padStart(2, "0");
+  const second = String(d.getSeconds()).padStart(2, "0");
+  return `${year}年${month}月${day}日 ${hour}:${minute}:${second}`;
 }
 
 function formatTimeOnly(ms) {
@@ -1206,26 +1213,54 @@ function fillPlateDetailModal(record) {
 function formatParsedMetaText(meta) {
   if (!meta || typeof meta !== "object") return "无";
   const parts = [];
+  
+  // 处理时间
   const eventAtText = String(meta.eventAtText || "").trim();
-  if (eventAtText) parts.push(`时间：${eventAtText}`);
-  else if (meta.eventAt) parts.push(`时间：${formatDateTime(meta.eventAt) || "--"}`);
-  if (meta.deviceIp) parts.push(`设备IP：${meta.deviceIp}`);
-  if (meta.deviceNo) parts.push(`设备号：${meta.deviceNo}`);
-  if (meta.channelNo) parts.push(`通道号：${meta.channelNo}`);
-  if (meta.laneNo) parts.push(`车道号：${meta.laneNo}`);
-  if (meta.imageSeq) parts.push(`图片序号：${meta.imageSeq}`);
-  if (meta.vehicleSeq) parts.push(`车辆序号：${meta.vehicleSeq}`);
-  if (meta.plateColor) parts.push(`车牌颜色：${meta.plateColor}`);
-  if (meta.vehicleColor) parts.push(`车身颜色：${meta.vehicleColor}`);
-  if (meta.vehicleType) parts.push(`车辆类型：${meta.vehicleType}`);
-  if (meta.speed) parts.push(`车辆速度：${meta.speed}`);
-  if (meta.directionNo) parts.push(`方向编号：${meta.directionNo}`);
-  if (meta.intersectionNo) parts.push(`路口编号：${meta.intersectionNo}`);
-  if (meta.violationType) parts.push(`违规类型：${meta.violationType}`);
-  if (Array.isArray(meta.unmatchedTokens) && meta.unmatchedTokens.length) {
-    parts.push(`其余字段：${meta.unmatchedTokens.join(" / ")}`);
+  if (eventAtText) {
+    // 尝试解析格式 "2026/4/19 07:46:10" 为 "2026年4月19日 07:46:10"
+    const timeMatch = eventAtText.match(/^(\d{4})\/(\d{1,2})\/(\d{1,2}) (\d{2}):(\d{2}):(\d{2})$/);
+    if (timeMatch) {
+      const [, year, month, day, hour, minute, second] = timeMatch;
+      parts.push(`时间 : ${year}年${parseInt(month)}月${parseInt(day)}日 ${hour}:${minute}:${second}`);
+    } else {
+      parts.push(`时间 : ${eventAtText}`);
+    }
+  } else if (meta.eventAt) {
+    parts.push(`时间 : ${formatDateTime(meta.eventAt) || "--"}`);
   }
-  return parts.length ? parts.join(" | ") : "无";
+  
+  // 已知字段
+  if (meta.deviceIp) parts.push(`设备IP: ${meta.deviceIp}`);
+  if (meta.vehicleType) parts.push(`车辆类型:${meta.vehicleType}`);
+  if (meta.speed) parts.push(`车辆速度：${meta.speed}`);
+  
+  // 处理其余字段（unmatchedTokens）
+  if (Array.isArray(meta.unmatchedTokens) && meta.unmatchedTokens.length) {
+    const tokens = meta.unmatchedTokens;
+    // 根据示例格式分配字段
+    if (tokens.length >= 1) parts.push(`未知字段：${tokens[0]}`); // 0008
+    if (tokens.length >= 2) parts.push(`车辆速度：${tokens[1]}`); // 023 (如果speed字段不存在)
+    if (tokens.length >= 3) parts.push(`未知字段：${tokens[2]}`); // 070
+    if (tokens.length >= 4) parts.push(`未知字段：${tokens[3]}`); // 正常
+    if (tokens.length >= 5) parts.push(`未知字段：${tokens[4]}`); // 无
+    if (tokens.length >= 6) parts.push(`未知字段：${tokens[5]}`); // 其它色
+    if (tokens.length >= 7) parts.push(`未知字段：${tokens[6]}`); // 12357
+    if (tokens.length >= 8) parts.push(`未知字段：${tokens[7]}`); // 01
+  }
+  
+  // 其他已知字段（如果存在）
+  if (meta.deviceNo) parts.push(`未知字段：${meta.deviceNo}`);
+  if (meta.channelNo) parts.push(`未知字段：${meta.channelNo}`);
+  if (meta.laneNo) parts.push(`未知字段：${meta.laneNo}`);
+  if (meta.imageSeq) parts.push(`未知字段：${meta.imageSeq}`);
+  if (meta.vehicleSeq) parts.push(`未知字段：${meta.vehicleSeq}`);
+  if (meta.plateColor) parts.push(`未知字段：${meta.plateColor}`);
+  if (meta.vehicleColor) parts.push(`未知字段：${meta.vehicleColor}`);
+  if (meta.directionNo) parts.push(`未知字段：${meta.directionNo}`);
+  if (meta.intersectionNo) parts.push(`未知字段：${meta.intersectionNo}`);
+  if (meta.violationType) parts.push(`未知字段：${meta.violationType}`);
+  
+  return parts.length ? parts.join("\n") : "无";
 }
 
 async function openPlateDetailById(id) {
