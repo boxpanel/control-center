@@ -453,7 +453,6 @@ async function initSystemUi() {
     !els.systemIpInput ||
     !els.systemSaveBtn ||
     !els.systemIpMode ||
-    !els.systemClientMode ||
     !els.systemPrefixInput ||
     !els.systemGatewayInput
   )
@@ -464,7 +463,7 @@ async function initSystemUi() {
   const cfg = await loadDeviceConfig();
   const system = cfg?.system || {};
   const name = String(system?.name || "");
-  const clientMode = Boolean(system?.clientMode);
+  const clientMode = true; // 客户端模式默认开启
   const ipMode = String(system?.ipMode || "auto") === "manual" ? "manual" : "auto";
   const manualIp = String(system?.manualIp || "");
   const manualPrefix = String(system?.manualPrefix || "");
@@ -473,7 +472,7 @@ async function initSystemUi() {
   els.systemNameInput.value = name;
   els.systemNameInput.readOnly = false;
   els.systemNameInput.title = "操作系统主机名（可修改）";
-  if (els.systemClientMode instanceof HTMLInputElement) els.systemClientMode.checked = clientMode;
+  // 客户端模式默认开启，不再显示开关
   els.systemIpMode.value = ipMode;
 
   const ifaces = await loadNetIfaces();
@@ -527,7 +526,7 @@ async function initSystemUi() {
     const payload = {
       system: {
         name: String(els.systemNameInput?.value || "").trim(),
-        clientMode: Boolean(els.systemClientMode instanceof HTMLInputElement ? els.systemClientMode.checked : false),
+        clientMode: true, // 客户端模式默认开启
         ipMode: mode,
         manualIp: mode === "manual" ? String(els.systemIpInput?.value || "").trim() : "",
         manualPrefix: mode === "manual" ? String(els.systemPrefixInput?.value || "").trim() : "",

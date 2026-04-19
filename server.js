@@ -1754,7 +1754,7 @@ async function loadOrInitDeviceInfo() {
       }
       const systemDefaults = {
         name: "",
-        clientMode: false,
+        clientMode: true, // 客户端模式默认开启
         ipMode: "auto",
         preferredIp: "",
         manualIp: "",
@@ -1767,7 +1767,6 @@ async function loadOrInitDeviceInfo() {
         const s = parsed.system;
         const needs =
           !Object.prototype.hasOwnProperty.call(s, "name") ||
-          !Object.prototype.hasOwnProperty.call(s, "clientMode") ||
           !Object.prototype.hasOwnProperty.call(s, "ipMode") ||
           !Object.prototype.hasOwnProperty.call(s, "preferredIp") ||
           !Object.prototype.hasOwnProperty.call(s, "manualIp") ||
@@ -1804,7 +1803,7 @@ async function loadOrInitDeviceInfo() {
     devices: [],
     probe: { enabled: true, group: "239.255.255.250", port: 10086 },
     serial: { baudRate: DEFAULT_SERIAL_BAUD_RATE, forwardEnabled: false, backendPort: getPreferredLinuxBoardSerialPort(await listLinuxBoardSerialPorts()) },
-    system: { name: "", clientMode: false, ipMode: "auto", preferredIp: "", manualIp: "", manualPrefix: "", manualGateway: "" },
+    system: { name: "", clientMode: true, ipMode: "auto", preferredIp: "", manualIp: "", manualPrefix: "", manualGateway: "" },
     ingest: { ftpServer: { enabled: false, port: 21, rootDir: "", username: "", password: "" } }
   };
   try {
@@ -2819,8 +2818,8 @@ function normalizeIpv4PrefixValue(value) {
 
 function normalizeSystemConfig(raw) {
   const name = String(raw?.name || "").trim() || os.hostname();
-  if (!name || name.trim() === "") return { name: os.hostname(), clientMode: false, ipMode: "auto", preferredIp: "", manualIp: "", manualPrefix: "", manualGateway: "" };
-  const clientMode = Boolean(raw?.clientMode);
+  if (!name || name.trim() === "") return { name: os.hostname(), clientMode: true, ipMode: "auto", preferredIp: "", manualIp: "", manualPrefix: "", manualGateway: "" };
+  const clientMode = true; // 客户端模式默认开启
   const ipMode = String(raw?.ipMode || "auto").trim().toLowerCase() === "manual" ? "manual" : "auto";
   const preferredIpRaw = String(raw?.preferredIp || "").trim();
   const manualIpRaw = String(raw?.manualIp || "").trim();
@@ -2843,9 +2842,7 @@ function normalizeSystemPatch(raw) {
       out.name = name;
     }
   }
-  if (Object.prototype.hasOwnProperty.call(raw, "clientMode")) {
-    out.clientMode = Boolean(raw.clientMode);
-  }
+  // 客户端模式默认开启，不再处理clientMode字段
   if (Object.prototype.hasOwnProperty.call(raw, "ipMode")) {
     const mode = String(raw.ipMode || "").trim().toLowerCase();
     out.ipMode = mode === "manual" ? "manual" : "auto";
