@@ -651,15 +651,41 @@ async function initSystemUi() {
     if (!confirm("确定要重启设备吗？重启后需要重新登录系统。")) {
       return;
     }
+    
+    const originalText = els.systemRestartBtn.textContent;
     try {
       els.systemRestartBtn.disabled = true;
-      setSystemHint("正在重启设备...");
+      els.systemRestartBtn.textContent = "重启中...";
+      
+      // 显示加载动画
+      showLoading("正在重启设备，请稍候...");
+      
+      // 清除之前的提示
+      setSystemHint("");
+      
       const result = await fetchJson("/api/device/restart", {});
+      
+      // 更新加载动画显示重启成功
+      showLoading("重启命令已发送，设备正在重启...");
+      
+      // 等待3秒让用户看到重启成功的消息
+      await new Promise(resolve => setTimeout(resolve, 3000));
+      
+      // 隐藏加载动画
+      hideLoading();
+      
+      // 显示最终提示
       setSystemHint(result?.message || "重启命令已发送");
+      
     } catch (e) {
+      // 隐藏加载动画
+      hideLoading();
       setSystemHint(`重启失败：${String(e?.message || e || "")}`, true);
     } finally {
-      els.systemRestartBtn.disabled = false;
+      if (els.systemRestartBtn) {
+        els.systemRestartBtn.disabled = false;
+        els.systemRestartBtn.textContent = originalText;
+      }
     }
   });
 
