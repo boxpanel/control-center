@@ -1240,7 +1240,11 @@ async function fillPlateDetailModal(record) {
 
   const ftpPath = String(record.ftpRemotePath || "");
   if (ftpEl) ftpEl.textContent = ftpPath || "无";
-  if (parsedMetaEl) parsedMetaEl.textContent = formatParsedMetaText(record.parsedMeta);
+  
+  // 先显示加载中的提示
+  if (parsedMetaEl) {
+    parsedMetaEl.textContent = "正在加载ISAPI命名规则...";
+  }
   
   // 显示ISAPI命名规则
   if (identificationCodesEl) {
@@ -1268,14 +1272,57 @@ async function fillPlateDetailModal(record) {
       
       identificationCodesEl.innerHTML = fullConfigHtml;
       
+      // 用ISAPI的详细命名规则（带值）替代解析信息
+      if (parsedMetaEl && ftpConfig.namingRules && ftpConfig.namingRules.length > 0) {
+        // 格式化命名规则为文本显示
+        const namingRulesText = formatNamingRulesAsText(ftpConfig.namingRules);
+        parsedMetaEl.textContent = namingRulesText;
+        
+        // 同时更新解析信息的标题
+        const parsedMetaTitle = document.querySelector('.kv .k[data-text="解析信息"]');
+        if (parsedMetaTitle) {
+          parsedMetaTitle.textContent = "ISAPI命名规则";
+        }
+      } else if (parsedMetaEl) {
+        parsedMetaEl.textContent = "未获取到ISAPI命名规则";
+      }
+      
     } catch (error) {
       console.error("加载ISAPI FTP配置失败:", error);
       identificationCodesEl.innerHTML = '<div style="color: #dc2626; font-style: italic;">无法加载ISAPI FTP配置</div>';
       if (identificationCodesCountEl) {
         identificationCodesCountEl.textContent = "加载失败";
       }
+      
+      // 如果加载失败，显示错误信息
+      if (parsedMetaEl) {
+        parsedMetaEl.textContent = "加载ISAPI命名规则失败";
+      }
     }
   }
+}
+
+// 格式化命名规则为文本显示
+function formatNamingRulesAsText(namingRules) {
+  if (!namingRules || !Array.isArray(namingRules) || namingRules.length === 0) {
+    return "无命名规则数据";
+  }
+  
+  const parts = [];
+  
+  namingRules.forEach((rule, index) => {
+    if (typeof rule === 'object') {
+      // 对象格式的规则：{ name: "设备名", value: "IP CAPTURE CAMERA" }
+      const name = rule.name || rule.element || `规则${index + 1}`;
+      const value = rule.value || '无值';
+      parts.push(`${name} : ${value}`);
+    } else if (typeof rule === 'string') {
+      // 字符串格式的规则
+      parts.push(`规则${index + 1} : ${rule}`);
+    }
+  });
+  
+  return parts.join("\n");
 }
 
 function formatParsedMetaText(meta) {
