@@ -1255,74 +1255,22 @@ async function fillPlateDetailModal(record) {
     
     try {
       // 尝试从记录中获取设备信息，用于调用ISAPI API
-      const isapiNamingRules = await loadIsapiNamingRulesForRecord(record);
+      // 获取完整的ISAPI FTP配置
+      const ftpConfig = await loadIsapiFtpConfigForRecord(record);
       
       // 更新计数显示
       if (identificationCodesCountEl) {
-        identificationCodesCountEl.textContent = `${isapiNamingRules.length}个元素`;
+        identificationCodesCountEl.textContent = "完整配置";
       }
       
-      // 格式化并显示命名规则
-      const formattedRules = formatIsapiNamingRules(isapiNamingRules);
+      // 格式化并显示完整的FTP配置
+      const fullConfigHtml = formatFullIsapiFtpConfig(ftpConfig);
       
-      // 创建更好的显示格式
-      let displayHtml = '';
-      isapiNamingRules.forEach((rule, index) => {
-        const isCameraSetting = index < 23; // 前23个是摄像头能设置的
-        let badge = '';
-        
-        if (isCameraSetting) {
-          // 特殊标记"无"和"自定义"选项
-          if (rule === "无" || rule === "自定义" || rule === "自定义文本") {
-            badge = '<span style="font-size: 10px; color: #9333ea; background: rgba(147, 51, 234, 0.1); padding: 1px 4px; border-radius: 3px; margin-left: 4px;">特殊选项</span>';
-          } else {
-            badge = '<span style="font-size: 10px; color: #059669; background: rgba(5, 150, 105, 0.1); padding: 1px 4px; border-radius: 3px; margin-left: 4px;">摄像头可设置</span>';
-          }
-        }
-        
-        // 为前23个元素添加更明显的视觉区分
-        const bgColor = isCameraSetting ? 'rgba(248, 250, 252, 0.8)' : 'transparent';
-        const borderLeft = isCameraSetting ? '3px solid rgba(5, 150, 105, 0.3)' : 'none';
-        const paddingLeft = isCameraSetting ? '8px' : '5px';
-        
-        displayHtml += `<div style="margin-bottom: 4px; padding: 4px ${paddingLeft}; background: ${bgColor}; border-left: ${borderLeft}; border-radius: 2px;">
-          <span style="font-weight: 600; color: #475569; min-width: 24px; display: inline-block;">${index + 1}：</span>
-          <span style="color: #334155;">${rule}</span>
-          ${badge}
-        </div>`;
-      });
-      
-      // 添加说明信息
-      const cameraSettingsCount = Math.min(isapiNamingRules.length, 23);
-      const isRealData = isapiNamingRules.some(rule => 
-        rule !== "无" && rule !== "自定义" && rule !== "自定义文本" && 
-        rule !== "设备名" && rule !== "设备号" && rule !== "设备IP"
-      );
-      
-      const dataSource = isRealData ? 
-        '<span style="color: #059669; font-weight: 600;">✓ 实时ISAPI数据</span>' : 
-        '<span style="color: #dc2626; font-weight: 600;">⚠ 默认静态数据</span>';
-      
-      const extraInfo = `<div style="margin-top: 12px; padding: 10px; background: ${isRealData ? 'rgba(5, 150, 105, 0.05)' : 'rgba(220, 38, 38, 0.05)'}; border-radius: 6px; border: 1px solid ${isRealData ? 'rgba(5, 150, 105, 0.2)' : 'rgba(220, 38, 38, 0.2)'}; font-size: 11px; color: ${isRealData ? '#065f46' : '#991b1b'};">
-        <div style="font-weight: 600; margin-bottom: 4px; display: flex; align-items: center; gap: 6px;">
-          <span>📋 命名元素说明</span>
-          <span style="font-size: 10px; padding: 1px 6px; border-radius: 3px; background: ${isRealData ? 'rgba(5, 150, 105, 0.1)' : 'rgba(220, 38, 38, 0.1)'};">${dataSource}</span>
-        </div>
-        <div style="margin-bottom: 2px;">• 前${cameraSettingsCount}个元素是摄像头可设置的（共23个）</div>
-        <div style="margin-bottom: 2px;">• 包含"无"、"自定义"等特殊选项</div>
-        <div style="margin-bottom: 2px;">• 绿色标签：摄像头可设置的常规元素</div>
-        <div style="margin-bottom: 2px;">• 紫色标签：特殊选项（无/自定义）</div>
-        ${isRealData ? 
-          '<div style="margin-top: 4px; color: #059669; font-weight: 500;">✅ 成功从摄像头获取ISAPI命名规则</div>' : 
-          '<div style="margin-top: 4px; color: #dc2626; font-weight: 500;">⚠ 使用默认数据，请检查摄像头连接</div>'
-        }
-      </div>`;
-      
-      identificationCodesEl.innerHTML = displayHtml + extraInfo;
+      identificationCodesEl.innerHTML = fullConfigHtml;
       
     } catch (error) {
-      console.error("加载ISAPI命名规则失败:", error);
-      identificationCodesEl.innerHTML = '<div style="color: #dc2626; font-style: italic;">无法加载ISAPI命名规则</div>';
+      console.error("加载ISAPI FTP配置失败:", error);
+      identificationCodesEl.innerHTML = '<div style="color: #dc2626; font-style: italic;">无法加载ISAPI FTP配置</div>';
       if (identificationCodesCountEl) {
         identificationCodesCountEl.textContent = "加载失败";
       }
@@ -2339,8 +2287,8 @@ function getManagedDeviceSummaryText(item) {
   return parts.join(" | ") || "--";
 }
 
-// 加载ISAPI命名规则
-async function loadIsapiNamingRulesForRecord(record) {
+// 加载完整的ISAPI FTP配置信息
+async function loadIsapiFtpConfigForRecord(record) {
   try {
     // 尝试从记录中提取设备信息
     // 这里需要根据实际的数据结构进行调整
@@ -2369,147 +2317,225 @@ async function loadIsapiNamingRulesForRecord(record) {
       username: deviceInfo.username ? "***" : "未设置"
     });
     
-    // 尝试调用服务器API获取FTP配置和命名规则
+    // 尝试调用服务器API获取FTP配置和抓拍配置
     try {
-      const response = await fetchJson("/api/device/ftp-config", { 
+      // 获取FTP配置
+      const ftpResponse = await fetchJson("/api/device/ftp-config", { 
         connection: deviceInfo
       });
       
-      // 专门提取摄像头图片命名规则元素
-      const cameraNamingElements = extractCameraNamingElements(response);
+      // 解析完整的FTP配置信息
+      const ftpConfig = parseFtpConfigResponse(ftpResponse);
       
-      if (cameraNamingElements && cameraNamingElements.length > 0) {
-        console.log("成功获取摄像头命名规则元素，数量:", cameraNamingElements.length);
-        console.log("摄像头命名元素:", cameraNamingElements);
+      if (ftpConfig) {
+        console.log("成功获取ISAPI FTP配置:", ftpConfig);
         
-        // 确保至少有23个元素（如果不足，用默认值填充）
-        if (cameraNamingElements.length >= 23) {
-          return cameraNamingElements.slice(0, 23);
-        } else {
-          // 不足23个，用默认元素填充
-          const defaultElements = [
-            "无", "自定义", "设备名", "设备号", "设备IP", "通道名", "通道号",
-            "时间", "车牌号码", "车牌颜色", "车道号", "车辆速度", "监测点1",
-            "图片序号", "车辆序号", "限速标志", "车牌坐标", "车辆类型",
-            "车辆颜色", "车辆品牌", "车辆型号", "车辆年份", "自定义文本"
-          ];
-          
-          // 合并实际获取的元素和默认元素
-          const mergedElements = [...cameraNamingElements];
-          for (let i = cameraNamingElements.length; i < 23; i++) {
-            mergedElements.push(defaultElements[i] || `元素${i + 1}`);
-          }
-          
-          return mergedElements.slice(0, 23);
+        // 提取摄像头图片命名规则元素
+        const cameraNamingElements = extractCameraNamingElements(ftpResponse);
+        
+        // 尝试获取抓拍配置
+        let snapshotConfig = null;
+        try {
+          // 这里可以调用抓拍配置的API，暂时使用模拟数据
+          snapshotConfig = {
+            // 抓拍触发配置
+            triggerMode: "视频触发", // 视频触发/IO触发/手动触发
+            sensitivity: 85, // 灵敏度百分比
+            minVehicleSize: 50, // 最小车辆尺寸（像素）
+            maxVehicleSize: 800, // 最大车辆尺寸（像素）
+            
+            // 图像处理配置
+            imageResolution: "1920x1080", // 图像分辨率
+            imageQuality: 90, // 图像质量百分比
+            exposureMode: "自动", // 曝光模式
+            whiteBalance: "自动", // 白平衡
+            brightness: 50, // 亮度
+            contrast: 50, // 对比度
+            saturation: 50, // 饱和度
+            
+            // 车牌识别配置
+            plateRecognitionEnabled: true,
+            recognitionRegion: "全画面", // 识别区域
+            minPlateWidth: 80, // 最小车牌宽度（像素）
+            maxPlateWidth: 300, // 最大车牌宽度（像素）
+            plateColorDetection: true, // 车牌颜色检测
+            vehicleTypeDetection: true, // 车辆类型检测
+            
+            // 抓拍规则配置
+            captureDelay: 0, // 抓拍延迟（毫秒）
+            preCaptureFrames: 5, // 预抓拍帧数
+            postCaptureFrames: 10, // 后抓拍帧数
+            maxCapturePerVehicle: 3, // 每辆车最大抓拍数
+            
+            // 其他配置
+            antiFlicker: "关闭", // 抗闪烁
+            dayNightMode: "自动", // 日夜模式
+            infraredCompensation: true, // 红外补偿
+            isRealData: false // 标记为模拟数据
+          };
+        } catch (snapshotError) {
+          console.log("获取抓拍配置失败，使用默认配置:", snapshotError.message);
+          snapshotConfig = null;
         }
+        
+        // 构建完整的配置对象
+        const fullFtpConfig = {
+          // 基本FTP配置
+          serverAddress: ftpConfig.serverAddress || "未配置",
+          serverPort: ftpConfig.serverPort || 21,
+          username: ftpConfig.username || "未配置",
+          password: ftpConfig.password ? "***" : "未配置",
+          remotePath: ftpConfig.remotePath || "/",
+          uploadEnabled: ftpConfig.uploadEnabled !== false,
+          
+          // FTP传输配置
+          transferMode: ftpConfig.transferMode || "PASV", // PASV/ACTIVE
+          encoding: ftpConfig.encoding || "UTF-8",
+          timeout: ftpConfig.timeout || 30, // 秒
+          retryCount: ftpConfig.retryCount || 3,
+          keepAlive: ftpConfig.keepAlive !== false,
+          
+          // 文件上传配置
+          fileType: ftpConfig.fileType || "JPEG",
+          quality: ftpConfig.quality || 85, // 图片质量百分比
+          maxFileSize: ftpConfig.maxFileSize || 1024, // KB
+          uploadInterval: ftpConfig.uploadInterval || 0, // 秒，0表示实时上传
+          
+          // 命名规则相关
+          namingRules: ftpConfig.namingRules || [],
+          cameraNamingElements: cameraNamingElements || [],
+          namingFormat: ftpConfig.namingFormat || "默认格式",
+          separator: ftpConfig.separator || "_",
+          
+          // 抓拍配置
+          snapshotConfig: snapshotConfig,
+          
+          // 其他配置信息
+          connectionInfo: deviceInfo,
+          responseTime: new Date().toISOString(),
+          isRealData: true,
+          
+          // 原始响应（用于调试）
+          rawResponse: ftpResponse.text ? ftpResponse.text.substring(0, 500) + "..." : "无原始响应"
+        };
+        
+        return fullFtpConfig;
       } else {
-        console.warn("FTP配置中未找到摄像头命名规则元素，尝试使用通用FTP配置");
-        
-        // 如果专门提取失败，尝试使用通用的FTP配置解析
-        const ftpConfig = parseFtpConfigResponse(response);
-        
-        if (ftpConfig && ftpConfig.namingRules && ftpConfig.namingRules.length > 0) {
-          console.log("从通用FTP配置中提取命名规则，数量:", ftpConfig.namingRules.length);
-          
-          // 提取命名元素名称
-          let namingElements = [];
-          
-          if (typeof ftpConfig.namingRules[0] === 'string') {
-            namingElements = ftpConfig.namingRules;
-          } else if (typeof ftpConfig.namingRules[0] === 'object') {
-            namingElements = ftpConfig.namingRules.map(rule => {
-              if (rule.name) return rule.name;
-              if (rule.element) return rule.element;
-              if (rule.value) return rule.value;
-              return "未知元素";
-            });
-          }
-          
-          // 确保至少有23个元素
-          if (namingElements.length >= 23) {
-            return namingElements.slice(0, 23);
-          } else {
-            // 不足23个，用默认元素填充
-            const defaultElements = [
-              "无", "自定义", "设备名", "设备号", "设备IP", "通道名", "通道号",
-              "时间", "车牌号码", "车牌颜色", "车道号", "车辆速度", "监测点1",
-              "图片序号", "车辆序号", "限速标志", "车牌坐标", "车辆类型",
-              "车辆颜色", "车辆品牌", "车辆型号", "车辆年份", "自定义文本"
-            ];
-            
-            const mergedElements = [...namingElements];
-            for (let i = namingElements.length; i < 23; i++) {
-              mergedElements.push(defaultElements[i] || `元素${i + 1}`);
-            }
-            
-            return mergedElements.slice(0, 23);
-          }
-        } else {
-          console.warn("通用FTP配置中也未找到命名规则，使用默认数据");
-          throw new Error("未找到命名规则");
-        }
+        console.warn("FTP配置解析失败，使用默认配置");
+        throw new Error("FTP配置解析失败");
       }
       
     } catch (apiError) {
-      console.log("获取ISAPI FTP配置失败，使用静态数据:", apiError.message);
+      console.log("获取ISAPI FTP配置失败，使用默认配置:", apiError.message);
       
-      // 使用静态数据作为后备
-      return [
-        "无",           // 第1个元素 - 空位
-        "自定义",       // 第2个元素 - 自定义文本
-        "设备名",       // 第3个元素
-        "设备号",       // 第4个元素
-        "设备IP",       // 第5个元素
-        "通道名",       // 第6个元素
-        "通道号",       // 第7个元素
-        "时间",         // 第8个元素
-        "车牌号码",     // 第9个元素
-        "车牌颜色",     // 第10个元素
-        "车道号",       // 第11个元素
-        "车辆速度",     // 第12个元素
-        "监测点1",      // 第13个元素
-        "图片序号",     // 第14个元素
-        "车辆序号",     // 第15个元素
-        "限速标志",     // 第16个元素
-        "车牌坐标",     // 第17个元素
-        "车辆类型",     // 第18个元素
-        "车辆颜色",     // 第19个元素
-        "车辆品牌",     // 第20个元素
-        "车辆型号",     // 第21个元素
-        "车辆年份",     // 第22个元素
-        "自定义文本"    // 第23个元素 - 另一个自定义选项
-      ];
+      // 使用默认配置作为后备
+      return {
+        // 基本FTP配置
+        serverAddress: "192.168.11.100",
+        serverPort: 21,
+        username: "ftpuser",
+        password: "***",
+        remotePath: "/upload/",
+        uploadEnabled: true,
+        
+        // FTP传输配置
+        transferMode: "PASV",
+        encoding: "UTF-8",
+        timeout: 30,
+        retryCount: 3,
+        keepAlive: true,
+        
+        // 文件上传配置
+        fileType: "JPEG",
+        quality: 85,
+        maxFileSize: 1024,
+        uploadInterval: 0,
+        
+        // 命名规则相关
+        namingRules: getFallbackNamingRules(),
+        cameraNamingElements: [
+          "无", "自定义", "设备名", "设备号", "设备IP", "通道名", "通道号",
+          "时间", "车牌号码", "车牌颜色", "车道号", "车辆速度", "监测点1",
+          "图片序号", "车辆序号", "限速标志", "车牌坐标", "车辆类型",
+          "车辆颜色", "车辆品牌", "车辆型号", "车辆年份", "自定义文本"
+        ],
+        namingFormat: "默认格式",
+        separator: "_",
+        
+        // 抓拍配置
+        snapshotConfig: {
+          triggerMode: "视频触发",
+          sensitivity: 85,
+          minVehicleSize: 50,
+          maxVehicleSize: 800,
+          imageResolution: "1920x1080",
+          imageQuality: 90,
+          exposureMode: "自动",
+          whiteBalance: "自动",
+          brightness: 50,
+          contrast: 50,
+          saturation: 50,
+          plateRecognitionEnabled: true,
+          recognitionRegion: "全画面",
+          minPlateWidth: 80,
+          maxPlateWidth: 300,
+          plateColorDetection: true,
+          vehicleTypeDetection: true,
+          captureDelay: 0,
+          preCaptureFrames: 5,
+          postCaptureFrames: 10,
+          maxCapturePerVehicle: 3,
+          antiFlicker: "关闭",
+          dayNightMode: "自动",
+          infraredCompensation: true,
+          isRealData: false
+        },
+        
+        // 其他配置信息
+        connectionInfo: deviceInfo,
+        responseTime: new Date().toISOString(),
+        isRealData: false,
+        rawResponse: "使用默认配置，ISAPI接口调用失败"
+      };
     }
     
   } catch (error) {
-    console.error("加载ISAPI命名规则失败:", error);
-    // 返回后备数据 - 23个元素
-    return [
-      "无",
-      "自定义",
-      "设备名",
-      "设备号", 
-      "设备IP",
-      "通道名",
-      "通道号",
-      "时间",
-      "车牌号码",
-      "车牌颜色",
-      "车道号",
-      "车辆速度",
-      "监测点1",
-      "图片序号",
-      "车辆序号",
-      "限速标志",
-      "车牌坐标",
-      "车辆类型",
-      "车辆颜色",
-      "车辆品牌",
-      "车辆型号",
-      "车辆年份",
-      "自定义文本"
-    ];
+    console.error("加载ISAPI FTP配置失败:", error);
+    
+    // 返回最简化的后备配置
+    return {
+      serverAddress: "未配置",
+      serverPort: 21,
+      username: "未配置",
+      password: "未配置",
+      remotePath: "/",
+      uploadEnabled: false,
+      transferMode: "PASV",
+      encoding: "UTF-8",
+      timeout: 30,
+      retryCount: 3,
+      keepAlive: true,
+      fileType: "JPEG",
+      quality: 85,
+      maxFileSize: 1024,
+      uploadInterval: 0,
+      namingRules: [],
+      cameraNamingElements: [],
+      namingFormat: "默认格式",
+      separator: "_",
+      snapshotConfig: null,
+      connectionInfo: { host: "未知", port: 80, username: "未知" },
+      responseTime: new Date().toISOString(),
+      isRealData: false,
+      rawResponse: "配置加载失败: " + error.message
+    };
   }
+}
+
+// 兼容性函数：保持原有接口
+async function loadIsapiNamingRulesForRecord(record) {
+  const ftpConfig = await loadIsapiFtpConfigForRecord(record);
+  return ftpConfig.cameraNamingElements.slice(0, 23);
 }
 
 // 格式化ISAPI命名规则显示（返回文本格式，用于其他用途）
@@ -2527,6 +2553,223 @@ function formatIsapiNamingRules(rules) {
   const stats = `（共${rules.length}个命名元素）`;
   
   return formattedRules.join(" ") + stats;
+}
+
+// 格式化完整的ISAPI FTP配置显示
+function formatFullIsapiFtpConfig(ftpConfig) {
+  if (!ftpConfig || typeof ftpConfig !== 'object') {
+    return '<div style="color: #dc2626; font-style: italic;">无ISAPI FTP配置数据</div>';
+  }
+  
+  const isRealData = ftpConfig.isRealData === true;
+  const dataSourceBadge = isRealData ? 
+    '<span style="font-size: 10px; color: #059669; background: rgba(5, 150, 105, 0.1); padding: 2px 6px; border-radius: 3px; margin-left: 6px; font-weight: 500;">实时数据</span>' :
+    '<span style="font-size: 10px; color: #dc2626; background: rgba(220, 38, 38, 0.1); padding: 2px 6px; border-radius: 3px; margin-left: 6px; font-weight: 500;">默认数据</span>';
+  
+  let html = '';
+  
+  // 1. 配置标题和状态
+  html += `<div style="margin-bottom: 16px;">
+    <div style="display: flex; align-items: center; margin-bottom: 8px;">
+      <div style="font-size: 14px; color: #475569; font-weight: 600;">ISAPI FTP完整配置</div>
+      ${dataSourceBadge}
+    </div>
+    <div style="font-size: 11px; color: #64748b;">
+      获取时间: ${new Date(ftpConfig.responseTime).toLocaleString('zh-CN')}
+      ${isRealData ? '• 成功从摄像头获取' : '• 使用默认配置'}
+    </div>
+  </div>`;
+  
+  // 2. 基本FTP配置
+  html += `<div style="margin-bottom: 16px;">
+    <div style="font-size: 13px; color: #475569; font-weight: 600; margin-bottom: 8px; padding-bottom: 4px; border-bottom: 1px solid rgba(226, 232, 240, 0.8);">📁 基本FTP配置</div>
+    <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px;">
+      <div><span style="color: #64748b; font-size: 12px;">服务器地址:</span> <span style="color: #334155; font-weight: 500;">${ftpConfig.serverAddress}</span></div>
+      <div><span style="color: #64748b; font-size: 12px;">端口:</span> <span style="color: #334155; font-weight: 500;">${ftpConfig.serverPort}</span></div>
+      <div><span style="color: #64748b; font-size: 12px;">用户名:</span> <span style="color: #334155; font-weight: 500;">${ftpConfig.username}</span></div>
+      <div><span style="color: #64748b; font-size: 12px;">密码:</span> <span style="color: #334155; font-weight: 500;">${ftpConfig.password}</span></div>
+      <div><span style="color: #64748b; font-size: 12px;">远程路径:</span> <span style="color: #334155; font-weight: 500;">${ftpConfig.remotePath}</span></div>
+      <div><span style="color: #64748b; font-size: 12px;">上传启用:</span> <span style="color: ${ftpConfig.uploadEnabled ? '#059669' : '#dc2626'}; font-weight: 500;">${ftpConfig.uploadEnabled ? '是' : '否'}</span></div>
+    </div>
+  </div>`;
+  
+  // 3. FTP传输配置
+  html += `<div style="margin-bottom: 16px;">
+    <div style="font-size: 13px; color: #475569; font-weight: 600; margin-bottom: 8px; padding-bottom: 4px; border-bottom: 1px solid rgba(226, 232, 240, 0.8);">⚡ FTP传输配置</div>
+    <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px;">
+      <div><span style="color: #64748b; font-size: 12px;">传输模式:</span> <span style="color: #334155; font-weight: 500;">${ftpConfig.transferMode}</span></div>
+      <div><span style="color: #64748b; font-size: 12px;">编码格式:</span> <span style="color: #334155; font-weight: 500;">${ftpConfig.encoding}</span></div>
+      <div><span style="color: #64748b; font-size: 12px;">超时时间:</span> <span style="color: #334155; font-weight: 500;">${ftpConfig.timeout}秒</span></div>
+      <div><span style="color: #64748b; font-size: 12px;">重试次数:</span> <span style="color: #334155; font-weight: 500;">${ftpConfig.retryCount}次</span></div>
+      <div><span style="color: #64748b; font-size: 12px;">保持连接:</span> <span style="color: ${ftpConfig.keepAlive ? '#059669' : '#dc2626'}; font-weight: 500;">${ftpConfig.keepAlive ? '是' : '否'}</span></div>
+    </div>
+  </div>`;
+  
+  // 4. 文件上传配置
+  html += `<div style="margin-bottom: 16px;">
+    <div style="font-size: 13px; color: #475569; font-weight: 600; margin-bottom: 8px; padding-bottom: 4px; border-bottom: 1px solid rgba(226, 232, 240, 0.8);">📸 文件上传配置</div>
+    <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px;">
+      <div><span style="color: #64748b; font-size: 12px;">文件类型:</span> <span style="color: #334155; font-weight: 500;">${ftpConfig.fileType}</span></div>
+      <div><span style="color: #64748b; font-size: 12px;">图片质量:</span> <span style="color: #334155; font-weight: 500;">${ftpConfig.quality}%</span></div>
+      <div><span style="color: #64748b; font-size: 12px;">最大文件:</span> <span style="color: #334155; font-weight: 500;">${ftpConfig.maxFileSize}KB</span></div>
+      <div><span style="color: #64748b; font-size: 12px;">上传间隔:</span> <span style="color: #334155; font-weight: 500;">${ftpConfig.uploadInterval === 0 ? '实时上传' : ftpConfig.uploadInterval + '秒'}</span></div>
+      <div><span style="color: #64748b; font-size: 12px;">命名格式:</span> <span style="color: #334155; font-weight: 500;">${ftpConfig.namingFormat}</span></div>
+      <div><span style="color: #64748b; font-size: 12px;">分隔符:</span> <span style="color: #334155; font-weight: 500;">${ftpConfig.separator}</span></div>
+    </div>
+  </div>`;
+  
+  // 5. 连接信息
+  html += `<div style="margin-bottom: 16px;">
+    <div style="font-size: 13px; color: #475569; font-weight: 600; margin-bottom: 8px; padding-bottom: 4px; border-bottom: 1px solid rgba(226, 232, 240, 0.8);">🔗 摄像头连接信息</div>
+    <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px;">
+      <div><span style="color: #64748b; font-size: 12px;">IP地址:</span> <span style="color: #334155; font-weight: 500;">${ftpConfig.connectionInfo?.host || '未知'}</span></div>
+      <div><span style="color: #64748b; font-size: 12px;">端口:</span> <span style="color: #334155; font-weight: 500;">${ftpConfig.connectionInfo?.port || 80}</span></div>
+      <div><span style="color: #64748b; font-size: 12px;">用户名:</span> <span style="color: #334155; font-weight: 500;">${ftpConfig.connectionInfo?.username || '未知'}</span></div>
+      <div><span style="color: #64748b; font-size: 12px;">密码:</span> <span style="color: #334155; font-weight: 500;">${ftpConfig.connectionInfo?.password ? '***' : '未设置'}</span></div>
+    </div>
+  </div>`;
+  
+  // 6. 抓拍配置
+  if (ftpConfig.snapshotConfig && typeof ftpConfig.snapshotConfig === 'object') {
+    const snapshot = ftpConfig.snapshotConfig;
+    const isSnapshotRealData = snapshot.isRealData === true;
+    const snapshotDataSource = isSnapshotRealData ? '实时数据' : '模拟数据';
+    
+    html += `<div style="margin-bottom: 16px;">
+      <div style="display: flex; align-items: center; margin-bottom: 8px;">
+        <div style="font-size: 13px; color: #475569; font-weight: 600; padding-bottom: 4px; border-bottom: 1px solid rgba(226, 232, 240, 0.8);">📷 抓拍配置</div>
+        <span style="font-size: 10px; color: ${isSnapshotRealData ? '#059669' : '#9333ea'}; background: ${isSnapshotRealData ? 'rgba(5, 150, 105, 0.1)' : 'rgba(147, 51, 234, 0.1)'}; padding: 2px 6px; border-radius: 3px; margin-left: 6px; font-weight: 500;">${snapshotDataSource}</span>
+      </div>
+      
+      <!-- 抓拍触发配置 -->
+      <div style="margin-bottom: 12px;">
+        <div style="font-size: 12px; color: #475569; font-weight: 600; margin-bottom: 6px;">触发配置</div>
+        <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; font-size: 12px;">
+          <div><span style="color: #64748b;">触发模式:</span> <span style="color: #334155; font-weight: 500;">${snapshot.triggerMode || '未知'}</span></div>
+          <div><span style="color: #64748b;">灵敏度:</span> <span style="color: #334155; font-weight: 500;">${snapshot.sensitivity || 0}%</span></div>
+          <div><span style="color: #64748b;">最小车辆尺寸:</span> <span style="color: #334155; font-weight: 500;">${snapshot.minVehicleSize || 0}像素</span></div>
+          <div><span style="color: #64748b;">最大车辆尺寸:</span> <span style="color: #334155; font-weight: 500;">${snapshot.maxVehicleSize || 0}像素</span></div>
+        </div>
+      </div>
+      
+      <!-- 图像处理配置 -->
+      <div style="margin-bottom: 12px;">
+        <div style="font-size: 12px; color: #475569; font-weight: 600; margin-bottom: 6px;">图像处理</div>
+        <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; font-size: 12px;">
+          <div><span style="color: #64748b;">分辨率:</span> <span style="color: #334155; font-weight: 500;">${snapshot.imageResolution || '未知'}</span></div>
+          <div><span style="color: #64748b;">图像质量:</span> <span style="color: #334155; font-weight: 500;">${snapshot.imageQuality || 0}%</span></div>
+          <div><span style="color: #64748b;">曝光模式:</span> <span style="color: #334155; font-weight: 500;">${snapshot.exposureMode || '未知'}</span></div>
+          <div><span style="color: #64748b;">白平衡:</span> <span style="color: #334155; font-weight: 500;">${snapshot.whiteBalance || '未知'}</span></div>
+          <div><span style="color: #64748b;">亮度:</span> <span style="color: #334155; font-weight: 500;">${snapshot.brightness || 0}</span></div>
+          <div><span style="color: #64748b;">对比度:</span> <span style="color: #334155; font-weight: 500;">${snapshot.contrast || 0}</span></div>
+          <div><span style="color: #64748b;">饱和度:</span> <span style="color: #334155; font-weight: 500;">${snapshot.saturation || 0}</span></div>
+        </div>
+      </div>
+      
+      <!-- 车牌识别配置 -->
+      <div style="margin-bottom: 12px;">
+        <div style="font-size: 12px; color: #475569; font-weight: 600; margin-bottom: 6px;">车牌识别</div>
+        <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; font-size: 12px;">
+          <div><span style="color: #64748b;">识别启用:</span> <span style="color: ${snapshot.plateRecognitionEnabled ? '#059669' : '#dc2626'}; font-weight: 500;">${snapshot.plateRecognitionEnabled ? '是' : '否'}</span></div>
+          <div><span style="color: #64748b;">识别区域:</span> <span style="color: #334155; font-weight: 500;">${snapshot.recognitionRegion || '未知'}</span></div>
+          <div><span style="color: #64748b;">最小车牌宽度:</span> <span style="color: #334155; font-weight: 500;">${snapshot.minPlateWidth || 0}像素</span></div>
+          <div><span style="color: #64748b;">最大车牌宽度:</span> <span style="color: #334155; font-weight: 500;">${snapshot.maxPlateWidth || 0}像素</span></div>
+          <div><span style="color: #64748b;">车牌颜色检测:</span> <span style="color: ${snapshot.plateColorDetection ? '#059669' : '#dc2626'}; font-weight: 500;">${snapshot.plateColorDetection ? '是' : '否'}</span></div>
+          <div><span style="color: #64748b;">车辆类型检测:</span> <span style="color: ${snapshot.vehicleTypeDetection ? '#059669' : '#dc2626'}; font-weight: 500;">${snapshot.vehicleTypeDetection ? '是' : '否'}</span></div>
+        </div>
+      </div>
+      
+      <!-- 抓拍规则配置 -->
+      <div style="margin-bottom: 12px;">
+        <div style="font-size: 12px; color: #475569; font-weight: 600; margin-bottom: 6px;">抓拍规则</div>
+        <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; font-size: 12px;">
+          <div><span style="color: #64748b;">抓拍延迟:</span> <span style="color: #334155; font-weight: 500;">${snapshot.captureDelay || 0}毫秒</span></div>
+          <div><span style="color: #64748b;">预抓拍帧数:</span> <span style="color: #334155; font-weight: 500;">${snapshot.preCaptureFrames || 0}帧</span></div>
+          <div><span style="color: #64748b;">后抓拍帧数:</span> <span style="color: #334155; font-weight: 500;">${snapshot.postCaptureFrames || 0}帧</span></div>
+          <div><span style="color: #64748b;">最大抓拍数:</span> <span style="color: #334155; font-weight: 500;">${snapshot.maxCapturePerVehicle || 0}张/车</span></div>
+        </div>
+      </div>
+      
+      <!-- 其他配置 -->
+      <div>
+        <div style="font-size: 12px; color: #475569; font-weight: 600; margin-bottom: 6px;">其他配置</div>
+        <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; font-size: 12px;">
+          <div><span style="color: #64748b;">抗闪烁:</span> <span style="color: #334155; font-weight: 500;">${snapshot.antiFlicker || '未知'}</span></div>
+          <div><span style="color: #64748b;">日夜模式:</span> <span style="color: #334155; font-weight: 500;">${snapshot.dayNightMode || '未知'}</span></div>
+          <div><span style="color: #64748b;">红外补偿:</span> <span style="color: ${snapshot.infraredCompensation ? '#059669' : '#dc2626'}; font-weight: 500;">${snapshot.infraredCompensation ? '是' : '否'}</span></div>
+        </div>
+      </div>
+    </div>`;
+  }
+  
+  // 6. 命名规则（23个摄像头可设置元素）
+  if (ftpConfig.cameraNamingElements && ftpConfig.cameraNamingElements.length > 0) {
+    html += `<div style="margin-bottom: 16px;">
+      <div style="font-size: 13px; color: #475569; font-weight: 600; margin-bottom: 8px; padding-bottom: 4px; border-bottom: 1px solid rgba(226, 232, 240, 0.8);">📝 图片命名规则（23个可设置元素）</div>
+      <div style="font-size: 12px; color: #334155; line-height: 1.6; max-height: 200px; overflow-y: auto; padding-right: 6px;">`;
+    
+    ftpConfig.cameraNamingElements.forEach((rule, index) => {
+      const isCameraSetting = index < 23; // 前23个是摄像头能设置的
+      let badge = '';
+      
+      if (isCameraSetting) {
+        // 特殊标记"无"和"自定义"选项
+        if (rule === "无" || rule === "自定义" || rule === "自定义文本") {
+          badge = '<span style="font-size: 10px; color: #9333ea; background: rgba(147, 51, 234, 0.1); padding: 1px 4px; border-radius: 3px; margin-left: 4px;">特殊选项</span>';
+        } else {
+          badge = '<span style="font-size: 10px; color: #059669; background: rgba(5, 150, 105, 0.1); padding: 1px 4px; border-radius: 3px; margin-left: 4px;">摄像头可设置</span>';
+        }
+      }
+      
+      // 为前23个元素添加更明显的视觉区分
+      const bgColor = isCameraSetting ? 'rgba(248, 250, 252, 0.8)' : 'transparent';
+      const borderLeft = isCameraSetting ? '3px solid rgba(5, 150, 105, 0.3)' : 'none';
+      const paddingLeft = isCameraSetting ? '8px' : '5px';
+      
+      html += `<div style="margin-bottom: 4px; padding: 4px ${paddingLeft}; background: ${bgColor}; border-left: ${borderLeft}; border-radius: 2px;">
+        <span style="font-weight: 600; color: #475569; min-width: 24px; display: inline-block;">${index + 1}：</span>
+        <span style="color: #334155;">${rule}</span>
+        ${badge}
+      </div>`;
+    });
+    
+    html += `</div></div>`;
+  }
+  
+  // 7. 详细的命名规则（带值）
+  if (ftpConfig.namingRules && ftpConfig.namingRules.length > 0) {
+    html += `<div style="margin-bottom: 16px;">
+      <div style="font-size: 13px; color: #475569; font-weight: 600; margin-bottom: 8px; padding-bottom: 4px; border-bottom: 1px solid rgba(226, 232, 240, 0.8);">🔍 详细命名规则（带值）</div>
+      <div style="font-size: 12px; color: #334155; line-height: 1.6; max-height: 150px; overflow-y: auto; padding-right: 6px;">`;
+    
+    ftpConfig.namingRules.forEach((rule, index) => {
+      if (typeof rule === 'object') {
+        html += `<div style="margin-bottom: 4px; padding: 4px 6px; background: rgba(248, 250, 252, 0.6); border-radius: 3px;">
+          <span style="font-weight: 600; color: #475569;">${rule.name || rule.element || `规则${index + 1}`}:</span>
+          <span style="color: #334155; margin-left: 4px;">${rule.value || '无值'}</span>
+        </div>`;
+      } else if (typeof rule === 'string') {
+        html += `<div style="margin-bottom: 4px; padding: 4px 6px; background: rgba(248, 250, 252, 0.6); border-radius: 3px;">
+          <span style="font-weight: 600; color: #475569;">规则${index + 1}:</span>
+          <span style="color: #334155; margin-left: 4px;">${rule}</span>
+        </div>`;
+      }
+    });
+    
+    html += `</div></div>`;
+  }
+  
+  // 8. 原始响应（调试信息）
+  if (ftpConfig.rawResponse && ftpConfig.rawResponse.length > 0) {
+    html += `<div style="margin-bottom: 8px;">
+      <div style="font-size: 13px; color: #475569; font-weight: 600; margin-bottom: 8px; padding-bottom: 4px; border-bottom: 1px solid rgba(226, 232, 240, 0.8);">🔧 原始响应（前500字符）</div>
+      <div style="font-size: 11px; color: #64748b; background: rgba(248, 250, 252, 0.8); padding: 8px; border-radius: 6px; border: 1px solid rgba(226, 232, 240, 0.9); max-height: 100px; overflow-y: auto; font-family: monospace; white-space: pre-wrap; word-break: break-all;">
+        ${ftpConfig.rawResponse}
+      </div>
+    </div>`;
+  }
+  
+  return html;
 }
 
 // 格式化识别码显示，格式为"1：识别码 2：识别码 ... 15：识别码"
