@@ -1268,17 +1268,42 @@ async function fillPlateDetailModal(record) {
       // 创建更好的显示格式
       let displayHtml = '';
       isapiNamingRules.forEach((rule, index) => {
-        const isCameraSetting = index < 15; // 前15个是摄像头能设置的
-        const badge = isCameraSetting ? '<span style="font-size: 10px; color: #059669; background: rgba(5, 150, 105, 0.1); padding: 1px 4px; border-radius: 3px; margin-left: 4px;">摄像头可设置</span>' : '';
+        const isCameraSetting = index < 23; // 前23个是摄像头能设置的
+        let badge = '';
         
-        displayHtml += `<div style="margin-bottom: 4px;">
-          <span style="font-weight: 500; color: #475569;">${index + 1}：</span>
+        if (isCameraSetting) {
+          // 特殊标记"无"和"自定义"选项
+          if (rule === "无" || rule === "自定义" || rule === "自定义文本") {
+            badge = '<span style="font-size: 10px; color: #9333ea; background: rgba(147, 51, 234, 0.1); padding: 1px 4px; border-radius: 3px; margin-left: 4px;">特殊选项</span>';
+          } else {
+            badge = '<span style="font-size: 10px; color: #059669; background: rgba(5, 150, 105, 0.1); padding: 1px 4px; border-radius: 3px; margin-left: 4px;">摄像头可设置</span>';
+          }
+        }
+        
+        // 为前23个元素添加更明显的视觉区分
+        const bgColor = isCameraSetting ? 'rgba(248, 250, 252, 0.8)' : 'transparent';
+        const borderLeft = isCameraSetting ? '3px solid rgba(5, 150, 105, 0.3)' : 'none';
+        const paddingLeft = isCameraSetting ? '8px' : '5px';
+        
+        displayHtml += `<div style="margin-bottom: 4px; padding: 4px ${paddingLeft}; background: ${bgColor}; border-left: ${borderLeft}; border-radius: 2px;">
+          <span style="font-weight: 600; color: #475569; min-width: 24px; display: inline-block;">${index + 1}：</span>
           <span style="color: #334155;">${rule}</span>
           ${badge}
         </div>`;
       });
       
-      identificationCodesEl.innerHTML = displayHtml;
+      // 添加说明信息
+      const cameraSettingsCount = Math.min(isapiNamingRules.length, 23);
+      const extraInfo = isapiNamingRules.length > 23 ? 
+        `<div style="margin-top: 12px; padding: 8px; background: rgba(59, 130, 246, 0.05); border-radius: 6px; border: 1px solid rgba(59, 130, 246, 0.2); font-size: 11px; color: #1e40af;">
+          <div style="font-weight: 600; margin-bottom: 2px;">📋 命名元素说明：</div>
+          <div>• 前${cameraSettingsCount}个元素是摄像头可设置的（共23个）</div>
+          <div>• 包含"无"、"自定义"等特殊选项</div>
+          <div>• 绿色标签表示摄像头可设置的常规元素</div>
+          <div>• 紫色标签表示特殊选项（无/自定义）</div>
+        </div>` : '';
+      
+      identificationCodesEl.innerHTML = displayHtml + extraInfo;
       
     } catch (error) {
       console.error("加载ISAPI命名规则失败:", error);
@@ -1315,19 +1340,11 @@ function formatParsedMetaText(meta) {
     parts.push(`时间：${formatDateTime(meta.eventAt) || "--"}`);
   }
   
-  // 如果是二进制解析，显示详细信息
+  // 如果是二进制解析，显示解析方式但不分解时间
   if (isBinaryParsed) {
     parts.push(`解析方式：二进制解析`);
     
-    // 显示时间戳分解
-    if (meta.year) parts.push(`年份：${meta.year}`);
-    if (meta.month) parts.push(`月份：${meta.month}`);
-    if (meta.day) parts.push(`日期：${meta.day}`);
-    if (meta.hour) parts.push(`小时：${meta.hour}`);
-    if (meta.minute) parts.push(`分钟：${meta.minute}`);
-    if (meta.second) parts.push(`秒：${meta.second}`);
-    if (meta.millisecond) parts.push(`毫秒：${meta.millisecond}`);
-    
+    // 不显示时间戳分解，只显示设备信息
     // 显示设备信息
     if (meta.deviceId) parts.push(`设备ID：${meta.deviceId}`);
     if (meta.deviceIdStr) parts.push(`设备编号：${meta.deviceIdStr}`);
@@ -2325,9 +2342,40 @@ async function loadIsapiNamingRulesForRecord(record) {
     // 注意：这里需要实际的ISAPI API调用
     // 暂时返回模拟数据
     
-    // 模拟ISAPI返回的命名规则（可能超过15个元素）
-    // 摄像头最多能设置15个，但ISAPI可能返回更多
+    // 模拟ISAPI返回的命名规则（23个摄像头可设置元素）
+    // 根据海康摄像头实际可设置的23个命名元素
     return [
+      "无",           // 第1个元素 - 空位
+      "自定义",       // 第2个元素 - 自定义文本
+      "设备名",       // 第3个元素
+      "设备号",       // 第4个元素
+      "设备IP",       // 第5个元素
+      "通道名",       // 第6个元素
+      "通道号",       // 第7个元素
+      "时间",         // 第8个元素
+      "车牌号码",     // 第9个元素
+      "车牌颜色",     // 第10个元素
+      "车道号",       // 第11个元素
+      "车辆速度",     // 第12个元素
+      "监测点1",      // 第13个元素
+      "图片序号",     // 第14个元素
+      "车辆序号",     // 第15个元素
+      "限速标志",     // 第16个元素
+      "车牌坐标",     // 第17个元素
+      "车辆类型",     // 第18个元素
+      "车辆颜色",     // 第19个元素
+      "车辆品牌",     // 第20个元素
+      "车辆型号",     // 第21个元素
+      "车辆年份",     // 第22个元素
+      "自定义文本"    // 第23个元素 - 另一个自定义选项
+    ];
+    
+  } catch (error) {
+    console.error("加载ISAPI命名规则失败:", error);
+    // 返回后备数据 - 23个元素
+    return [
+      "无",
+      "自定义",
       "设备名",
       "设备号", 
       "设备IP",
@@ -2343,32 +2391,12 @@ async function loadIsapiNamingRulesForRecord(record) {
       "车辆序号",
       "限速标志",
       "车牌坐标",
-      "车辆类型",  // 第16个元素
-      "车辆颜色",  // 第17个元素
-      "车辆品牌",  // 第18个元素
-      "车辆型号",  // 第19个元素
-      "车辆年份"   // 第20个元素
-    ];
-    
-  } catch (error) {
-    console.error("加载ISAPI命名规则失败:", error);
-    // 返回后备数据
-    return [
-      "设备名",
-      "设备号", 
-      "设备IP",
-      "通道名",
-      "通道号",
-      "时间",
-      "车牌号码",
-      "车牌颜色",
-      "车道号",
-      "车辆速度",
-      "监测点1",
-      "图片序号",
-      "车辆序号",
-      "限速标志",
-      "车牌坐标"
+      "车辆类型",
+      "车辆颜色",
+      "车辆品牌",
+      "车辆型号",
+      "车辆年份",
+      "自定义文本"
     ];
   }
 }
