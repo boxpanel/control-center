@@ -4820,43 +4820,53 @@ app.post("/api/device/restart", async (req, res, next) => {
   try {
     console.log("[System] 收到重启设备请求");
     
-    // 检查是否在Windows系统上
-    if (process.platform !== "win32") {
-      // 在Linux系统上使用shutdown命令
-      const { exec } = await import("node:child_process");
-      const { promisify } = await import("node:util");
-      const execAsync = promisify(exec);
-      
+    // 先发送响应给客户端，然后再执行重启命令
+    res.json({ ok: true, message: "系统重启命令已发送" });
+    
+    // 延迟一小段时间确保响应已发送
+    setTimeout(async () => {
       try {
-        // 使用shutdown命令重启系统
-        await execAsync("sudo shutdown -r now");
-        res.json({ ok: true, message: "系统重启命令已发送" });
-      } catch (error) {
-        console.error("[System] 重启命令执行失败:", error);
-        // 尝试使用其他命令
-        try {
-          await execAsync("sudo reboot");
-          res.json({ ok: true, message: "系统重启命令已发送" });
-        } catch (error2) {
-          console.error("[System] 备用重启命令也失败:", error2);
-          throw new Error("无法执行重启命令，请检查权限");
+        // 检查是否在Windows系统上
+        if (process.platform !== "win32") {
+          // 在Linux系统上使用shutdown命令
+          const { exec } = await import("node:child_process");
+          const { promisify } = await import("node:util");
+          const execAsync = promisify(exec);
+          
+          try {
+            // 使用shutdown命令重启系统
+            await execAsync("sudo shutdown -r now");
+            console.log("[System] Linux重启命令执行成功");
+          } catch (error) {
+            console.error("[System] 重启命令执行失败:", error);
+            // 尝试使用其他命令
+            try {
+              await execAsync("sudo reboot");
+              console.log("[System] 备用重启命令执行成功");
+            } catch (error2) {
+              console.error("[System] 备用重启命令也失败:", error2);
+              // 这里不抛出错误，因为响应已经发送
+            }
+          }
+        } else {
+          // 在Windows系统上
+          const { exec } = await import("node:child_process");
+          const { promisify } = await import("node:util");
+          const execAsync = promisify(exec);
+          
+          try {
+            // 使用Windows的shutdown命令
+            await execAsync("shutdown /r /t 0");
+            console.log("[System] Windows重启命令执行成功");
+          } catch (error) {
+            console.error("[System] Windows重启命令执行失败:", error);
+            // 这里不抛出错误，因为响应已经发送
+          }
         }
+      } catch (err) {
+        console.error("[System] 重启过程中发生错误:", err);
       }
-    } else {
-      // 在Windows系统上
-      const { exec } = await import("node:child_process");
-      const { promisify } = await import("node:util");
-      const execAsync = promisify(exec);
-      
-      try {
-        // 使用Windows的shutdown命令
-        await execAsync("shutdown /r /t 0");
-        res.json({ ok: true, message: "系统重启命令已发送" });
-      } catch (error) {
-        console.error("[System] Windows重启命令执行失败:", error);
-        throw new Error("无法执行重启命令");
-      }
-    }
+    }, 100); // 延迟100毫秒确保响应已发送
   } catch (err) {
     next(err);
   }

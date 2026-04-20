@@ -720,22 +720,44 @@ async function initSystemUi() {
       setSystemHint("");
       
       // 发送重启请求
-      const result = await fetchJson("/api/device/restart", {});
-      
-      // 更新加载动画显示重启成功
-      showLoading("重启命令已发送，设备正在重启...");
-      
-      // 这里不隐藏加载动画，让动画一直显示
-      // 系统重启后会自动重新加载页面
-      
-      // 显示最终提示（用户可能看不到，因为页面会重新加载）
-      setSystemHint(result?.message || "重启命令已发送");
-      
-      // 等待系统重启（这里我们无法知道确切时间，所以只是等待一段时间）
-      // 实际上系统重启后会自动重新加载页面
-      console.log("重启命令已发送，等待系统重启...");
+      try {
+        // 使用fetchJson发送请求，但设置较短的超时时间
+        const result = await fetchJson("/api/device/restart", {});
+        
+        // 如果请求成功（服务器在重启前响应了）
+        console.log("重启命令已发送，服务器响应:", result?.message || "成功");
+        
+        // 更新加载动画显示重启成功
+        showLoading("重启命令已发送，设备正在重启...");
+        
+        // 显示提示
+        setSystemHint(result?.message || "重启命令已发送，设备正在重启...");
+        
+        // 记录日志
+        console.log("重启命令已发送，等待系统重启...");
+        
+        // 不隐藏加载动画，让动画一直显示
+        // 系统重启后会自动重新加载页面
+        
+      } catch (e) {
+        // 请求失败可能是正常的（服务器可能立即重启）
+        // 但我们仍然显示重启中的状态
+        console.log("重启命令已发送，服务器可能已开始重启", e.message);
+        
+        // 更新加载动画显示重启中
+        showLoading("重启命令已发送，设备正在重启...");
+        
+        // 显示提示
+        setSystemHint("重启命令已发送，设备正在重启...");
+        
+        // 记录日志
+        console.log("重启命令已发送，等待系统重启...");
+      }
       
     } catch (e) {
+      // 这里不应该执行，因为我们已经处理了异步请求
+      console.error("重启过程中发生意外错误:", e);
+      
       // 隐藏加载动画
       hideLoading();
       setSystemHint(`重启失败：${String(e?.message || e || "")}`, true);
@@ -845,25 +867,61 @@ async function loadFingerprint() {
 }
 
 async function fetchJson(url, body, method = "POST") {
-  const res = await fetch(url, {
-    method,
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body ?? {})
-  });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    throw new Error(data?.error || `HTTP ${res.status}`);
+  // 为重启请求设置较短的超时时间
+  const isRestartRequest = url === "/api/device/restart";
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), isRestartRequest ? 3000 : 30000);
+  
+  try {
+    const res = await fetch(url, {
+      method,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body ?? {}),
+      signal: controller.signal
+    });
+    
+    clearTimeout(timeoutId);
+    
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      throw new Error(data?.error || `HTTP ${res.status}`);
+    }
+    return data;
+  } catch (error) {
+    clearTimeout(timeoutId);
+    
+    // 如果是重启请求超时，认为是正常的（服务器可能已开始重启）
+    if (isRestartRequest && error.name === "AbortError") {
+      console.log("重启请求超时，服务器可能已开始重启");
+      // 返回一个模拟的成功响应
+      return { ok: true, message: "重启命令已发送" };
+    }
+    
+    throw error;
   }
-  return data;
 }
 
 async function fetchJsonGet(url) {
-  const res = await fetch(url, { method: "GET" });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    throw new Error(data?.error || `HTTP ${res.status}`);
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 30000);
+  
+  try {
+    const res = await fetch(url, { 
+      method: "GET",
+      signal: controller.signal
+    });
+    
+    clearTimeout(timeoutId);
+    
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      throw new Error(data?.error || `HTTP ${res.status}`);
+    }
+    return data;
+  } catch (error) {
+    clearTimeout(timeoutId);
+    throw error;
   }
-  return data;
 }
 
 const PLATE_DB_NAME = "onvif-ipcam";
