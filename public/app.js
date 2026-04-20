@@ -79,22 +79,35 @@ async function checkServerAvailable() {
   try {
     // 创建AbortController用于超时控制
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 3000);
+    const timeoutId = setTimeout(() => controller.abort(), 5000); // 增加到5秒超时
     
     // 尝试访问一个简单的API端点
     const response = await fetch("/api/status", {
       method: "GET",
-      signal: controller.signal
+      signal: controller.signal,
+      // 添加更多选项以提高成功率
+      mode: "cors",
+      cache: "no-cache",
+      credentials: "same-origin"
     });
     
     clearTimeout(timeoutId);
     
     if (response.ok) {
-      return true;
+      // 尝试解析响应，确保服务器完全正常
+      const data = await response.json();
+      return data && data.ok === true;
     }
     return false;
   } catch (error) {
-    console.log("服务器检查失败:", error.message);
+    // 记录不同类型的错误
+    if (error.name === "AbortError") {
+      console.log("服务器检查超时（5秒）");
+    } else if (error.name === "TypeError" && error.message.includes("Failed to fetch")) {
+      console.log("网络连接失败，服务器可能正在重启");
+    } else {
+      console.log("服务器检查失败:", error.name, error.message);
+    }
     return false;
   }
 }
@@ -102,8 +115,8 @@ async function checkServerAvailable() {
 // 轮询检查服务器是否重启完成
 function startServerPolling() {
   let pollCount = 0;
-  const maxPolls = 60; // 最多轮询60次（3分钟）
-  const pollInterval = 3000; // 每3秒检查一次
+  const maxPolls = 120; // 最多轮询120次（10分钟）
+  let pollInterval = 3000; // 初始3秒检查一次
   
   const poll = async () => {
     pollCount++;
@@ -112,10 +125,23 @@ function startServerPolling() {
       // 超过最大轮询次数，停止轮询
       console.log("轮询超时，服务器可能未正常启动");
       showLoading("服务器重启超时，请手动刷新页面");
+      
+      // 添加手动刷新按钮提示
+      setTimeout(() => {
+        showLoading("服务器重启超时，请手动刷新页面或检查设备状态");
+      }, 5000);
       return;
     }
     
-    console.log(`轮询检查服务器 (${pollCount}/${maxPolls})...`);
+    // 使用指数退避策略：前10次每3秒，然后每5秒，最后每10秒
+    if (pollCount > 30) {
+      pollInterval = 10000; // 30次后每10秒检查一次
+    } else if (pollCount > 10) {
+      pollInterval = 5000; // 10次后每5秒检查一次
+    }
+    
+    const elapsedSeconds = Math.floor(pollCount * pollInterval / 1000);
+    console.log(`轮询检查服务器 (${pollCount}/${maxPolls})，已等待${elapsedSeconds}秒...`);
     
     const isAvailable = await checkServerAvailable();
     
@@ -126,12 +152,17 @@ function startServerPolling() {
       
       // 等待2秒让用户看到消息，然后刷新页面
       setTimeout(() => {
-        window.location.reload();
+        window.location.reload(true); // 强制从服务器重新加载
       }, 2000);
     } else {
       // 服务器仍未恢复，继续轮询
       console.log("服务器尚未恢复，继续等待...");
-      showLoading(`设备正在重启... (${pollCount * 3}秒)`);
+      
+      // 显示更详细的等待信息
+      const minutes = Math.floor(elapsedSeconds / 60);
+      const seconds = elapsedSeconds % 60;
+      const timeText = minutes > 0 ? `${minutes}分${seconds}秒` : `${seconds}秒`;
+      showLoading(`设备正在重启... 已等待${timeText}`);
       
       // 继续轮询
       setTimeout(poll, pollInterval);
@@ -2311,7 +2342,7 @@ function initPlateModule() {
       }
       
       // 显示加载动画
-      showLoading(`正在删除 ${ids.length} 条记录...`);
+      showLoading(`正在删除...`);
       
       try {
         // 显示开始删除的提示
@@ -2327,7 +2358,7 @@ function initPlateModule() {
           const currentBatch = Math.floor(i / batchSize) + 1;
           
           // 更新加载动画的进度显示
-          showLoading(`正在删除 ${ids.length} 条记录... (批次 ${currentBatch}/${totalBatches})`);
+          showLoading(`正在删除...`);
           
           try {
             const result = await fetchJson("/api/plates/delete", { ids: batchIds });
@@ -2355,10 +2386,10 @@ function initPlateModule() {
         plateSelectedIds.clear();
         
         // 更新加载动画显示刷新数据
-        showLoading("正在刷新数据...");
+        showLoading("正在删除...");
         
         // 删除后自动刷新数据
-        logLine("正在刷新数据...");
+        logLine("正在删除...");
         await applyPlateFiltersFromUi();
         
         // 更新仪表板

@@ -517,19 +517,42 @@ canvas {
   border-color: #b45309;
 }
 
+#systemSaveBtn {
+  background-color: #3b82f6;
+  color: white;
+  border-color: #2563eb;
+  padding: 5px 8px;
+  border-radius: 6px;
+  font-size: 13px;
+  line-height: 1.2;
+}
+
+#systemSaveBtn:hover:not(:disabled) {
+  background-color: #2563eb;
+  border-color: #1d4ed8;
+}
+
 #systemRestartBtn {
   background-color: #dc2626;
   color: white;
   border-color: #b91c1c;
-  padding: 6px 10px;
-  border-radius: 8px;
-  font-size: inherit;
-  line-height: inherit;
+  padding: 5px 8px;
+  border-radius: 6px;
+  font-size: 13px;
+  line-height: 1.2;
 }
 
 #systemRestartBtn:hover:not(:disabled) {
   background-color: #b91c1c;
   border-color: #991b1b;
+}
+
+/* 数据清理天数选择控件 - 更小尺寸 */
+#dataCleanupDays {
+  padding: 5px 8px;
+  font-size: 13px;
+  border-radius: 6px;
+  height: 32px;
 }
 
 .plate-list {
