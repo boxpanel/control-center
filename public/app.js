@@ -31,6 +31,49 @@ function hideLoading() {
   }
 }
 
+// 显示重启确认弹窗
+function showRestartConfirm() {
+  return new Promise((resolve) => {
+    if (!els.restartConfirmOverlay || !els.restartConfirmCancel || !els.restartConfirmOk) {
+      resolve(false);
+      return;
+    }
+    
+    // 显示弹窗
+    els.restartConfirmOverlay.style.display = "flex";
+    
+    // 保存原始按钮文本
+    const originalOkText = els.restartConfirmOk.textContent;
+    
+    // 设置确定按钮为默认状态
+    els.restartConfirmOk.disabled = false;
+    els.restartConfirmOk.textContent = originalOkText;
+    
+    // 取消按钮点击事件
+    const onCancel = () => {
+      cleanup();
+      resolve(false);
+    };
+    
+    // 确定按钮点击事件
+    const onOk = () => {
+      cleanup();
+      resolve(true);
+    };
+    
+    // 清理函数
+    const cleanup = () => {
+      els.restartConfirmOverlay.style.display = "none";
+      els.restartConfirmCancel.removeEventListener("click", onCancel);
+      els.restartConfirmOk.removeEventListener("click", onOk);
+    };
+    
+    // 添加事件监听器
+    els.restartConfirmCancel.addEventListener("click", onCancel);
+    els.restartConfirmOk.addEventListener("click", onOk);
+  });
+}
+
 const els = {
   discoverBtn: document.getElementById("discoverBtn"),
   connectBtn: document.getElementById("connectBtn"),
@@ -118,6 +161,9 @@ const els = {
   systemNewPassword: document.getElementById("systemNewPassword"),
   systemSaveBtn: document.getElementById("systemSaveBtn"),
   systemRestartBtn: document.getElementById("systemRestartBtn"),
+  restartConfirmOverlay: document.getElementById("restartConfirmOverlay"),
+  restartConfirmCancel: document.getElementById("restartConfirmCancel"),
+  restartConfirmOk: document.getElementById("restartConfirmOk"),
   systemSaveHint: document.getElementById("systemSaveHint"),
   systemPassHint: document.getElementById("systemPassHint"),
   ftpServerEnabled: document.getElementById("ftpServerEnabled"),
@@ -648,14 +694,24 @@ async function initSystemUi() {
   });
 
   els.systemRestartBtn.addEventListener("click", async () => {
-    if (!confirm("确定要重启设备吗？重启后需要重新登录系统。")) {
+    // 显示自定义确认弹窗
+    const confirmed = await showRestartConfirm();
+    if (!confirmed) {
       return;
     }
     
     const originalText = els.systemRestartBtn.textContent;
+    const originalOkText = els.restartConfirmOk ? els.restartConfirmOk.textContent : "确定重启";
+    
     try {
       els.systemRestartBtn.disabled = true;
       els.systemRestartBtn.textContent = "重启中...";
+      
+      // 禁用确认弹窗的确定按钮
+      if (els.restartConfirmOk) {
+        els.restartConfirmOk.disabled = true;
+        els.restartConfirmOk.textContent = "重启中...";
+      }
       
       // 显示加载动画
       showLoading("正在重启设备，请稍候...");
@@ -663,30 +719,40 @@ async function initSystemUi() {
       // 清除之前的提示
       setSystemHint("");
       
+      // 发送重启请求
       const result = await fetchJson("/api/device/restart", {});
       
       // 更新加载动画显示重启成功
       showLoading("重启命令已发送，设备正在重启...");
       
-      // 等待3秒让用户看到重启成功的消息
-      await new Promise(resolve => setTimeout(resolve, 3000));
+      // 这里不隐藏加载动画，让动画一直显示
+      // 系统重启后会自动重新加载页面
       
-      // 隐藏加载动画
-      hideLoading();
-      
-      // 显示最终提示
+      // 显示最终提示（用户可能看不到，因为页面会重新加载）
       setSystemHint(result?.message || "重启命令已发送");
+      
+      // 等待系统重启（这里我们无法知道确切时间，所以只是等待一段时间）
+      // 实际上系统重启后会自动重新加载页面
+      console.log("重启命令已发送，等待系统重启...");
       
     } catch (e) {
       // 隐藏加载动画
       hideLoading();
       setSystemHint(`重启失败：${String(e?.message || e || "")}`, true);
-    } finally {
+      
+      // 恢复按钮状态
       if (els.systemRestartBtn) {
         els.systemRestartBtn.disabled = false;
         els.systemRestartBtn.textContent = originalText;
       }
+      
+      if (els.restartConfirmOk) {
+        els.restartConfirmOk.disabled = false;
+        els.restartConfirmOk.textContent = originalOkText;
+      }
     }
+    // 注意：这里没有finally块，因为成功时我们希望动画一直显示
+    // 直到系统重启并重新加载页面
   });
 
   if (els.httpIngestUrl) {

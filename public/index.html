@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>管理平台</title>
-    <link rel="stylesheet" href="/style.css?v=61" />
+    <link rel="stylesheet" href="/style.css?v=62" />
   </head>
   <body class="app-page">
     <div class="app-page-bg" aria-hidden="true"></div>
@@ -472,6 +472,19 @@
       <div class="loading-spinner">
         <div class="spinner"></div>
         <div class="loading-text">正在处理，请稍候...</div>
+      </div>
+    </div>
+
+    <!-- 重启确认弹窗 -->
+    <div id="restartConfirmOverlay" class="confirm-overlay" style="display: none;">
+      <div class="confirm-dialog">
+        <div class="confirm-icon">⚠️</div>
+        <div class="confirm-title">重启设备确认</div>
+        <div class="confirm-message">确定要重启设备吗？重启后需要重新登录系统。</div>
+        <div class="confirm-buttons">
+          <button id="restartConfirmCancel" class="confirm-btn cancel-btn">取消</button>
+          <button id="restartConfirmOk" class="confirm-btn ok-btn">确定重启</button>
+        </div>
       </div>
     </div>
 
