@@ -1,9 +1,9 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>综合管理平台</title>
+    <title>管理平台</title>
     <link rel="stylesheet" href="/style.css?v=58" />
   </head>
   <body class="app-page">
@@ -13,7 +13,7 @@
         <div class="app-header-brand">
           <div class="app-header-mark" aria-hidden="true"></div>
           <div class="app-header-text">
-            <h1 class="app-header-title">综合管理平台</h1>
+            <h1 class="app-header-title">管理平台</h1>
           </div>
         </div>
       </header>
@@ -139,43 +139,6 @@
                   </thead>
                   <tbody id="managedDeviceTableBody"></tbody>
                 </table>
-              </div>
-            </section>
-            <section class="panel">
-              <div class="logHeader">
-                <div>预览画面</div>
-                <button id="snapshotBtn" type="button" disabled>截图</button>
-              </div>
-              <div class="videoWrap" style="margin-top:10px;">
-                <video id="video" autoplay playsinline muted controls></video>
-              </div>
-              <div class="controls">
-                <div class="field">
-                  <label for="rtspTransport">RTSP 传输</label>
-                  <select id="rtspTransport">
-                    <option value="tcp" selected>TCP</option>
-                    <option value="udp">UDP</option>
-                    <option value="http">HTTP</option>
-                  </select>
-                </div>
-                <div class="field">
-                  <label for="processMode">画面处理</label>
-                  <select id="processMode">
-                    <option value="none" selected>关闭</option>
-                    <option value="grayscale">灰度</option>
-                    <option value="invert">反色</option>
-                    <option value="edges">边缘</option>
-                  </select>
-                </div>
-                <div class="field">
-                  <label for="showProcessed" style="display:flex; align-items:center; gap:8px;">
-                    <input id="showProcessed" type="checkbox" />
-                    显示处理画面
-                  </label>
-                </div>
-              </div>
-              <div class="canvasWrap">
-                <canvas id="canvas"></canvas>
               </div>
             </section>
 
@@ -421,6 +384,72 @@
             <div id="isapiDeviceSummary" class="deviceSummaryText"></div>
             <pre id="isapiDeviceRaw" class="log deviceRawLog"></pre>
           </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 设备预览弹窗 -->
+    <div id="devicePreviewModal" class="modal">
+      <div class="modalPanel" style="width: min(1200px, calc(100vw - 32px)); max-height: calc(100vh - 32px);">
+        <div class="modalHeader">
+          <div id="devicePreviewModalTitle" class="modalTitle">设备预览</div>
+          <button id="devicePreviewModalCloseBtn" type="button" class="iconBtn" aria-label="关闭">×</button>
+        </div>
+        <div class="modalBody" style="display: flex; gap: 20px; padding: 20px;">
+          <!-- 左侧：预览画面 -->
+          <div style="flex: 1; min-width: 0;">
+            <div class="logHeader">
+              <div>实时预览</div>
+              <button id="previewSnapshotBtn" type="button" disabled>截图</button>
+            </div>
+            <div class="videoWrap" style="margin-top: 10px;">
+              <video id="previewVideo" autoplay playsinline muted controls style="width: 100%;"></video>
+            </div>
+            <div class="controls" style="margin-top: 10px;">
+              <div class="field">
+                <label for="previewRtspTransport">RTSP 传输</label>
+                <select id="previewRtspTransport">
+                  <option value="auto">自动</option>
+                  <option value="tcp">TCP</option>
+                  <option value="udp">UDP</option>
+                </select>
+              </div>
+              <div class="field">
+                <label for="previewProcessMode">图像处理</label>
+                <select id="previewProcessMode">
+                  <option value="none">无</option>
+                  <option value="grayscale">灰度</option>
+                  <option value="invert">反色</option>
+                  <option value="edges">边缘检测</option>
+                </select>
+              </div>
+              <div class="field" style="display: flex; align-items: center; gap: 12px;">
+                <div style="display: flex; align-items: center;">
+                  <input id="previewShowProcessed" type="checkbox" />
+                  <label for="previewShowProcessed" style="margin-left: 6px;">显示处理效果</label>
+                </div>
+                <button id="devicePreviewModalStopBtn" type="button" class="primaryBtn" style="margin: 0;">停止预览</button>
+              </div>
+            </div>
+          </div>
+          
+          <!-- 右侧：FTP配置和命名规则信息（仅海康ISAPI协议显示） -->
+          <div id="namingRulesContainer" style="flex: 0 0 400px; display: none;">
+            <div class="logHeader">
+              <div>FTP配置与命名规则</div>
+            </div>
+            <div style="margin-top: 10px; padding: 16px; background: rgba(248, 250, 252, 0.92); border-radius: 14px; border: 1px solid rgba(226, 232, 240, 0.95);">
+              <div style="font-size: 13px; color: #475569; margin-bottom: 12px;">
+                海康ISAPI协议 - FTP配置及15个命名元素
+              </div>
+              <div id="namingRulesList" style="max-height: 400px; overflow-y: auto;">
+                <!-- FTP配置和命名元素将动态添加到这里 -->
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="modalFooter">
+          <!-- 停止预览按钮已移动到预览区域的controls部分 -->
         </div>
       </div>
     </div>

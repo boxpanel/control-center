@@ -774,11 +774,11 @@ function parseFtpDatMetadataText(text) {
   return Object.keys(meta).length > 1 ? meta : null;
 }
 
-function parseFtpMetadataPayload(text, ext) {
+function parseFtpMetadataPayload(text, ext, filename) {
   const raw = String(text || "");
   const extName = String(ext || "").toLowerCase();
   if (!raw) return null;
-  if (extName === ".dat") return parseFtpDatMetadataText(decodeFtpMetadataBuffer(Buffer.from(raw, "base64"), extName));
+  if (extName === ".dat") return parseFtpDatMetadataText(decodeFtpMetadataBuffer(Buffer.from(raw, "base64"), extName), filename);
 
   const meta = {
     source: extName ? `ftp-${extName.slice(1)}` : "ftp-text"
@@ -874,9 +874,601 @@ function looksLikeUnreadableFtpToken(token) {
   return weirdChars >= Math.max(2, Math.ceil(text.length / 2));
 }
 
-parseFtpDatMetadataText = function (text) {
+// 加载字段配置
+let datFieldConfig = null;
+try {
+  datFieldConfig = JSON.parse(await fs.readFile(path.join(__dirname, 'dat-field-config.json'), 'utf8'));
+} catch (error) {
+  console.log('未找到dat-field-config.json配置文件，使用默认文本解析');
+}
+
+// 解析文件名获取字段值
+function parseFilenameForFieldValues(filename) {
+  const meta = {
+    source: "filename-parser",
+    filename: filename
+  };
+  
+  try {
+    // 移除扩展名
+    const basename = path.basename(filename, '.DAT');
+    meta.basename = basename;
+    
+    // 分割文件名部分
+    const parts = basename.split('_');
+    meta.partsCount = parts.length;
+    meta.parts = parts;
+    
+    // 检查是否是单字段测试文件格式 (字段名-字段值)
+    if (parts.length === 1 && parts[0].includes('-')) {
+      const dashIndex = parts[0].indexOf('-');
+      meta.testFileType = 'single_field_test';
+      meta.fieldName = parts[0].substring(0, dashIndex);
+      meta.fieldValue = parts[0].substring(dashIndex + 1);
+      meta.fileFormat = 'fieldname-value';
+    }
+    // 检查是否是多字段测试文件 (15个相同部分)
+    else if (parts.length === 15 && parts.every(part => part === parts[0])) {
+      meta.testFileType = 'multi_field_test';
+      meta.fieldValue = parts[0];
+      meta.allFieldsSame = true;
+      meta.fileFormat = '15-same-values';
+    }
+    // 检查是否是实际数据文件 (14-15个不同部分)
+    else if (parts.length >= 14 && parts.length <= 15) {
+      meta.testFileType = 'actual_data_file';
+      meta.allFieldsSame = false;
+      meta.fileFormat = 'dynamic-field-count';
+      
+      // 动态字段顺序配置
+      // 根据文件名特征推断字段顺序
+      let fieldNames = null;
+      
+      // 检查是否是修改后的文件（第11个字段是"其它色"）
+      if (parts.length >= 11 && parts[10] === '其它色') {
+        // 修改后的字段顺序：第11个字段是"车身颜色"
+        fieldNames = [
+          '设备名',
+          '设备号', 
+          '设备IP',
+          '通道名',
+          '通道号',
+          '时间',
+          '车牌号码',
+          '车牌颜色',
+          '车道号',
+          '车辆速度',
+          '车身颜色',      // 修改后：第11个字段
+          '图片序号',
+          '车辆序号',
+          '限速标志',
+          '国标违法代码'
+        ];
+        meta.fieldOrderType = 'modified_order';
+        meta.modifiedField = '车身颜色';
+        meta.modifiedFieldIndex = 10; // 0-based
+      } else {
+        // 原始字段顺序
+        fieldNames = [
+          '设备名',
+          '设备号', 
+          '设备IP',
+          '通道名',
+          '通道号',
+          '时间',
+          '车牌号码',
+          '车牌颜色',
+          '车道号',
+          '车辆速度',
+          '监测点1',      // 原始：第11个字段
+          '图片序号',
+          '车辆序号',
+          '限速标志',
+          '国标违法代码'
+        ];
+        meta.fieldOrderType = 'original_order';
+      }
+      
+      // 创建字段映射
+      meta.fields = {};
+      for (let i = 0; i < Math.min(parts.length, fieldNames.length); i++) {
+        const fieldName = fieldNames[i];
+        const fieldValue = parts[i];
+        meta.fields[fieldName] = fieldValue;
+        meta[`field${i + 1}`] = fieldValue;
+        meta[`field${i + 1}Name`] = fieldName;
+      }
+      
+      // 检查缺失字段
+      if (parts.length < fieldNames.length) {
+        meta.missingFields = [];
+        for (let i = parts.length; i < fieldNames.length; i++) {
+          meta.missingFields.push(fieldNames[i]);
+        }
+        meta.missingFieldCount = meta.missingFields.length;
+      }
+      
+      // 检查时间戳
+      const timestampPattern = /\d{17}/;
+      for (let i = 0; i < parts.length; i++) {
+        const timestampMatch = parts[i].match(timestampPattern);
+        if (timestampMatch) {
+          meta.timestampInFilename = timestampMatch[0];
+          meta.timestampFieldIndex = i;
+          meta.timestampFieldName = fieldNames[i];
+          break;
+        }
+      }
+    }
+    
+    return meta;
+  } catch (error) {
+    console.error('解析文件名时出错:', error.message);
+    return meta;
+  }
+}
+
+// 使用识别码确定字段映射的解析函数
+function parseWithIdentificationCode(buffer, filename) {
+  // 1. 获取识别码
+  const byte44 = buffer[44];
+  const byte45 = buffer[45];
+  
+  // 2. 查找配置
+  let config = null;
+  if (datFieldConfig && datFieldConfig.codeMappings && datFieldConfig.codeMappings.knownMappings) {
+    const knownMappings = datFieldConfig.codeMappings.knownMappings;
+    config = knownMappings.find(mapping => 
+      mapping.byte44 === byte44 && mapping.byte45 === byte45
+    );
+  }
+  
+  // 3. 解析文件名
+  const fileNameWithoutExt = filename.replace(/\.DAT$/i, '');
+  const parts = fileNameWithoutExt.split('_');
+  
+  // 4. 根据配置映射字段
+  const fields = {};
+  let fieldOrder = [];
+  let expectedFieldCount = 15;
+  let actualFieldCount = parts.length;
+  
+  if (config) {
+    // 使用配置中的字段顺序模板
+    fieldOrder = config.fieldOrderTemplate || getDefaultFieldOrder();
+    expectedFieldCount = config.expectedFieldCount || 15;
+    
+    // 智能字段映射算法
+    // 1. 首先，标记所有可选字段为缺失
+    const missingOptionalFields = config.optionalFields || [];
+    
+    // 2. 计算实际可用的字段数量（排除可选字段）
+    const availableFieldCount = fieldOrder.length - missingOptionalFields.length;
+    
+    // 3. 如果实际部分数量等于可用字段数量，进行智能映射
+    if (parts.length === availableFieldCount) {
+      let partIndex = 0;
+      for (let fieldIndex = 0; fieldIndex < fieldOrder.length; fieldIndex++) {
+        const fieldName = fieldOrder[fieldIndex];
+        
+        if (missingOptionalFields.includes(fieldName)) {
+          // 这是可选字段，标记为缺失
+          fields[fieldName] = "无";
+        } else if (partIndex < parts.length) {
+          // 这是必填字段，使用实际数据
+          fields[fieldName] = parts[partIndex];
+          partIndex++;
+        } else {
+          // 其他情况，填充为空
+          fields[fieldName] = "";
+        }
+      }
+    } else {
+      // 回退到简单映射：假设缺失字段在开头
+      const fieldOffset = fieldOrder.length - parts.length;
+      
+      // 映射字段：从偏移位置开始映射
+      for (let i = 0; i < Math.min(parts.length, fieldOrder.length - fieldOffset); i++) {
+        const fieldIndex = i + fieldOffset;
+        if (fieldIndex < fieldOrder.length) {
+          fields[fieldOrder[fieldIndex]] = parts[i];
+        }
+      }
+      
+      // 处理缺失字段（开头的字段）
+      if (fieldOffset > 0) {
+        for (let i = 0; i < fieldOffset; i++) {
+          const fieldName = fieldOrder[i];
+          if (config.optionalFields && config.optionalFields.includes(fieldName)) {
+            fields[fieldName] = "无"; // 可选字段设为"无"
+          } else if (config.requiredFields && config.requiredFields.includes(fieldName)) {
+            fields[fieldName] = "未知"; // 必填字段设为"未知"
+          } else {
+            fields[fieldName] = ""; // 其他字段设为空
+          }
+        }
+      }
+      
+      // 处理缺失字段（结尾的字段 - 如果实际字段数仍然少于字段顺序长度）
+      if (parts.length < fieldOrder.length - fieldOffset) {
+        const remainingMissingFields = fieldOrder.slice(parts.length + fieldOffset);
+        remainingMissingFields.forEach(fieldName => {
+          if (config.optionalFields && config.optionalFields.includes(fieldName)) {
+            fields[fieldName] = "无"; // 可选字段设为"无"
+          } else if (config.requiredFields && config.requiredFields.includes(fieldName)) {
+            fields[fieldName] = "未知"; // 必填字段设为"未知"
+          } else {
+            fields[fieldName] = ""; // 其他字段设为空
+          }
+        });
+      }
+    }
+  } else {
+    // 回退到默认解析
+    fieldOrder = getDefaultFieldOrder();
+    for (let i = 0; i < Math.min(parts.length, fieldOrder.length); i++) {
+      fields[fieldOrder[i]] = parts[i];
+    }
+  }
+  
+  return {
+    source: "identification-code-parser",
+    identificationCode: { byte44, byte45 },
+    config: config ? config.mappedItemName : "未找到配置",
+    expectedFieldCount: expectedFieldCount,
+    actualFieldCount: actualFieldCount,
+    fieldCountMatch: actualFieldCount === expectedFieldCount,
+    fields: fields,
+    parts: parts,
+    fieldOrder: fieldOrder
+  };
+}
+
+// 获取默认字段顺序
+function getDefaultFieldOrder() {
+  return [
+    "设备名", "设备号", "设备IP", "通道名", "通道号",
+    "时间", "车牌号码", "车牌颜色", "车道号", "车辆速度",
+    "监测点1", "图片序号", "车辆序号", "限速标志", "国标违法代码"
+  ];
+}
+
+// 结合.dat文件内容和文件名进行解析
+function parseDatWithFilename(buffer, filename) {
+  const binaryMeta = parseDatBinary(buffer);
+  const filenameMeta = parseFilenameForFieldValues(filename);
+  
+  const combinedMeta = {
+    ...binaryMeta,
+    ...filenameMeta,
+    source: "combined-dat-filename",
+    combined: true
+  };
+  
+  // 验证假设：.dat文件存储元素编码，文件名提供实际值
+  combinedMeta.hypothesisValidation = {
+    datStoresElementCodes: binaryMeta && binaryMeta.codeMappingMatch,
+    filenameProvidesValues: filenameMeta && filenameMeta.partsCount === 15,
+    dataRegionIsTemplate: binaryMeta && binaryMeta.dataRegionNonZeroCount <= 10,
+    timestampConsistency: binaryMeta && filenameMeta && 
+      binaryMeta.timestamp === filenameMeta.timestampInFilename
+  };
+  
+  // 如果文件名有15个部分，使用文件名作为主要字段值来源
+  if (filenameMeta && filenameMeta.partsCount === 15) {
+    combinedMeta.primaryValueSource = 'filename';
+    combinedMeta.fieldValuesFrom = 'filename_parts';
+    
+    // 如果.dat文件有识别码映射，验证字段类型
+    if (binaryMeta && binaryMeta.codeMappingMatch) {
+      combinedMeta.fieldTypeFrom = 'dat_identification_code';
+      combinedMeta.fieldType = binaryMeta.mappedItemName;
+    }
+  }
+  
+  return combinedMeta;
+}
+
+// 二进制解析.dat文件
+function parseDatBinary(buffer) {
+  if (!Buffer.isBuffer(buffer) || buffer.length < 220) {
+    return null; // 文件太小，不是有效的.dat文件
+  }
+  
+  const meta = {
+    source: "ftp-dat-binary",
+    binaryParsed: true
+  };
+  
+  try {
+    // 解析时间戳 (位置12-28, 17字节ASCII)
+    const timestampStr = buffer.toString('ascii', 12, 29);
+    if (timestampStr.match(/^\d{17}$/)) {
+      const eventAt = parseCompactTimestampToMs(timestampStr);
+      if (eventAt > 0) {
+        meta.eventAt = eventAt;
+        meta.eventAtText = formatCompactTimestampDigits(timestampStr);
+        meta.timestamp = timestampStr;
+        
+        // 分解时间戳字段
+        meta.year = timestampStr.substring(0, 4);
+        meta.month = timestampStr.substring(4, 6);
+        meta.day = timestampStr.substring(6, 8);
+        meta.hour = timestampStr.substring(8, 10);
+        meta.minute = timestampStr.substring(10, 12);
+        meta.second = timestampStr.substring(12, 14);
+        meta.millisecond = timestampStr.substring(14, 17);
+      }
+    }
+    
+    // 解析数据字节44-45 (根据测试文件分析，这些字节随字段值变化)
+    if (buffer.length >= 46) {
+      const byte44 = buffer[44];
+      const byte45 = buffer[45];
+      meta.byte44 = byte44;
+      meta.byte45 = byte45;
+      meta.byte44Hex = `0x${byte44.toString(16).padStart(2, '0')}`;
+      meta.byte45Hex = `0x${byte45.toString(16).padStart(2, '0')}`;
+      
+      // 尝试解码为GBK字符串
+      try {
+        const gbkStr = buffer.slice(44, 46).toString('gbk');
+        if (gbkStr && gbkStr !== '\u0000' && !gbkStr.includes('�')) {
+          meta.dataStr = gbkStr;
+        }
+      } catch (e) {
+        // 忽略解码错误
+      }
+      
+      // 也尝试解析为16位整数
+      const asUint16LE = buffer.readUInt16LE(44);
+      const asUint16BE = buffer.readUInt16BE(44);
+      meta.dataUint16LE = asUint16LE;
+      meta.dataUint16BE = asUint16BE;
+      
+      // 尝试使用识别码映射系统
+      if (datFieldConfig && datFieldConfig.codeMappings && datFieldConfig.codeMappings.knownMappings) {
+        const knownMappings = datFieldConfig.codeMappings.knownMappings;
+        
+        // 查找匹配的识别码映射
+        const matchedMapping = knownMappings.find(mapping => 
+          mapping.byte44 === byte44 && mapping.byte45 === byte45
+        );
+        
+        if (matchedMapping) {
+          meta.codeMappingMatch = true;
+          meta.mappedItemName = matchedMapping.mappedItemName;
+          meta.mappedFieldNumber = matchedMapping.fieldNumber;
+          meta.mappingSourceFile = matchedMapping.sourceFile;
+          meta.mappingConfidence = matchedMapping.confidence;
+          meta.mappingDescription = matchedMapping.description;
+          
+          // 如果字段名还未设置，使用映射的项目名
+          if (!meta.fieldName && matchedMapping.mappedItemName) {
+            meta.fieldName = matchedMapping.mappedItemName;
+          }
+        } else {
+          meta.codeMappingMatch = false;
+          meta.codeMappingStatus = '未找到匹配的识别码映射';
+        }
+      }
+    }
+    
+    // 解析字段标记字节172-173 (关键字段标记区域)
+    if (buffer.length >= 174) {
+      const byte172 = buffer[172];
+      const byte173 = buffer[173];
+      meta.byte172 = byte172;
+      meta.byte173 = byte173;
+      meta.byte172Hex = `0x${byte172.toString(16).padStart(2, '0')}`;
+      meta.byte173Hex = `0x${byte173.toString(16).padStart(2, '0')}`;
+      
+      // 识别文件编码模式
+      let fileEncodingMode = 'unknown';
+      let fieldNumber = null;
+      
+      // 模式1: 实际文件直接编码模式 (字节172=1-15, 字节173=0)
+      if (byte172 >= 1 && byte172 <= 15 && byte173 === 0) {
+        fileEncodingMode = 'actual_file_direct';
+        fieldNumber = byte172; // 直接字段编号
+        meta.fieldNumber = fieldNumber;
+        meta.encodingMode = fileEncodingMode;
+        meta.encodingDescription = '实际文件直接编码模式';
+        
+        // 尝试根据字段编号推测字段含义
+        if (datFieldConfig && datFieldConfig.fieldMapping && datFieldConfig.fieldMapping.basedOnFilenameAnalysis) {
+          const filenameFields = datFieldConfig.fieldMapping.basedOnFilenameAnalysis.parsedFields;
+          if (filenameFields && filenameFields.length >= fieldNumber) {
+            const fieldInfo = filenameFields[fieldNumber - 1];
+            if (fieldInfo) {
+              meta.fieldName = fieldInfo.likelyItemName;
+              meta.fieldType = fieldInfo.type;
+            }
+          }
+        }
+      }
+      // 模式2: 测试文件偏移编码模式 (字节172=143-216, 字节173=50)
+      else if (byte172 >= 143 && byte172 <= 216 && byte173 === 50) {
+        fileEncodingMode = 'test_file_offset';
+        meta.encodingMode = fileEncodingMode;
+        meta.encodingDescription = '测试文件偏移编码模式';
+        
+        // 特殊文件
+        if (byte172 === 143) {
+          meta.specialFile = 'ip.DAT';
+          meta.fileDescription = '所有15个字段都设置为设备IP';
+          meta.fieldNumber = 'all'; // 表示所有15个字段
+          meta.testFileType = '多字段测试文件';
+        } else if (byte172 === 144) {
+          meta.specialFile = '0008.DAT';
+          meta.fileDescription = '所有15个字段都设置为设备号0008';
+          meta.fieldNumber = 'all'; // 表示所有15个字段
+          meta.testFileType = '多字段测试文件';
+        } else if (byte172 >= 145 && byte172 <= 162) {
+          // 测试文件: 145-162对应测试1.DAT到测试15.DAT
+          const testFileIndex = byte172 - 145; // 0-based
+          fieldNumber = testFileIndex + 1;
+          meta.testFileIndex = testFileIndex;
+          meta.testFileNumber = fieldNumber;
+          meta.fileDescription = `测试${fieldNumber}.DAT: 第${fieldNumber}个字段设置为测试值`;
+          meta.fieldNumber = fieldNumber;
+        } else if (byte172 >= 165 && byte172 <= 211) {
+          // 23个命名元素测试文件 (都在字段1位置)
+          meta.testFileType = '命名元素测试文件';
+          meta.fieldNumber = 1; // 所有23个测试文件都在字段1位置
+          meta.fileDescription = `命名元素测试文件: 字节172=${byte172}, 字段1`;
+          
+          // 尝试根据识别码映射确定具体命名元素
+          if (meta.codeMappingMatch && meta.mappedItemName) {
+            meta.fileDescription += `, 识别码对应: ${meta.mappedItemName}`;
+          }
+        } else if (byte172 === 212) {
+          // 1111111.DAT - 15个字段测试文件
+          meta.specialFile = '1111111.DAT';
+          meta.fileDescription = '1111111.DAT: 15个字段测试文件';
+          meta.fieldNumber = 'all'; // 表示所有15个字段
+          meta.testFileType = '多字段测试文件';
+        } else if (byte172 === 213) {
+          // 实际数据文件测试模式
+          meta.specialFile = '实际数据文件测试模式';
+          meta.fileDescription = '实际数据文件测试模式';
+          meta.fieldNumber = 'all'; // 表示所有15个字段
+          meta.testFileType = '实际数据测试文件';
+        } else if (byte172 === 214) {
+          // 0008_0008_...DAT - 15个字段都是设备号
+          meta.specialFile = '0008_0008_...DAT';
+          meta.fileDescription = '所有15个字段都是设备号0008';
+          meta.fieldNumber = 'all'; // 表示所有15个字段
+          meta.testFileType = '多字段测试文件';
+        } else if (byte172 === 216) {
+          // 空_空_...DAT - 15个字段都是通道名
+          meta.specialFile = '空_空_...DAT';
+          meta.fileDescription = '所有15个字段都是通道名"空"';
+          meta.fieldNumber = 'all'; // 表示所有15个字段
+          meta.testFileType = '多字段测试文件';
+        } else if (byte172 === 217) {
+          // 实际数据文件类型1
+          meta.specialFile = '实际数据文件类型1';
+          meta.fileDescription = '实际数据文件（原始字段顺序）';
+          meta.fieldNumber = 'all'; // 表示所有15个字段
+          meta.testFileType = '实际数据文件';
+        } else if (byte172 === 218) {
+          // 实际数据文件类型2（修改后）
+          meta.specialFile = '实际数据文件类型2';
+          meta.fileDescription = '实际数据文件（修改后字段顺序，第11字段=车身颜色）';
+          meta.fieldNumber = 'all'; // 表示所有15个字段
+          meta.testFileType = '实际数据文件';
+          meta.modifiedFieldOrder = true;
+          meta.modifiedField = '车身颜色';
+          meta.modifiedFieldIndex = 10; // 0-based, 第11个字段
+        }
+      }
+      // 模式3: 其他模式
+      else {
+        meta.encodingMode = 'unknown';
+        meta.encodingDescription = '未知编码模式';
+      }
+      
+      // 设置字段标记信息
+      if (fieldNumber !== null) {
+        meta.fieldNumber = fieldNumber;
+        meta.fieldDescription = `字段 ${fieldNumber}`;
+      }
+      
+      // 分析字节172的位组成
+      const lowNibble = byte172 & 0x0F;
+      const highNibble = (byte172 >> 4) & 0x0F;
+      meta.byte172LowNibble = lowNibble;
+      meta.byte172HighNibble = highNibble;
+      
+      // 分析字节173
+      if (byte173 === 50) {
+        meta.byte173Description = '固定值50 (ASCII "2") - 测试文件模式';
+      } else if (byte173 === 0) {
+        meta.byte173Description = '零值 - 实际文件模式';
+      } else {
+        meta.byte173Description = `未知值: ${byte173}`;
+      }
+      
+      // 存储完整的字段标记区域（172-178）用于兼容性
+      const fieldMarkers = [];
+      for (let i = 172; i < Math.min(179, buffer.length); i++) {
+        fieldMarkers.push(buffer[i]);
+      }
+      meta.fieldMarkers = fieldMarkers;
+      
+      // 根据字段配置进行动态字段映射
+      if (datFieldConfig && datFieldConfig.dynamicFields && datFieldConfig.dynamicFields.enabled) {
+        meta.configurationAvailable = true;
+        // 这里可以根据fieldNumber和文件编码模式动态调整字段映射
+      }
+    }
+    
+    // 尝试提取车牌信息
+    // 在文件的可能位置搜索车牌模式
+    const fullText = decodeFtpMetadataBuffer(buffer, '.dat');
+    const plate = extractPlateFromText(fullText);
+    if (plate) meta.plate = plate;
+    
+    // 如果没有找到车牌，检查特定位置
+    if (!meta.plate && buffer.length >= 140) {
+      // 尝试在位置120-136提取车牌（假设的车辆信息区域）
+      const possiblePlateArea = buffer.toString('gb18030', 120, 136).replace(/\0/g, '').trim();
+      const plateFromArea = extractPlateFromText(possiblePlateArea);
+      if (plateFromArea) meta.plate = plateFromArea;
+    }
+    
+    return Object.keys(meta).length > 2 ? meta : null; // 至少要有source、binaryParsed和一个其他字段
+    
+  } catch (error) {
+    console.error('解析.dat二进制文件时出错:', error.message);
+    return null;
+  }
+}
+
+parseFtpDatMetadataText = function (text, filename) {
   const raw = String(text || "");
   if (!raw) return null;
+  
+  // 首先尝试二进制解析（如果文本是base64编码的二进制数据）
+  try {
+    const buffer = Buffer.from(raw, 'base64');
+    if (buffer.length >= 220) { // 如果是完整的.dat文件大小
+      // 优先使用识别码解析器（如果有文件名）
+      if (filename) {
+        const identificationResult = parseWithIdentificationCode(buffer, filename);
+        if (identificationResult && identificationResult.config !== "未找到配置") {
+          // 添加时间戳信息
+          const timestampStr = buffer.toString('ascii', 12, 29);
+          if (timestampStr.match(/^\d{17}$/)) {
+            const eventAt = parseCompactTimestampToMs(timestampStr);
+            if (eventAt > 0) {
+              identificationResult.eventAt = eventAt;
+              identificationResult.eventAtText = formatCompactTimestampDigits(timestampStr);
+              identificationResult.timestamp = timestampStr;
+            }
+          }
+          return identificationResult;
+        }
+        
+        // 回退到组合解析器
+        const combinedResult = parseDatWithFilename(buffer, filename);
+        if (combinedResult) {
+          return combinedResult;
+        }
+      }
+      
+      // 否则使用纯二进制解析器
+      const binaryResult = parseDatBinary(buffer);
+      if (binaryResult) {
+        return binaryResult;
+      }
+    }
+  } catch (error) {
+    // 不是有效的base64或二进制解析失败，继续文本解析
+  }
+  
+  // 回退到文本解析
   const meta = {
     source: "ftp-dat"
   };
@@ -892,11 +1484,15 @@ parseFtpDatMetadataText = function (text) {
   return Object.keys(meta).length > 1 ? meta : null;
 };
 
-parseFtpMetadataPayload = function (text, ext) {
+parseFtpMetadataPayload = function (text, ext, filename) {
   const raw = String(text || "");
   const extName = String(ext || "").toLowerCase();
   if (!raw) return null;
-  if (extName === ".dat") return parseFtpDatMetadataText(decodeFtpMetadataBuffer(Buffer.from(raw, "base64"), extName));
+  
+  // 对于.dat文件，使用增强的解析器（支持二进制和文本）
+  if (extName === ".dat") {
+    return parseFtpDatMetadataText(raw, filename);
+  }
 
   const meta = {
     source: extName ? `ftp-${extName.slice(1)}` : "ftp-text"
@@ -1355,9 +1951,10 @@ async function ingestFtpImageFile(candidate, rootDir) {
   const metadataExts = Array.isArray(candidate?.metadataExts) ? candidate.metadataExts : [];
   const parsedMetadata = [];
   for (let i = 0; i < metadataTexts.length; i += 1) {
-    const parsed = parseFtpMetadataPayload(metadataTexts[i], metadataExts[i]);
+    const filename = metadataDisplayFiles[i] ? path.basename(metadataDisplayFiles[i]) : metadataFiles[i] ? path.basename(metadataFiles[i]) : "";
+    const parsed = parseFtpMetadataPayload(metadataTexts[i], metadataExts[i], filename);
     if (parsed) {
-      parsed.file = metadataDisplayFiles[i] ? path.basename(metadataDisplayFiles[i]) : metadataFiles[i] ? path.basename(metadataFiles[i]) : "";
+      parsed.file = filename;
       parsedMetadata.push(parsed);
       if (!plate && parsed.plate) plate = String(parsed.plate || "");
     } else if (!plate) {
@@ -3856,6 +4453,41 @@ app.post("/api/isapi/device-info", async (req, res, next) => {
       requestUrl: result.url,
       summary: summarizeIsapiDeviceInfo(result.text),
       rawText: result.text
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+app.post("/api/device/ftp-config", async (req, res, next) => {
+  try {
+    const cfg = await getClientConfig();
+    const baseConn = normalizeConnectionConfig(cfg?.connection);
+    const reqConn = req.body?.connection && typeof req.body.connection === "object" ? normalizeConnectionConfig(req.body.connection) : {};
+    const connection = normalizeConnectionConfig({
+      host: reqConn.host || baseConn.host,
+      port: reqConn.port || baseConn.port,
+      username: reqConn.username || baseConn.username,
+      password: reqConn.password || baseConn.password
+    });
+    
+    // 获取FTP配置，通道1
+    const result = await requestHikvisionIsapi({
+      ...connection,
+      pathname: "/ISAPI/System/Network/Ftp/channels/1",
+      method: "GET"
+    });
+    
+    res.json({
+      ok: true,
+      connection: {
+        host: connection.host,
+        port: connection.port,
+        username: connection.username
+      },
+      requestUrl: result.url,
+      rawText: result.text,
+      ftpConfig: result.text // 返回原始XML文本，由前端解析
     });
   } catch (err) {
     next(err);

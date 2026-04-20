@@ -1,8 +1,22 @@
+function updatePageTitle(systemName) {
+  const baseTitle = "管理平台";
+  const titleElement = document.querySelector("title");
+  const headerTitleElement = document.querySelector(".app-header-title");
+  
+  if (systemName && systemName.trim()) {
+    const fullTitle = `${baseTitle}-${systemName.trim()}`;
+    if (titleElement) titleElement.textContent = fullTitle;
+    if (headerTitleElement) headerTitleElement.textContent = fullTitle;
+  } else {
+    if (titleElement) titleElement.textContent = baseTitle;
+    if (headerTitleElement) headerTitleElement.textContent = baseTitle;
+  }
+}
+
 const els = {
   discoverBtn: document.getElementById("discoverBtn"),
   connectBtn: document.getElementById("connectBtn"),
   stopBtn: document.getElementById("stopBtn"),
-  snapshotBtn: document.getElementById("snapshotBtn"),
   clearLogBtn: document.getElementById("clearLogBtn"),
   clearSerialLogBtn: document.getElementById("clearSerialLogBtn"),
   fingerprintBox: document.getElementById("fingerprintBox"),
@@ -45,12 +59,6 @@ const els = {
   deviceConfigModalCloseBtn: document.getElementById("deviceConfigModalCloseBtn"),
   deviceConfigModalCancelBtn: document.getElementById("deviceConfigModalCancelBtn"),
   deviceConfigModalSubmitBtn: document.getElementById("deviceConfigModalSubmitBtn"),
-  video: document.getElementById("video"),
-  canvas: document.getElementById("canvas"),
-  canvasWrap: document.querySelector(".canvasWrap"),
-  rtspTransport: document.getElementById("rtspTransport"),
-  processMode: document.getElementById("processMode"),
-  showProcessed: document.getElementById("showProcessed"),
   serialBaudRate: document.getElementById("serialBaudRate"),
   serialBaudRateInput: document.getElementById("serialBaudRateInput"),
   serialFixedBaudRate: document.getElementById("serialFixedBaudRate"),
@@ -102,12 +110,23 @@ const els = {
   ftpIngestUrl: document.getElementById("ftpIngestUrl"),
   ftpIngestDir: document.getElementById("ftpIngestDir"),
   log: document.getElementById("log"),
-  serialLog: document.getElementById("serialLog")
+  serialLog: document.getElementById("serialLog"),
+  devicePreviewModal: document.getElementById("devicePreviewModal"),
+  devicePreviewModalTitle: document.getElementById("devicePreviewModalTitle"),
+  devicePreviewModalCloseBtn: document.getElementById("devicePreviewModalCloseBtn"),
+  devicePreviewModalStopBtn: document.getElementById("devicePreviewModalStopBtn"),
+  previewVideo: document.getElementById("previewVideo"),
+  previewSnapshotBtn: document.getElementById("previewSnapshotBtn"),
+  previewRtspTransport: document.getElementById("previewRtspTransport"),
+  previewProcessMode: document.getElementById("previewProcessMode"),
+  previewShowProcessed: document.getElementById("previewShowProcessed"),
+  namingRulesContainer: document.getElementById("namingRulesContainer"),
+  namingRulesList: document.getElementById("namingRulesList")
 };
 
 let hlsPlayer = null;
 let activeStreamId = "";
-let renderHandle = 0;
+
 const STORAGE_KEY = "onvif:lastConnection";
 const SESSION_STREAMING_KEY = "onvif:wasStreaming";
 const STREAM_SESSION_KEY = "onvif:lastPreviewSession";
@@ -123,6 +142,12 @@ const managedDeviceState = {
 };
 const deviceConfigModalState = {
   mode: "add"
+};
+
+const devicePreviewModalState = {
+  isOpen: false,
+  currentDevice: null,
+  isHikvisionIsapi: false
 };
 const DEVICE_PROTOCOL_LABELS = {
   "": "请选择",
@@ -473,6 +498,8 @@ async function initSystemUi() {
   els.systemNameInput.value = name;
   els.systemNameInput.readOnly = false;
   els.systemNameInput.title = "操作系统主机名（可修改）";
+  // 更新页面标题
+  updatePageTitle(name);
   // 客户端模式默认开启，不再显示开关
   els.systemIpMode.value = ipMode;
 
@@ -557,6 +584,10 @@ async function initSystemUi() {
       const networkMsg = String(result?.networkApplyResult?.message || "").trim();
       const finalMsg = [hostnameMsg, networkMsg].filter(Boolean).join("; ") || "保存成功";
       setSystemHint(finalMsg);
+
+      // 更新页面标题
+      const systemName = String(els.systemNameInput?.value || "").trim();
+      updatePageTitle(systemName);
 
       const oldPwd = String(els.systemOldPassword?.value || "");
       const newPwd = String(els.systemNewPassword?.value || "");
@@ -1215,6 +1246,9 @@ function formatParsedMetaText(meta) {
   if (!meta || typeof meta !== "object") return "无";
   const parts = [];
   
+  // 检查是否是二进制解析的结果
+  const isBinaryParsed = meta.binaryParsed === true;
+  
   // 处理时间
   const eventAtText = String(meta.eventAtText || "").trim();
   if (eventAtText) {
@@ -1230,38 +1264,92 @@ function formatParsedMetaText(meta) {
     parts.push(`时间 : ${formatDateTime(meta.eventAt) || "--"}`);
   }
   
-  // 已知字段
-  if (meta.deviceIp) parts.push(`设备IP：${meta.deviceIp}`);
-  if (meta.vehicleType) parts.push(`车辆类型：${meta.vehicleType}`);
-  if (meta.speed) parts.push(`车辆速度：${meta.speed}`);
-  
-  // 处理其余字段（unmatchedTokens）
-  if (Array.isArray(meta.unmatchedTokens) && meta.unmatchedTokens.length) {
-    const tokens = meta.unmatchedTokens;
-    // 根据示例格式分配字段
-    if (tokens.length >= 1) parts.push(`设备编号：${tokens[0]}`); // 0008
-    if (tokens.length >= 2) parts.push(`车辆速度：${tokens[1]}`); // 023 (如果speed字段不存在)
-    if (tokens.length >= 3) parts.push(`未知字段：${tokens[2]}`); // 070
-    if (tokens.length >= 4) parts.push(`未知字段：${tokens[3]}`); // 正常
-    if (tokens.length >= 5) parts.push(`未知字段：${tokens[4]}`); // 无
-    if (tokens.length >= 6) parts.push(`车辆颜色：${tokens[5]}`); // 其它色
-    if (tokens.length >= 7) parts.push(`未知字段：${tokens[6]}`); // 12357
-    if (tokens.length >= 8) parts.push(`未知字段：${tokens[7]}`); // 01
+  // 如果是二进制解析，显示详细信息
+  if (isBinaryParsed) {
+    parts.push(`解析方式：二进制解析`);
+    
+    // 显示时间戳分解
+    if (meta.year) parts.push(`年份：${meta.year}`);
+    if (meta.month) parts.push(`月份：${meta.month}`);
+    if (meta.day) parts.push(`日期：${meta.day}`);
+    if (meta.hour) parts.push(`小时：${meta.hour}`);
+    if (meta.minute) parts.push(`分钟：${meta.minute}`);
+    if (meta.second) parts.push(`秒：${meta.second}`);
+    if (meta.millisecond) parts.push(`毫秒：${meta.millisecond}`);
+    
+    // 显示设备信息
+    if (meta.deviceId) parts.push(`设备ID：${meta.deviceId}`);
+    if (meta.deviceIdStr) parts.push(`设备编号：${meta.deviceIdStr}`);
+    
+    // 显示字段标记
+    if (Array.isArray(meta.fieldMarkers) && meta.fieldMarkers.length > 0) {
+      parts.push(`字段标记：${meta.fieldMarkers.join(', ')}`);
+    }
   }
   
-  // 其他已知字段（如果存在）
-  if (meta.deviceNo) parts.push(`未知字段：${meta.deviceNo}`);
-  if (meta.channelNo) parts.push(`未知字段：${meta.channelNo}`);
-  if (meta.laneNo) parts.push(`未知字段：${meta.laneNo}`);
-  if (meta.imageSeq) parts.push(`未知字段：${meta.imageSeq}`);
-  if (meta.vehicleSeq) parts.push(`未知字段：${meta.vehicleSeq}`);
-  if (meta.plateColor) parts.push(`未知字段：${meta.plateColor}`);
-  if (meta.vehicleColor) parts.push(`未知字段：${meta.vehicleColor}`);
-  if (meta.directionNo) parts.push(`未知字段：${meta.directionNo}`);
-  if (meta.intersectionNo) parts.push(`未知字段：${meta.intersectionNo}`);
-  if (meta.violationType) parts.push(`未知字段：${meta.violationType}`);
+  // 优先使用识别码解析器返回的字段映射
+  if (meta.fields && typeof meta.fields === 'object' && Object.keys(meta.fields).length > 0) {
+    // 使用识别码解析器返回的字段映射
+    const fieldOrder = meta.fieldOrder || getDefaultFieldOrder();
+    
+    // 按字段顺序显示字段
+    fieldOrder.forEach(fieldName => {
+      if (meta.fields[fieldName] !== undefined && meta.fields[fieldName] !== '') {
+        parts.push(`${fieldName} : ${meta.fields[fieldName]}`);
+      }
+    });
+    
+    // 显示识别码信息
+    if (meta.identificationCode) {
+      parts.push(`识别码 : ${meta.identificationCode.byte44},${meta.identificationCode.byte45}`);
+    }
+    if (meta.config && meta.config !== '未找到配置') {
+      parts.push(`配置 : ${meta.config}`);
+    }
+  } else {
+    // 回退到原有逻辑
+    // 已知字段
+    if (meta.deviceIp) parts.push(`设备IP：${meta.deviceIp}`);
+    if (meta.vehicleType) parts.push(`车辆类型：${meta.vehicleType}`);
+    if (meta.speed) parts.push(`车辆速度：${meta.speed}`);
+    
+    // 处理其余字段（unmatchedTokens）
+    if (Array.isArray(meta.unmatchedTokens) && meta.unmatchedTokens.length) {
+      const tokens = meta.unmatchedTokens;
+      // 根据示例格式分配字段
+      if (tokens.length >= 1) parts.push(`设备编号：${tokens[0]}`); // 0008
+      if (tokens.length >= 2) parts.push(`车辆速度：${tokens[1]}`); // 023 (如果speed字段不存在)
+      if (tokens.length >= 3) parts.push(`未知字段：${tokens[2]}`); // 070
+      if (tokens.length >= 4) parts.push(`未知字段：${tokens[3]}`); // 正常
+      if (tokens.length >= 5) parts.push(`未知字段：${tokens[4]}`); // 无
+      if (tokens.length >= 6) parts.push(`车辆颜色：${tokens[5]}`); // 其它色
+      if (tokens.length >= 7) parts.push(`未知字段：${tokens[6]}`); // 12357
+      if (tokens.length >= 8) parts.push(`未知字段：${tokens[7]}`); // 01
+    }
+    
+    // 其他已知字段（如果存在）
+    if (meta.deviceNo) parts.push(`未知字段：${meta.deviceNo}`);
+    if (meta.channelNo) parts.push(`未知字段：${meta.channelNo}`);
+    if (meta.laneNo) parts.push(`未知字段：${meta.laneNo}`);
+    if (meta.imageSeq) parts.push(`未知字段：${meta.imageSeq}`);
+    if (meta.vehicleSeq) parts.push(`未知字段：${meta.vehicleSeq}`);
+    if (meta.plateColor) parts.push(`未知字段：${meta.plateColor}`);
+    if (meta.vehicleColor) parts.push(`车辆颜色：${meta.vehicleColor}`);
+    if (meta.directionNo) parts.push(`未知字段：${meta.directionNo}`);
+    if (meta.intersectionNo) parts.push(`未知字段：${meta.intersectionNo}`);
+    if (meta.violationType) parts.push(`未知字段：${meta.violationType}`);
+  }
   
   return parts.length ? parts.join("\n") : "无";
+}
+
+// 获取默认字段顺序（与服务器端保持一致）
+function getDefaultFieldOrder() {
+  return [
+    "设备名", "设备号", "设备IP", "通道名", "通道号",
+    "时间", "车牌号码", "车牌颜色", "车道号", "车辆速度",
+    "监测点1", "图片序号", "车辆序号", "限速标志", "国标违法代码"
+  ];
 }
 
 async function openPlateDetailById(id) {
@@ -1865,25 +1953,18 @@ function initPlateModule() {
       if (els.plateDeleteBtn) els.plateDeleteBtn.disabled = true;
       try {
         await fetchJson("/api/plates/delete", { ids });
-    for (const id of ids) {
-      plateById.delete(id);
-      plateSelectedIds.delete(id);
-      
-      // 删除卡片视图中的元素
-      const cardEl = document.querySelector(`.plate-card[data-record-id="${CSS.escape(id)}"]`);
-      if (cardEl) cardEl.remove();
-      
-      // 删除表格视图中的行
-      const rowEl = document.querySelector(`.plate-row[data-record-id="${CSS.escape(id)}"]`);
-      if (rowEl) rowEl.remove();
-    }
-    const plateListEl = document.getElementById("plateList");
-    if (plateListEl) ensureEmptyHint(plateListEl);
-    
-    // 删除后直接更新UI，不重新加载数据
-    updatePlateDashboard().catch(err => console.error("删除后更新仪表板失败:", err));
-    updatePlatePageInfo();
-    logLine(`已删除 ${ids.length} 条记录`);
+        
+        // 清空选中状态
+        plateSelectedIds.clear();
+        
+        // 删除后自动刷新数据
+        await applyPlateFiltersFromUi();
+        
+        // 更新仪表板
+        updatePlateDashboard().catch(err => console.error("删除后更新仪表板失败:", err));
+        
+        logLine(`已删除 ${ids.length} 条记录`);
+        
       } catch {
         logLine("删除记录失败");
       } finally {
@@ -2231,13 +2312,17 @@ function renderManagedDeviceList() {
         managedDeviceState.selectedId = String(item.id || "");
         fillConnectionForm(item);
         renderManagedDeviceList();
+        
+        // 检查设备是否在线，如果不在线，直接提示并不打开弹窗
         if (String(item.onlineState || "").trim() !== "online") {
           setManagedDeviceHint(`设备未在线，无法预览：${item.name}`, true);
           return;
         }
-        setManagedDeviceHint(`正在预览：${item.name}`);
+        
         logLine(`开始预览设备：${item.name} (${item.host}:${item.port})`);
-        await connectAndPlay();
+        
+        // 设备在线，打开预览弹窗
+        setDevicePreviewModalOpen(true, item);
       });
       body.appendChild(tr);
     }
@@ -3402,136 +3487,7 @@ async function playHls(playUrl) {
   throw new Error("当前浏览器不支持 HLS 播放");
 }
 
-function ensureCanvasSize() {
-  if (!els.video) return false;
-  const w = els.video.videoWidth || 0;
-  const h = els.video.videoHeight || 0;
-  if (!w || !h) return false;
-  if (els.canvas.width !== w) els.canvas.width = w;
-  if (els.canvas.height !== h) els.canvas.height = h;
-  return true;
-}
 
-function applyGrayscale(data) {
-  for (let i = 0; i < data.length; i += 4) {
-    const r = data[i];
-    const g = data[i + 1];
-    const b = data[i + 2];
-    const y = (r * 0.299 + g * 0.587 + b * 0.114) | 0;
-    data[i] = y;
-    data[i + 1] = y;
-    data[i + 2] = y;
-  }
-}
-
-function applyInvert(data) {
-  for (let i = 0; i < data.length; i += 4) {
-    data[i] = 255 - data[i];
-    data[i + 1] = 255 - data[i + 1];
-    data[i + 2] = 255 - data[i + 2];
-  }
-}
-
-function applyEdges(imageData) {
-  const { data, width, height } = imageData;
-  const gray = new Uint8ClampedArray(width * height);
-  for (let i = 0, p = 0; i < data.length; i += 4, p += 1) {
-    const r = data[i];
-    const g = data[i + 1];
-    const b = data[i + 2];
-    gray[p] = (r * 0.299 + g * 0.587 + b * 0.114) | 0;
-  }
-
-  const out = new Uint8ClampedArray(width * height);
-  const idx = (x, y) => y * width + x;
-
-  for (let y = 1; y < height - 1; y += 1) {
-    for (let x = 1; x < width - 1; x += 1) {
-      const gx =
-        -gray[idx(x - 1, y - 1)] +
-        gray[idx(x + 1, y - 1)] +
-        -2 * gray[idx(x - 1, y)] +
-        2 * gray[idx(x + 1, y)] +
-        -gray[idx(x - 1, y + 1)] +
-        gray[idx(x + 1, y + 1)];
-
-      const gy =
-        -gray[idx(x - 1, y - 1)] +
-        -2 * gray[idx(x, y - 1)] +
-        -gray[idx(x + 1, y - 1)] +
-        gray[idx(x - 1, y + 1)] +
-        2 * gray[idx(x, y + 1)] +
-        gray[idx(x + 1, y + 1)];
-
-      const m = Math.min(255, Math.hypot(gx, gy) | 0);
-      out[idx(x, y)] = m;
-    }
-  }
-
-  for (let i = 0, p = 0; i < data.length; i += 4, p += 1) {
-    const v = out[p];
-    data[i] = v;
-    data[i + 1] = v;
-    data[i + 2] = v;
-  }
-}
-
-function renderLoop() {
-  renderHandle = requestAnimationFrame(renderLoop);
-  if (!els.showProcessed || !els.processMode) return;
-  if (!els.showProcessed.checked) return;
-  if (!ensureCanvasSize()) return;
-
-  const ctx = els.canvas.getContext("2d", { willReadFrequently: true });
-  if (!ctx) return;
-
-  ctx.drawImage(els.video, 0, 0, els.canvas.width, els.canvas.height);
-
-  const mode = els.processMode.value;
-  if (mode === "none") return;
-
-  const imageData = ctx.getImageData(0, 0, els.canvas.width, els.canvas.height);
-
-  if (mode === "grayscale") applyGrayscale(imageData.data);
-  else if (mode === "invert") applyInvert(imageData.data);
-  else if (mode === "edges") applyEdges(imageData);
-
-  ctx.putImageData(imageData, 0, 0);
-}
-
-function updateCanvasVisibility() {
-  const visible = Boolean(els.showProcessed?.checked);
-  if (els.canvasWrap) els.canvasWrap.classList.toggle("visible", visible);
-}
-
-function downloadPngFromCanvas(canvas) {
-  const a = document.createElement("a");
-  a.download = `snapshot_${Date.now()}.png`;
-  a.href = canvas.toDataURL("image/png");
-  a.click();
-}
-
-function snapshot() {
-  if (!ensureCanvasSize()) return;
-  if (!els.processMode) return;
-  const tmp = document.createElement("canvas");
-  tmp.width = els.canvas.width;
-  tmp.height = els.canvas.height;
-  const ctx = tmp.getContext("2d", { willReadFrequently: true });
-  if (!ctx) return;
-
-  ctx.drawImage(els.video, 0, 0, tmp.width, tmp.height);
-  const mode = els.processMode.value;
-  if (mode !== "none") {
-    const imageData = ctx.getImageData(0, 0, tmp.width, tmp.height);
-    if (mode === "grayscale") applyGrayscale(imageData.data);
-    else if (mode === "invert") applyInvert(imageData.data);
-    else if (mode === "edges") applyEdges(imageData);
-    ctx.putImageData(imageData, 0, 0);
-  }
-
-  downloadPngFromCanvas(tmp);
-}
 
 els.discoverBtn.addEventListener("click", discover);
 async function submitDeviceConfigDialog() {
@@ -3646,7 +3602,6 @@ if (els.checkDeviceBtn) {
     }
   });
 }
-if (els.snapshotBtn) els.snapshotBtn.addEventListener("click", snapshot);
 if (els.clearLogBtn) {
   els.clearLogBtn.addEventListener("click", () => {
     if (els.log) els.log.textContent = "";
@@ -4030,9 +3985,9 @@ function initEventStream() {
   };
 }
 
-updateCanvasVisibility();
+
 setButtons({ streaming: false });
-renderLoop();
+
 loadFingerprint();
 initSidebarNav();
 initSystemUi();
@@ -4091,7 +4046,7 @@ initDeviceConfigModalUi();
 
 
 window.addEventListener("beforeunload", () => {
-  cancelAnimationFrame(renderHandle);
+
   const streamId = String(activeStreamId || "").trim();
   if (!streamId) return;
   try {
@@ -4108,6 +4063,754 @@ window.addEventListener("beforeunload", () => {
     sessionStorage.setItem(SESSION_STREAMING_KEY, "0");
   } catch {}
 });
+
+// 设备预览弹窗相关函数
+function setDevicePreviewModalOpen(open, device = null) {
+  devicePreviewModalState.isOpen = open;
+  const modal = els.devicePreviewModal;
+  if (!modal) return;
+  
+  if (open) {
+    modal.classList.add("open");
+    modal.setAttribute("aria-hidden", "false");
+    
+    // 清除之前的错误提示
+    setPreviewErrorHint('');
+    
+    if (device) {
+      devicePreviewModalState.currentDevice = device;
+      
+      // 检查是否为海康ISAPI协议
+      const isHikvisionIsapi = String(device.protocol || "").trim() === "hikvision-isapi";
+      devicePreviewModalState.isHikvisionIsapi = isHikvisionIsapi;
+      
+      // 设置弹窗标题
+      if (els.devicePreviewModalTitle) {
+        els.devicePreviewModalTitle.textContent = `设备预览 - ${device.name || "未知设备"}`;
+      }
+      
+      // 显示或隐藏命名规则容器
+      if (els.namingRulesContainer) {
+        els.namingRulesContainer.style.display = isHikvisionIsapi ? "block" : "none";
+      }
+      
+      // 如果是海康ISAPI协议，加载命名规则
+      if (isHikvisionIsapi && els.namingRulesList) {
+        loadNamingRulesForDevice(device);
+      }
+      
+      // 开始预览
+      startPreviewForDevice(device);
+    }
+  } else {
+    modal.classList.remove("open");
+    modal.setAttribute("aria-hidden", "true");
+    
+    // 关闭弹窗时停止预览
+    stopPreview();
+    devicePreviewModalState.currentDevice = null;
+    devicePreviewModalState.isHikvisionIsapi = false;
+    
+    // 清空命名规则列表
+    if (els.namingRulesList) {
+      els.namingRulesList.textContent = "";
+    }
+  }
+}
+
+// 加载命名规则
+async function loadNamingRulesForDevice(device) {
+  if (!els.namingRulesList) return;
+  
+  // 清空现有内容
+  els.namingRulesList.textContent = "";
+  
+  // 显示加载中
+  const loadingMsg = document.createElement("div");
+  loadingMsg.textContent = "正在加载FTP配置和命名规则...";
+  loadingMsg.style.cssText = "color: #475569; padding: 12px; text-align: center;";
+  els.namingRulesList.appendChild(loadingMsg);
+  
+  try {
+    // 尝试从服务器获取FTP配置和命名规则
+    let namingRules = [];
+    
+    try {
+      // 调用服务器API获取设备的FTP配置
+      const response = await fetchJson("/api/device/ftp-config", { 
+        connection: {
+          host: device.host,
+          port: device.port,
+          username: device.username,
+          password: device.password
+        }
+      });
+      
+      // 解析FTP配置响应，提取命名规则
+      namingRules = parseFtpConfigResponse(response);
+    } catch (apiError) {
+      console.log("获取FTP配置失败，使用静态数据:", apiError.message);
+      
+      // 使用静态数据作为后备
+      namingRules = [
+        { name: "车牌坐标", value: "X0Y0W0H0" },
+        { name: "设备名", value: "IP CAPTURE CAMERA" },
+        { name: "车辆速度", value: "064" },
+        { name: "国际违法代码", value: "0" },
+        { name: "限速标志", value: "070" },
+        { name: "通道号", value: "01" },
+        { name: "车牌颜色", value: "无" },
+        { name: "车身颜色", value: "其它色" },
+        { name: "车牌号码", value: "无车牌" },
+        { name: "设备IP", value: "192.168.11.253" },
+        { name: "图片序号", value: "01" },
+        { name: "设备号", value: "" },
+        { name: "路口编号", value: "20260419232446445" },
+        { name: "监测点1", value: "20260419232209615" },
+        { name: "自定义", value: "admin" }
+      ];
+    }
+    
+    // 清空加载消息
+    els.namingRulesList.textContent = "";
+    
+    if (namingRules.length === 0) {
+      const emptyMsg = document.createElement("div");
+      emptyMsg.textContent = "未找到命名规则数据";
+      emptyMsg.style.cssText = "color: #6b7280; padding: 12px; text-align: center;";
+      els.namingRulesList.appendChild(emptyMsg);
+      return;
+    }
+    
+    // 创建命名规则列表
+    namingRules.forEach((rule, index) => {
+      const ruleItem = document.createElement("div");
+      ruleItem.style.cssText = `
+        padding: 8px 12px;
+        margin-bottom: 6px;
+        background: white;
+        border-radius: 8px;
+        border: 1px solid rgba(226, 232, 240, 0.8);
+        font-size: 12px;
+        transition: background-color 0.2s;
+      `;
+      
+      // 添加悬停效果
+      ruleItem.addEventListener("mouseenter", () => {
+        ruleItem.style.backgroundColor = "#f8fafc";
+      });
+      ruleItem.addEventListener("mouseleave", () => {
+        ruleItem.style.backgroundColor = "white";
+      });
+      
+      const nameSpan = document.createElement("span");
+      nameSpan.textContent = `${index + 1}. ${rule.name}: `;
+      nameSpan.style.cssText = "color: #475569; font-weight: 500; min-width: 100px; display: inline-block;";
+      
+      const valueSpan = document.createElement("span");
+      valueSpan.textContent = rule.value || "(空)";
+      valueSpan.style.cssText = "color: #0f172a; word-break: break-all;";
+      
+      ruleItem.appendChild(nameSpan);
+      ruleItem.appendChild(valueSpan);
+      els.namingRulesList.appendChild(ruleItem);
+    });
+    
+    // 添加提示信息
+    const hintMsg = document.createElement("div");
+    hintMsg.textContent = `共 ${namingRules.length} 个命名元素`;
+    hintMsg.style.cssText = "color: #6b7280; font-size: 11px; padding: 8px 12px; text-align: center; border-top: 1px solid rgba(226, 232, 240, 0.5); margin-top: 8px;";
+    els.namingRulesList.appendChild(hintMsg);
+    
+  } catch (error) {
+    console.error("加载命名规则失败:", error);
+    els.namingRulesList.textContent = "";
+    
+    const errorMsg = document.createElement("div");
+    errorMsg.textContent = "加载命名规则失败";
+    errorMsg.style.cssText = "color: #dc2626; padding: 12px; text-align: center;";
+    els.namingRulesList.appendChild(errorMsg);
+  }
+}
+
+// 解析FTP配置响应，提取命名规则
+function parseFtpConfigResponse(response) {
+  try {
+    console.log("FTP配置响应:", response);
+    
+    // 检查是否有XML文本
+    if (response?.text) {
+      // 尝试解析XML
+      const parser = new DOMParser();
+      const xmlDoc = parser.parseFromString(response.text, "text/xml");
+      
+      // 检查XML解析错误
+      const parserError = xmlDoc.querySelector("parsererror");
+      if (parserError) {
+        console.error("XML解析错误:", parserError.textContent);
+        return getFallbackNamingRules();
+      }
+      
+      // 解析海康ISAPI FTP配置XML
+      // 根据海康ISAPI文档，FTP配置可能包含以下字段：
+      const namingRules = [];
+      
+      // 1. 基本FTP配置
+      const ftpHost = xmlDoc.querySelector("host")?.textContent || 
+                     xmlDoc.querySelector("FtpHost")?.textContent ||
+                     xmlDoc.querySelector("ftpHost")?.textContent;
+      if (ftpHost) {
+        namingRules.push({ name: "FTP服务器地址", value: ftpHost });
+      }
+      
+      const ftpPort = xmlDoc.querySelector("port")?.textContent || 
+                     xmlDoc.querySelector("FtpPort")?.textContent ||
+                     xmlDoc.querySelector("ftpPort")?.textContent;
+      if (ftpPort) {
+        namingRules.push({ name: "FTP端口", value: ftpPort });
+      }
+      
+      const ftpUsername = xmlDoc.querySelector("userName")?.textContent || 
+                         xmlDoc.querySelector("username")?.textContent ||
+                         xmlDoc.querySelector("FtpUserName")?.textContent;
+      if (ftpUsername) {
+        namingRules.push({ name: "FTP用户名", value: ftpUsername });
+      }
+      
+      // 密码通常不显示或显示为星号
+      const ftpPassword = xmlDoc.querySelector("password")?.textContent || 
+                         xmlDoc.querySelector("FtpPassword")?.textContent;
+      if (ftpPassword) {
+        namingRules.push({ name: "FTP密码", value: "********" });
+      }
+      
+      // 2. 上传目录和文件命名规则
+      const uploadDirectory = xmlDoc.querySelector("directory")?.textContent || 
+                            xmlDoc.querySelector("uploadDirectory")?.textContent ||
+                            xmlDoc.querySelector("UploadDirectory")?.textContent;
+      if (uploadDirectory) {
+        namingRules.push({ name: "上传目录", value: uploadDirectory });
+      }
+      
+      // 3. 文件名格式/命名规则
+      // 海康ISAPI可能使用fileNameFormat或namingRule等字段
+      const fileNameFormat = xmlDoc.querySelector("fileNameFormat")?.textContent || 
+                           xmlDoc.querySelector("fileName")?.textContent ||
+                           xmlDoc.querySelector("FileNameFormat")?.textContent;
+      if (fileNameFormat) {
+        namingRules.push({ name: "文件名格式", value: fileNameFormat });
+      }
+      
+      // 4. 通道相关配置
+      const channel = xmlDoc.querySelector("channel")?.textContent || 
+                     xmlDoc.querySelector("Channel")?.textContent ||
+                     xmlDoc.querySelector("channelNo")?.textContent;
+      if (channel) {
+        namingRules.push({ name: "通道号", value: channel });
+      }
+      
+      // 5. 图片相关配置
+      const imageFormat = xmlDoc.querySelector("imageFormat")?.textContent || 
+                         xmlDoc.querySelector("ImageFormat")?.textContent ||
+                         xmlDoc.querySelector("format")?.textContent;
+      if (imageFormat) {
+        namingRules.push({ name: "图片格式", value: imageFormat });
+      }
+      
+      const imageQuality = xmlDoc.querySelector("imageQuality")?.textContent || 
+                          xmlDoc.querySelector("ImageQuality")?.textContent ||
+                          xmlDoc.querySelector("quality")?.textContent;
+      if (imageQuality) {
+        namingRules.push({ name: "图片质量", value: imageQuality });
+      }
+      
+      // 6. 上传间隔和触发方式
+      const uploadInterval = xmlDoc.querySelector("uploadInterval")?.textContent || 
+                           xmlDoc.querySelector("UploadInterval")?.textContent ||
+                           xmlDoc.querySelector("interval")?.textContent;
+      if (uploadInterval) {
+        namingRules.push({ name: "上传间隔", value: uploadInterval });
+      }
+      
+      const triggerMode = xmlDoc.querySelector("triggerMode")?.textContent || 
+                         xmlDoc.querySelector("TriggerMode")?.textContent ||
+                         xmlDoc.querySelector("trigger")?.textContent;
+      if (triggerMode) {
+        namingRules.push({ name: "触发方式", value: triggerMode });
+      }
+      
+      // 7. 车牌识别相关
+      const plateRecognition = xmlDoc.querySelector("plateRecognition")?.textContent || 
+                              xmlDoc.querySelector("PlateRecognition")?.textContent ||
+                              xmlDoc.querySelector("plateRecog")?.textContent;
+      if (plateRecognition) {
+        namingRules.push({ name: "车牌识别", value: plateRecognition });
+      }
+      
+      // 8. 命名元素解析
+      // 海康ISAPI可能使用namingElements或nameElements字段
+      const namingElements = xmlDoc.querySelector("namingElements")?.textContent || 
+                           xmlDoc.querySelector("NamingElements")?.textContent ||
+                           xmlDoc.querySelector("nameElements")?.textContent;
+      
+      if (namingElements) {
+        // 尝试解析命名元素字符串
+        // 可能是逗号分隔的列表或XML结构
+        const elements = namingElements.split(/[,;|]/).map(e => e.trim()).filter(e => e);
+        elements.forEach((element, index) => {
+          namingRules.push({ name: `命名元素${index + 1}`, value: element });
+        });
+      }
+      
+      // 9. 如果XML中有其他明显的命名规则字段
+      // 查找包含"name"、"naming"、"rule"等关键词的节点
+      const allElements = xmlDoc.querySelectorAll("*");
+      for (const elem of allElements) {
+        const tagName = elem.tagName.toLowerCase();
+        const textContent = elem.textContent.trim();
+        
+        if (textContent && (tagName.includes('name') || tagName.includes('naming') || tagName.includes('rule'))) {
+          if (!namingRules.some(r => r.value === textContent)) {
+            namingRules.push({ name: tagName, value: textContent });
+          }
+        }
+      }
+      
+      // 如果找到了命名规则，返回它们
+      if (namingRules.length > 0) {
+        // 确保最多返回15个元素
+        return namingRules.slice(0, 15);
+      }
+      
+      // 如果没有找到明确的命名规则，尝试从原始文本中提取
+      return extractNamingRulesFromText(response.text);
+    }
+    
+    // 如果没有XML文本，返回后备数据
+    return getFallbackNamingRules();
+  } catch (error) {
+    console.error("解析FTP配置失败:", error);
+    return getFallbackNamingRules();
+  }
+}
+
+// 从文本中提取命名规则（备用方法）
+function extractNamingRulesFromText(text) {
+  const rules = [];
+  const lines = text.split('\n');
+  
+  // 查找可能包含命名规则的文本模式
+  const patterns = [
+    /name[:\s]*([^\n<]+)/i,
+    /naming[:\s]*([^\n<]+)/i,
+    /rule[:\s]*([^\n<]+)/i,
+    /element[:\s]*([^\n<]+)/i,
+    /format[:\s]*([^\n<]+)/i,
+    /pattern[:\s]*([^\n<]+)/i
+  ];
+  
+  for (const line of lines) {
+    for (const pattern of patterns) {
+      const match = line.match(pattern);
+      if (match && match[1]) {
+        const value = match[1].trim();
+        if (value && !rules.some(r => r.value === value)) {
+          rules.push({ name: "命名规则", value });
+        }
+      }
+    }
+  }
+  
+  // 如果从文本中提取到了规则，返回它们
+  if (rules.length > 0) {
+    return rules.slice(0, 15);
+  }
+  
+  // 否则返回后备数据
+  return getFallbackNamingRules();
+}
+
+// 获取后备命名规则数据
+function getFallbackNamingRules() {
+  return [
+    { name: "车牌坐标", value: "X0Y0W0H0" },
+    { name: "设备名", value: "IP CAPTURE CAMERA" },
+    { name: "车辆速度", value: "064" },
+    { name: "国际违法代码", value: "0" },
+    { name: "限速标志", value: "070" },
+    { name: "通道号", value: "01" },
+    { name: "车牌颜色", value: "无" },
+    { name: "车身颜色", value: "其它色" },
+    { name: "车牌号码", value: "无车牌" },
+    { name: "设备IP", value: "192.168.11.253" },
+    { name: "图片序号", value: "01" },
+    { name: "设备号", value: "" },
+    { name: "路口编号", value: "20260419232446445" },
+    { name: "监测点1", value: "20260419232209615" },
+    { name: "自定义", value: "admin" }
+  ];
+}
+
+// 在预览弹窗中显示错误提示
+function setPreviewErrorHint(text, isError = false) {
+  // 在预览弹窗中创建一个错误提示区域
+  const modalBody = els.devicePreviewModal?.querySelector('.modalBody');
+  if (!modalBody) return;
+  
+  // 查找或创建错误提示容器
+  let errorHint = modalBody.querySelector('.preview-error-hint');
+  if (!errorHint) {
+    errorHint = document.createElement('div');
+    errorHint.className = 'preview-error-hint';
+    errorHint.style.cssText = `
+      margin: 10px 0;
+      padding: 12px 16px;
+      border-radius: 8px;
+      font-size: 13px;
+      text-align: center;
+    `;
+    // 插入到视频区域上方
+    const videoWrap = modalBody.querySelector('.videoWrap');
+    if (videoWrap) {
+      videoWrap.parentNode.insertBefore(errorHint, videoWrap);
+    } else {
+      modalBody.insertBefore(errorHint, modalBody.firstChild);
+    }
+  }
+  
+  // 设置内容和样式
+  errorHint.textContent = String(text || "");
+  errorHint.style.backgroundColor = isError ? '#fef2f2' : '#f0f9ff';
+  errorHint.style.color = isError ? '#b91c1c' : '#0369a1';
+  errorHint.style.border = isError ? '1px solid #fecaca' : '1px solid #bae6fd';
+  
+  // 如果是错误，3秒后自动隐藏
+  if (isError) {
+    setTimeout(() => {
+      if (errorHint && errorHint.textContent === text) {
+        errorHint.style.display = 'none';
+      }
+    }, 3000);
+  }
+}
+
+// 开始设备预览
+async function startPreviewForDevice(device) {
+  if (!device) return;
+  
+  try {
+    // 填充连接表单
+    fillConnectionForm(device);
+    
+    // 开始预览
+    await connectAndPlayInPreview();
+    
+    // 启用截图按钮
+    if (els.previewSnapshotBtn) {
+      els.previewSnapshotBtn.disabled = false;
+    }
+    
+    // 清除之前的错误提示
+    setPreviewErrorHint('');
+    
+  } catch (error) {
+    console.error("开始预览失败:", error);
+    // 在预览弹窗中显示错误提示，而不是在网络设备页面
+    setPreviewErrorHint(`预览失败: ${error.message}`, true);
+  }
+}
+
+// 在预览弹窗中连接并播放
+async function connectAndPlayInPreview() {
+  const inputPort = Number(els.portInput.value || 80);
+  const parsedHost = parseHostAndPortFromInput(els.hostInput.value, inputPort);
+  const host = parsedHost.host.trim();
+  const port = parsedHost.port;
+  if (!host) {
+    throw new Error("请填写 IP / Host");
+  }
+  
+  try {
+    // 获取RTSP URI
+    const rtsp = await fetchJson("/api/onvif/stream-uri", {
+      host,
+      port,
+      username: els.userInput.value,
+      password: els.passInput.value
+    });
+    
+    const rtspUriToUse = rtsp.rtspUriWithAuth || rtsp.rtspUri || "";
+    if (host && port && rtspUriToUse) {
+      const key = `${host}:${port}`;
+      
+      // 停止之前的流
+      if (activeStreamId) await stopStream();
+      
+      // 开始新的流
+      const stream = await fetchJson("/api/stream/start", {
+        rtspUri: rtspUriToUse,
+        transport: els.previewRtspTransport?.value || "auto"
+      });
+      
+      activeStreamId = String(stream.streamId || "");
+      writeLastPreviewSession({ host, port, streamId: activeStreamId });
+      
+      // 构建播放URL
+      const sourceUrl = `/api/stream/${activeStreamId}/index.m3u8`;
+      
+      // 在预览视频元素中播放
+      await playVideoInPreview(sourceUrl);
+      
+      return;
+    }
+    
+    throw new Error("无法获取有效的RTSP URI");
+    
+  } catch (error) {
+    console.error("连接预览失败:", error);
+    throw error;
+  }
+}
+
+// 在预览视频元素中播放
+async function playVideoInPreview(sourceUrl) {
+  if (!els.previewVideo) {
+    throw new Error("预览视频元素不存在");
+  }
+  
+  if (!sourceUrl) {
+    throw new Error("播放地址为空");
+  }
+  
+  if (window.Hls?.isSupported?.()) {
+    const hls = new window.Hls({
+      enableWorker: true,
+      lowLatencyMode: true,
+      backBufferLength: 30
+    });
+    
+    hls.on(window.Hls.Events.ERROR, (_event, data) => {
+      const detail = String(data?.details || data?.type || "unknown error");
+      if (data?.fatal) console.error(`HLS 播放错误：${detail}`);
+    });
+    
+    hls.loadSource(sourceUrl);
+    hls.attachMedia(els.previewVideo);
+    
+    await new Promise((resolve, reject) => {
+      const cleanup = () => {
+        try {
+          hls.off(window.Hls.Events.MANIFEST_PARSED, onParsed);
+          hls.off(window.Hls.Events.ERROR, onError);
+        } catch {}
+      };
+      
+      const onParsed = async () => {
+        cleanup();
+        try {
+          await els.previewVideo.play();
+        } catch {}
+        resolve();
+      };
+      
+      const onError = (_event, data) => {
+        if (!data?.fatal) return;
+        cleanup();
+        reject(new Error(String(data?.details || data?.type || "HLS fatal error")));
+      };
+      
+      hls.on(window.Hls.Events.MANIFEST_PARSED, onParsed);
+      hls.on(window.Hls.Events.ERROR, onError);
+    });
+    
+    return;
+  }
+  
+  if (els.previewVideo.canPlayType("application/vnd.apple.mpegurl")) {
+    els.previewVideo.src = sourceUrl;
+    try {
+      await els.previewVideo.play();
+    } catch {}
+    return;
+  }
+  
+  throw new Error("当前浏览器不支持 HLS 播放");
+}
+
+// 停止预览
+function stopPreview() {
+  if (activeStreamId) {
+    stopStream().catch(() => {});
+  }
+  
+  if (els.previewVideo) {
+    els.previewVideo.src = "";
+    if (window.Hls) {
+      const hls = window.Hls.getInstanceById(els.previewVideo);
+      if (hls) {
+        hls.destroy();
+      }
+    }
+  }
+  
+  if (els.previewSnapshotBtn) {
+    els.previewSnapshotBtn.disabled = true;
+  }
+}
+
+// 修改双击事件处理函数，使用预览弹窗
+function modifyDeviceDoubleClickHandler() {
+  // 找到原来的双击事件处理代码并修改
+  // 这里需要修改 renderManagedDeviceList 函数中的双击事件处理
+}
+
+// 添加事件监听器
+if (els.devicePreviewModalCloseBtn) {
+  els.devicePreviewModalCloseBtn.addEventListener("click", () => {
+    setDevicePreviewModalOpen(false);
+  });
+}
+
+if (els.devicePreviewModalStopBtn) {
+  els.devicePreviewModalStopBtn.addEventListener("click", () => {
+    stopPreview();
+  });
+}
+
+// 添加弹窗拖动功能
+if (els.devicePreviewModal) {
+  const modal = els.devicePreviewModal;
+  const modalPanel = modal.querySelector('.modalPanel');
+  const modalHeader = modal.querySelector('.modalHeader');
+  
+  if (modalPanel && modalHeader) {
+    let isDragging = false;
+    let dragStartX = 0;
+    let dragStartY = 0;
+    let modalStartX = 0;
+    let modalStartY = 0;
+    
+    // 设置模态框为绝对定位，以便拖动
+    modalPanel.style.position = 'absolute';
+    modalPanel.style.top = '50%';
+    modalPanel.style.left = '50%';
+    modalPanel.style.transform = 'translate(-50%, -50%)';
+    modalPanel.style.margin = '0';
+    
+    // 鼠标按下事件 - 开始拖动
+    modalHeader.addEventListener('mousedown', (e) => {
+      // 只允许通过标题栏拖动
+      if (e.target === modalHeader || e.target.closest('.modalTitle') || e.target === els.devicePreviewModalCloseBtn) {
+        isDragging = true;
+        dragStartX = e.clientX;
+        dragStartY = e.clientY;
+        
+        // 获取当前模态框位置
+        const rect = modalPanel.getBoundingClientRect();
+        modalStartX = rect.left;
+        modalStartY = rect.top;
+        
+        // 添加拖动样式
+        modalPanel.style.cursor = 'grabbing';
+        modalHeader.style.cursor = 'grabbing';
+        
+        e.preventDefault();
+      }
+    });
+    
+    // 鼠标移动事件 - 拖动中
+    document.addEventListener('mousemove', (e) => {
+      if (!isDragging) return;
+      
+      const deltaX = e.clientX - dragStartX;
+      const deltaY = e.clientY - dragStartY;
+      
+      // 计算新位置
+      const newX = modalStartX + deltaX;
+      const newY = modalStartY + deltaY;
+      
+      // 应用新位置
+      modalPanel.style.left = `${newX}px`;
+      modalPanel.style.top = `${newY}px`;
+      modalPanel.style.transform = 'none';
+      
+      e.preventDefault();
+    });
+    
+    // 鼠标释放事件 - 结束拖动
+    document.addEventListener('mouseup', () => {
+      if (isDragging) {
+        isDragging = false;
+        modalPanel.style.cursor = '';
+        modalHeader.style.cursor = '';
+      }
+    });
+    
+    // 添加标题栏悬停效果
+    modalHeader.style.cursor = 'grab';
+    modalHeader.addEventListener('mouseenter', () => {
+      if (!isDragging) {
+        modalHeader.style.cursor = 'grab';
+      }
+    });
+    modalHeader.addEventListener('mouseleave', () => {
+      if (!isDragging) {
+        modalHeader.style.cursor = '';
+      }
+    });
+  }
+  
+  // 点击模态框外部关闭
+  modal.addEventListener('click', (e) => {
+    if (e.target === modal) {
+      setDevicePreviewModalOpen(false);
+    }
+  });
+  
+  // ESC键关闭
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && modal.classList.contains('open')) {
+      setDevicePreviewModalOpen(false);
+    }
+  });
+}
+
+// 截图功能
+if (els.previewSnapshotBtn) {
+  els.previewSnapshotBtn.addEventListener("click", async () => {
+    if (!els.previewVideo || !devicePreviewModalState.currentDevice) return;
+    
+    try {
+      const canvas = document.createElement("canvas");
+      canvas.width = els.previewVideo.videoWidth || 640;
+      canvas.height = els.previewVideo.videoHeight || 480;
+      const ctx = canvas.getContext("2d");
+      
+      if (ctx) {
+        ctx.drawImage(els.previewVideo, 0, 0, canvas.width, canvas.height);
+        
+        // 创建下载链接
+        const url = canvas.toDataURL("image/png");
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `snapshot_${devicePreviewModalState.currentDevice.name || "device"}_${Date.now()}.png`;
+        a.style.display = "none";
+        document.body.appendChild(a);
+        a.click();
+        
+        // 清理
+        setTimeout(() => {
+          document.body.removeChild(a);
+        }, 100);
+        
+        setManagedDeviceHint("截图已保存", false);
+      }
+    } catch (error) {
+      console.error("截图失败:", error);
+      setManagedDeviceHint("截图失败", true);
+    }
+  });
+}
 
 
 
