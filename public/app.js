@@ -1241,65 +1241,114 @@ async function fillPlateDetailModal(record) {
   const ftpPath = String(record.ftpRemotePath || "");
   if (ftpEl) ftpEl.textContent = ftpPath || "无";
   
-  // 先显示加载中的提示
-  if (parsedMetaEl) {
-    parsedMetaEl.textContent = "正在加载ISAPI命名规则...";
+  // 判断设备协议类型
+  const isIsapiDevice = isIsapiProtocolRecord(record);
+  
+  // 根据协议类型选择不同的显示方式
+  if (isIsapiDevice) {
+    // ISAPI协议设备：使用ISAPI命名规则显示
+    if (parsedMetaEl) {
+      parsedMetaEl.textContent = "正在加载ISAPI命名规则...";
+    }
+    
+    // 更新标题为ISAPI命名规则
+    const parsedMetaTitle = document.querySelector('.kv .k[data-text="解析信息"]');
+    if (parsedMetaTitle) {
+      parsedMetaTitle.textContent = "ISAPI命名规则";
+    }
+    
+    // 显示ISAPI命名规则
+    if (identificationCodesEl) {
+      // 先显示加载中
+      identificationCodesEl.innerHTML = '<div style="color: #94a3b8; font-style: italic;">正在加载ISAPI命名规则...</div>';
+      
+      // 获取计数元素
+      const identificationCodesCountEl = document.getElementById('plateDetailIdentificationCodesCount');
+      if (identificationCodesCountEl) {
+        identificationCodesCountEl.textContent = "正在加载...";
+      }
+      
+      try {
+        // 尝试从记录中获取设备信息，用于调用ISAPI API
+        // 获取完整的ISAPI FTP配置
+        const ftpConfig = await loadIsapiFtpConfigForRecord(record);
+        
+        // 更新计数显示
+        if (identificationCodesCountEl) {
+          identificationCodesCountEl.textContent = "完整配置";
+        }
+        
+        // 格式化并显示完整的FTP配置
+        const fullConfigHtml = formatFullIsapiFtpConfig(ftpConfig);
+        
+        identificationCodesEl.innerHTML = fullConfigHtml;
+        
+        // 用ISAPI的详细命名规则（带值）替代解析信息
+        if (parsedMetaEl && ftpConfig.namingRules && ftpConfig.namingRules.length > 0) {
+          // 格式化命名规则为文本显示
+          const namingRulesText = formatNamingRulesAsText(ftpConfig.namingRules);
+          parsedMetaEl.textContent = namingRulesText;
+        } else if (parsedMetaEl) {
+          parsedMetaEl.textContent = "未获取到ISAPI命名规则";
+        }
+        
+      } catch (error) {
+        console.error("加载ISAPI FTP配置失败:", error);
+        identificationCodesEl.innerHTML = '<div style="color: #dc2626; font-style: italic;">无法加载ISAPI FTP配置</div>';
+        if (identificationCodesCountEl) {
+          identificationCodesCountEl.textContent = "加载失败";
+        }
+        
+        // 如果加载失败，显示错误信息
+        if (parsedMetaEl) {
+          parsedMetaEl.textContent = "加载ISAPI命名规则失败";
+        }
+      }
+    }
+  } else {
+    // 其他协议设备：使用自己分析的解析信息显示
+    if (parsedMetaEl) {
+      parsedMetaEl.textContent = formatParsedMetaText(record.parsedMeta);
+    }
+    
+    // 更新标题为解析信息
+    const parsedMetaTitle = document.querySelector('.kv .k[data-text="解析信息"]');
+    if (parsedMetaTitle) {
+      parsedMetaTitle.textContent = "解析信息";
+    }
+    
+    // 对于非ISAPI设备，不显示ISAPI命名规则区域
+    if (identificationCodesEl) {
+      identificationCodesEl.innerHTML = '<div style="color: #94a3b8; font-style: italic; padding: 8px 0;">非ISAPI协议设备，无ISAPI命名规则</div>';
+      
+      // 获取计数元素
+      const identificationCodesCountEl = document.getElementById('plateDetailIdentificationCodesCount');
+      if (identificationCodesCountEl) {
+        identificationCodesCountEl.textContent = "不适用";
+      }
+    }
+  }
+}
+
+// 判断记录是否来自ISAPI协议设备
+function isIsapiProtocolRecord(record) {
+  if (!record) return false;
+  
+  // 1. 首先检查deviceConnection中是否有protocol信息
+  if (record.deviceConnection && record.deviceConnection.protocol) {
+    const protocol = String(record.deviceConnection.protocol).trim().toLowerCase();
+    return protocol === "hikvision-isapi";
   }
   
-  // 显示ISAPI命名规则
-  if (identificationCodesEl) {
-    // 先显示加载中
-    identificationCodesEl.innerHTML = '<div style="color: #94a3b8; font-style: italic;">正在加载ISAPI命名规则...</div>';
-    
-    // 获取计数元素
-    const identificationCodesCountEl = document.getElementById('plateDetailIdentificationCodesCount');
-    if (identificationCodesCountEl) {
-      identificationCodesCountEl.textContent = "正在加载...";
-    }
-    
-    try {
-      // 尝试从记录中获取设备信息，用于调用ISAPI API
-      // 获取完整的ISAPI FTP配置
-      const ftpConfig = await loadIsapiFtpConfigForRecord(record);
-      
-      // 更新计数显示
-      if (identificationCodesCountEl) {
-        identificationCodesCountEl.textContent = "完整配置";
-      }
-      
-      // 格式化并显示完整的FTP配置
-      const fullConfigHtml = formatFullIsapiFtpConfig(ftpConfig);
-      
-      identificationCodesEl.innerHTML = fullConfigHtml;
-      
-      // 用ISAPI的详细命名规则（带值）替代解析信息
-      if (parsedMetaEl && ftpConfig.namingRules && ftpConfig.namingRules.length > 0) {
-        // 格式化命名规则为文本显示
-        const namingRulesText = formatNamingRulesAsText(ftpConfig.namingRules);
-        parsedMetaEl.textContent = namingRulesText;
-        
-        // 同时更新解析信息的标题
-        const parsedMetaTitle = document.querySelector('.kv .k[data-text="解析信息"]');
-        if (parsedMetaTitle) {
-          parsedMetaTitle.textContent = "ISAPI命名规则";
-        }
-      } else if (parsedMetaEl) {
-        parsedMetaEl.textContent = "未获取到ISAPI命名规则";
-      }
-      
-    } catch (error) {
-      console.error("加载ISAPI FTP配置失败:", error);
-      identificationCodesEl.innerHTML = '<div style="color: #dc2626; font-style: italic;">无法加载ISAPI FTP配置</div>';
-      if (identificationCodesCountEl) {
-        identificationCodesCountEl.textContent = "加载失败";
-      }
-      
-      // 如果加载失败，显示错误信息
-      if (parsedMetaEl) {
-        parsedMetaEl.textContent = "加载ISAPI命名规则失败";
-      }
-    }
+  // 2. 检查parsedMeta中是否有设备信息暗示是ISAPI设备
+  if (record.parsedMeta && record.parsedMeta.deviceIp) {
+    // 如果有设备IP，可以假设是ISAPI设备（海康设备通常使用ISAPI）
+    // 这里可以根据实际情况调整逻辑
+    return true;
   }
+  
+  // 3. 默认情况下，如果无法确定，假设不是ISAPI设备
+  return false;
 }
 
 // 格式化命名规则为文本显示
