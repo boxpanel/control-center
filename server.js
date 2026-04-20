@@ -4208,6 +4208,11 @@ app.get("/api/serial/status", async (req, res, next) => {
   }
 });
 
+// 简单的状态检查端点，用于轮询检查服务器是否可用
+app.get("/api/status", (req, res) => {
+  res.json({ ok: true, status: "running", timestamp: Date.now() });
+});
+
 app.post("/api/serial/connect", async (req, res, next) => {
   try {
     const config = await getClientConfig();

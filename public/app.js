@@ -74,6 +74,74 @@ function showRestartConfirm() {
   });
 }
 
+// 检查服务器是否可用
+async function checkServerAvailable() {
+  try {
+    // 创建AbortController用于超时控制
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 3000);
+    
+    // 尝试访问一个简单的API端点
+    const response = await fetch("/api/status", {
+      method: "GET",
+      signal: controller.signal
+    });
+    
+    clearTimeout(timeoutId);
+    
+    if (response.ok) {
+      return true;
+    }
+    return false;
+  } catch (error) {
+    console.log("服务器检查失败:", error.message);
+    return false;
+  }
+}
+
+// 轮询检查服务器是否重启完成
+function startServerPolling() {
+  let pollCount = 0;
+  const maxPolls = 60; // 最多轮询60次（3分钟）
+  const pollInterval = 3000; // 每3秒检查一次
+  
+  const poll = async () => {
+    pollCount++;
+    
+    if (pollCount > maxPolls) {
+      // 超过最大轮询次数，停止轮询
+      console.log("轮询超时，服务器可能未正常启动");
+      showLoading("服务器重启超时，请手动刷新页面");
+      return;
+    }
+    
+    console.log(`轮询检查服务器 (${pollCount}/${maxPolls})...`);
+    
+    const isAvailable = await checkServerAvailable();
+    
+    if (isAvailable) {
+      // 服务器已恢复，刷新页面
+      console.log("服务器已恢复，刷新页面...");
+      showLoading("设备重启完成，正在刷新页面...");
+      
+      // 等待2秒让用户看到消息，然后刷新页面
+      setTimeout(() => {
+        window.location.reload();
+      }, 2000);
+    } else {
+      // 服务器仍未恢复，继续轮询
+      console.log("服务器尚未恢复，继续等待...");
+      showLoading(`设备正在重启... (${pollCount * 3}秒)`);
+      
+      // 继续轮询
+      setTimeout(poll, pollInterval);
+    }
+  };
+  
+  // 开始轮询
+  poll();
+}
+
 const els = {
   discoverBtn: document.getElementById("discoverBtn"),
   connectBtn: document.getElementById("connectBtn"),
@@ -736,8 +804,8 @@ async function initSystemUi() {
         // 记录日志
         console.log("重启命令已发送，等待系统重启...");
         
-        // 不隐藏加载动画，让动画一直显示
-        // 系统重启后会自动重新加载页面
+        // 开始轮询检查服务器是否重启完成
+        startServerPolling();
         
       } catch (e) {
         // 请求失败可能是正常的（服务器可能立即重启）
@@ -752,6 +820,9 @@ async function initSystemUi() {
         
         // 记录日志
         console.log("重启命令已发送，等待系统重启...");
+        
+        // 开始轮询检查服务器是否重启完成
+        startServerPolling();
       }
       
     } catch (e) {
