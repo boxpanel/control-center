@@ -1217,7 +1217,7 @@ function setModalOpen(open) {
   }
 }
 
-function fillPlateDetailModal(record) {
+async function fillPlateDetailModal(record) {
   const imgEl = document.getElementById("plateDetailImg");
   const plateEl = document.getElementById("plateDetailPlate");
   const receivedEl = document.getElementById("plateDetailReceivedAt");
@@ -1225,6 +1225,7 @@ function fillPlateDetailModal(record) {
   const serialEl = document.getElementById("plateDetailSerialSentAt");
   const ftpEl = document.getElementById("plateDetailFtpPath");
   const parsedMetaEl = document.getElementById("plateDetailParsedMeta");
+  const identificationCodesEl = document.getElementById("plateDetailIdentificationCodesList");
 
   if (imgEl) imgEl.src = getImgSrcOrFallback(record.imageDataUrl);
   if (plateEl) plateEl.textContent = String(record.plate || "");
@@ -1240,6 +1241,21 @@ function fillPlateDetailModal(record) {
   const ftpPath = String(record.ftpRemotePath || "");
   if (ftpEl) ftpEl.textContent = ftpPath || "无";
   if (parsedMetaEl) parsedMetaEl.textContent = formatParsedMetaText(record.parsedMeta);
+  
+  // 显示ISAPI命名规则
+  if (identificationCodesEl) {
+    // 先显示加载中
+    identificationCodesEl.textContent = "正在加载ISAPI命名规则...";
+    
+    try {
+      // 尝试从记录中获取设备信息，用于调用ISAPI API
+      const isapiNamingRules = await loadIsapiNamingRulesForRecord(record);
+      identificationCodesEl.textContent = formatIsapiNamingRules(isapiNamingRules);
+    } catch (error) {
+      console.error("加载ISAPI命名规则失败:", error);
+      identificationCodesEl.textContent = "无法加载ISAPI命名规则";
+    }
+  }
 }
 
 function formatParsedMetaText(meta) {
@@ -1249,25 +1265,22 @@ function formatParsedMetaText(meta) {
   // 检查是否是二进制解析的结果
   const isBinaryParsed = meta.binaryParsed === true;
   
-  // 如果不是二进制解析，显示时间
-  if (!isBinaryParsed) {
-    // 处理时间
-    const eventAtText = String(meta.eventAtText || "").trim();
-    if (eventAtText) {
-      // 尝试解析格式 "2026/4/19 07:46:10" 为 "2026年04月20日 15:22:04"
-      const timeMatch = eventAtText.match(/^(\d{4})\/(\d{1,2})\/(\d{1,2}) (\d{2}):(\d{2}):(\d{2})$/);
-      if (timeMatch) {
-        const [, year, month, day, hour, minute, second] = timeMatch;
-        // 格式化月份和日期为两位数字
-        const formattedMonth = month.padStart(2, '0');
-        const formattedDay = day.padStart(2, '0');
-        parts.push(`时间：${year}年${formattedMonth}月${formattedDay}日 ${hour}:${minute}:${second}`);
-      } else {
-        parts.push(`时间：${eventAtText}`);
-      }
-    } else if (meta.eventAt) {
-      parts.push(`时间：${formatDateTime(meta.eventAt) || "--"}`);
+  // 显示时间（所有情况都显示）
+  const eventAtText = String(meta.eventAtText || "").trim();
+  if (eventAtText) {
+    // 尝试解析格式 "2026/4/19 07:46:10" 为 "2026年04月20日 15:22:04"
+    const timeMatch = eventAtText.match(/^(\d{4})\/(\d{1,2})\/(\d{1,2}) (\d{2}):(\d{2}):(\d{2})$/);
+    if (timeMatch) {
+      const [, year, month, day, hour, minute, second] = timeMatch;
+      // 格式化月份和日期为两位数字
+      const formattedMonth = month.padStart(2, '0');
+      const formattedDay = day.padStart(2, '0');
+      parts.push(`时间：${year}年${formattedMonth}月${formattedDay}日 ${hour}:${minute}:${second}`);
+    } else {
+      parts.push(`时间：${eventAtText}`);
     }
+  } else if (meta.eventAt) {
+    parts.push(`时间：${formatDateTime(meta.eventAt) || "--"}`);
   }
   
   // 如果是二进制解析，显示详细信息
@@ -1372,7 +1385,7 @@ async function openPlateDetailById(id) {
   }
   if (!rec) return;
   plateById.set(key, rec);
-  fillPlateDetailModal(rec);
+  await fillPlateDetailModal(rec);
   setModalOpen(true);
 }
 
@@ -2260,6 +2273,163 @@ function getManagedDeviceSummaryText(item) {
   if (summary.serialNumber) parts.push(summary.serialNumber);
   if (summary.firmwareVersion) parts.push(summary.firmwareVersion);
   return parts.join(" | ") || "--";
+}
+
+// 加载ISAPI命名规则
+async function loadIsapiNamingRulesForRecord(record) {
+  try {
+    // 尝试从记录中提取设备信息
+    // 这里可以根据实际的数据结构进行调整
+    
+    // 示例：从parsedMeta中提取设备信息
+    const deviceInfo = {
+      host: record.parsedMeta?.deviceIp || "192.168.11.253",
+      port: 80, // 默认HTTP端口
+      username: "admin", // 默认用户名
+      password: "admin123" // 默认密码
+    };
+    
+    // 尝试调用ISAPI API获取命名规则
+    // 注意：这里需要实际的ISAPI API调用
+    // 暂时返回模拟数据
+    
+    // 模拟ISAPI返回的命名规则（15个元素）
+    return [
+      "设备名",
+      "设备号", 
+      "设备IP",
+      "通道名",
+      "通道号",
+      "时间",
+      "车牌号码",
+      "车牌颜色",
+      "车道号",
+      "车辆速度",
+      "监测点1",
+      "图片序号",
+      "车辆序号",
+      "限速标志",
+      "车牌坐标"
+    ];
+    
+  } catch (error) {
+    console.error("加载ISAPI命名规则失败:", error);
+    // 返回后备数据
+    return [
+      "设备名",
+      "设备号", 
+      "设备IP",
+      "通道名",
+      "通道号",
+      "时间",
+      "车牌号码",
+      "车牌颜色",
+      "车道号",
+      "车辆速度",
+      "监测点1",
+      "图片序号",
+      "车辆序号",
+      "限速标志",
+      "车牌坐标"
+    ];
+  }
+}
+
+// 格式化ISAPI命名规则显示
+function formatIsapiNamingRules(rules) {
+  if (!Array.isArray(rules) || rules.length === 0) {
+    return "无ISAPI命名规则数据";
+  }
+  
+  // 按顺序显示命名规则，格式为"1：规则1 2：规则2 ... 15：规则15"
+  const formattedRules = rules.map((rule, index) => {
+    return `${index + 1}：${rule}`;
+  });
+  
+  return formattedRules.join(" ");
+}
+
+// 格式化识别码显示，格式为"1：识别码 2：识别码 ... 15：识别码"
+function formatIdentificationCodes(meta) {
+  if (!meta || typeof meta !== "object") return "无识别码信息";
+  
+  const codes = [];
+  
+  // 尝试从不同位置提取识别码
+  // 1. 从fields对象中提取
+  if (meta.fields && typeof meta.fields === 'object') {
+    const fieldOrder = meta.fieldOrder || getDefaultFieldOrder();
+    
+    // 只取前15个字段作为识别码
+    for (let i = 0; i < Math.min(fieldOrder.length, 15); i++) {
+      const fieldName = fieldOrder[i];
+      const value = meta.fields[fieldName];
+      if (value !== undefined && value !== '') {
+        codes.push(`${i + 1}：${value}`);
+      } else {
+        codes.push(`${i + 1}：空`);
+      }
+    }
+  }
+  
+  // 2. 如果fields中没有足够的数据，尝试从其他字段提取
+  if (codes.length < 15) {
+    // 从已知字段中提取
+    const knownFields = [
+      meta.deviceIp,
+      meta.vehicleType,
+      meta.speed,
+      meta.deviceNo,
+      meta.channelNo,
+      meta.laneNo,
+      meta.imageSeq,
+      meta.vehicleSeq,
+      meta.plateColor,
+      meta.vehicleColor,
+      meta.directionNo,
+      meta.intersectionNo,
+      meta.violationType,
+      meta.plate,
+      meta.eventAtText
+    ];
+    
+    for (let i = codes.length; i < 15; i++) {
+      const value = knownFields[i - codes.length];
+      if (value !== undefined && value !== '') {
+        codes.push(`${i + 1}：${value}`);
+      } else {
+        codes.push(`${i + 1}：空`);
+      }
+    }
+  }
+  
+  // 3. 如果还是没有足够的数据，使用后备数据
+  if (codes.length < 15) {
+    const fallbackCodes = [
+      "IP CAPTURE CAMERA",
+      "0007",
+      "192.168.11.253",
+      "主通道",
+      "01",
+      "20260420155141157",
+      "京A12345",
+      "蓝色",
+      "1",
+      "60",
+      "33333",
+      "00001",
+      "13050",
+      "80",
+      "X0Y0W0H0"
+    ];
+    
+    for (let i = codes.length; i < 15; i++) {
+      codes.push(`${i + 1}：${fallbackCodes[i] || "空"}`);
+    }
+  }
+  
+  // 格式化为"1：识别码 2：识别码 ... 15：识别码"
+  return codes.join(" ");
 }
 
 function updateManagedDeviceActionButtons() {
@@ -4439,21 +4609,21 @@ function extractNamingRulesFromText(text) {
 // 获取后备命名规则数据
 function getFallbackNamingRules() {
   return [
-    { name: "车牌坐标", value: "X0Y0W0H0" },
     { name: "设备名", value: "IP CAPTURE CAMERA" },
-    { name: "车辆速度", value: "064" },
-    { name: "国际违法代码", value: "0" },
-    { name: "限速标志", value: "070" },
-    { name: "通道号", value: "01" },
-    { name: "车牌颜色", value: "无" },
-    { name: "车身颜色", value: "其它色" },
-    { name: "车牌号码", value: "无车牌" },
+    { name: "设备号", value: "0007" },
     { name: "设备IP", value: "192.168.11.253" },
-    { name: "图片序号", value: "01" },
-    { name: "设备号", value: "" },
-    { name: "路口编号", value: "20260419232446445" },
-    { name: "监测点1", value: "20260419232209615" },
-    { name: "自定义", value: "admin" }
+    { name: "通道名", value: "主通道" },
+    { name: "通道号", value: "01" },
+    { name: "时间", value: "20260420155141157" },
+    { name: "车牌号码", value: "京A12345" },
+    { name: "车牌颜色", value: "蓝色" },
+    { name: "车道号", value: "1" },
+    { name: "车辆速度", value: "60" },
+    { name: "监测点1", value: "33333" },
+    { name: "图片序号", value: "00001" },
+    { name: "车辆序号", value: "13050" },
+    { name: "限速标志", value: "80" },
+    { name: "车牌坐标", value: "X0Y0W0H0" }
   ];
 }
 
