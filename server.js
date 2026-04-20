@@ -68,7 +68,8 @@ plateDb.exec(`
     sourceEventKey TEXT NOT NULL DEFAULT '',
     ftpRemotePath TEXT NOT NULL DEFAULT '',
     serialSentAt INTEGER NOT NULL DEFAULT 0,
-    parsedMetaJson TEXT NOT NULL DEFAULT ''
+    parsedMetaJson TEXT NOT NULL DEFAULT '',
+    isapiNamingRulesJson TEXT NOT NULL DEFAULT ''
   );
   CREATE INDEX IF NOT EXISTS idx_plate_records_receivedAt ON plate_records(receivedAt);
   CREATE INDEX IF NOT EXISTS idx_plate_records_plate ON plate_records(plate);
@@ -89,26 +90,29 @@ if (!plateTableColumns.some((col) => String(col?.name || "") === "sourceEventKey
 if (!plateTableColumns.some((col) => String(col?.name || "") === "parsedMetaJson")) {
   plateDb.exec(`ALTER TABLE plate_records ADD COLUMN parsedMetaJson TEXT NOT NULL DEFAULT ''`);
 }
+if (!plateTableColumns.some((col) => String(col?.name || "") === "isapiNamingRulesJson")) {
+  plateDb.exec(`ALTER TABLE plate_records ADD COLUMN isapiNamingRulesJson TEXT NOT NULL DEFAULT ''`);
+}
 plateDb.exec(`CREATE INDEX IF NOT EXISTS idx_plate_records_sourceEventKey ON plate_records(sourceEventKey)`);
 
 const stmtPlateInsert = plateDb.prepare(`
-  INSERT INTO plate_records (id, plate, receivedAt, eventAt, imagePath, sourceEventKey, ftpRemotePath, serialSentAt, parsedMetaJson)
-  VALUES (@id, @plate, @receivedAt, @eventAt, @imagePath, @sourceEventKey, @ftpRemotePath, @serialSentAt, @parsedMetaJson)
+  INSERT INTO plate_records (id, plate, receivedAt, eventAt, imagePath, sourceEventKey, ftpRemotePath, serialSentAt, parsedMetaJson, isapiNamingRulesJson)
+  VALUES (@id, @plate, @receivedAt, @eventAt, @imagePath, @sourceEventKey, @ftpRemotePath, @serialSentAt, @parsedMetaJson, @isapiNamingRulesJson)
 `);
 const stmtPlateGet = plateDb.prepare(
-  `SELECT id, plate, receivedAt, eventAt, imagePath, ftpRemotePath, serialSentAt, parsedMetaJson FROM plate_records WHERE id = ?`
+  `SELECT id, plate, receivedAt, eventAt, imagePath, ftpRemotePath, serialSentAt, parsedMetaJson, isapiNamingRulesJson FROM plate_records WHERE id = ?`
 );
 const stmtPlateGetBySourceEventKey = plateDb.prepare(
-  `SELECT id, plate, receivedAt, eventAt, imagePath, ftpRemotePath, serialSentAt, parsedMetaJson FROM plate_records WHERE sourceEventKey = ? LIMIT 1`
+  `SELECT id, plate, receivedAt, eventAt, imagePath, ftpRemotePath, serialSentAt, parsedMetaJson, isapiNamingRulesJson FROM plate_records WHERE sourceEventKey = ? LIMIT 1`
 );
 const stmtPlateListLatest = plateDb.prepare(
-  `SELECT id, plate, receivedAt, eventAt, imagePath, ftpRemotePath, serialSentAt, parsedMetaJson FROM plate_records ORDER BY receivedAt DESC LIMIT ?`
+  `SELECT id, plate, receivedAt, eventAt, imagePath, ftpRemotePath, serialSentAt, parsedMetaJson, isapiNamingRulesJson FROM plate_records ORDER BY receivedAt DESC LIMIT ?`
 );
 const stmtPlateCount = plateDb.prepare(
   `SELECT COUNT(*) as total FROM plate_records`
 );
 const stmtPlateSearch = plateDb.prepare(
-  `SELECT id, plate, receivedAt, eventAt, imagePath, ftpRemotePath, serialSentAt, parsedMetaJson FROM plate_records WHERE (plate LIKE ? OR ? IS NULL) AND (DATE(receivedAt) = ? OR ? IS NULL) ORDER BY receivedAt DESC LIMIT 10000`
+  `SELECT id, plate, receivedAt, eventAt, imagePath, ftpRemotePath, serialSentAt, parsedMetaJson, isapiNamingRulesJson FROM plate_records WHERE (plate LIKE ? OR ? IS NULL) AND (DATE(receivedAt) = ? OR ? IS NULL) ORDER BY receivedAt DESC LIMIT 10000`
 );
 const stmtPlateUpdateSerialSent = plateDb.prepare(`UPDATE plate_records SET serialSentAt = ? WHERE id = ?`);
 
@@ -4718,6 +4722,38 @@ app.post("/api/isapi/event", express.raw({ type: "*/*", limit: "50mb" }), async 
       const id = newPlateId(receivedAt);
       const serialForwardTask = startPlateSerialForward(plate);
       const ftpPlan = imageBuffer ? planPlateFtpUpload({ plate, eventDate, ext: imageExt }) : null;
+      
+      // 尝试获取ISAPI命名规则
+      let isapiNamingRules = null;
+      try {
+        // 从配置中获取设备连接信息
+        const cfg = await getClientConfig();
+        const baseConn = normalizeConnectionConfig(cfg?.connection);
+        
+        if (baseConn.host && baseConn.username && baseConn.password) {
+          // 调用FTP配置API获取命名规则
+          const ftpConfigResult = await requestHikvisionIsapi({
+            ...baseConn,
+            pathname: "/ISAPI/System/Network/Ftp/channels/1",
+            method: "GET"
+          });
+          
+          if (ftpConfigResult && ftpConfigResult.text) {
+            // 解析命名规则
+            const namingRuleMatches = ftpConfigResult.text.match(/<namingRule>([^<]+)<\/namingRule>/g);
+            if (namingRuleMatches && namingRuleMatches.length > 0) {
+              isapiNamingRules = namingRuleMatches.map(match => {
+                const value = match.replace(/<\/?namingRule>/g, '');
+                return value;
+              });
+              console.log(`[ISAPI] 获取到命名规则: ${isapiNamingRules.length}个规则`);
+            }
+          }
+        }
+      } catch (namingError) {
+        console.error(`[ISAPI] 获取命名规则失败:`, namingError.message);
+        // 不阻止车牌记录的保存
+      }
       if (imageBuffer && ftpPlan) {
         setImmediate(() => {
           uploadPlateBufferToFtp({ imageBuffer, remoteDir: ftpPlan.remoteDir, remoteName: ftpPlan.remoteName }).catch((err) => {
@@ -4762,7 +4798,8 @@ app.post("/api/isapi/event", express.raw({ type: "*/*", limit: "50mb" }), async 
           sourceEventKey: parsed.sourceEventKey || "",
           ftpRemotePath: ftpPlan?.remotePath || "",
           serialSentAt: 0,
-          parsedMetaJson: safeStringifyParsedMeta(parsedMeta)
+          parsedMetaJson: safeStringifyParsedMeta(parsedMeta),
+          isapiNamingRulesJson: isapiNamingRules ? JSON.stringify(isapiNamingRules) : ""
         });
       } catch {}
       const imageUrl = imagePath ? `/api/plates/image/${encodeURIComponent(id)}` : "";
