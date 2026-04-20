@@ -270,13 +270,7 @@ const els = {
   previewSnapshotBtn: document.getElementById("previewSnapshotBtn"),
   previewRtspTransport: document.getElementById("previewRtspTransport"),
   previewProcessMode: document.getElementById("previewProcessMode"),
-  previewShowProcessed: document.getElementById("previewShowProcessed"),
-  previewDeviceName: document.getElementById("previewDeviceName"),
-  previewDeviceAddress: document.getElementById("previewDeviceAddress"),
-  previewDeviceStatus: document.getElementById("previewDeviceStatus"),
-  previewStreamInfo: document.getElementById("previewStreamInfo"),
-  previewQuality: document.getElementById("previewQuality"),
-  previewFrameRate: document.getElementById("previewFrameRate")
+  previewShowProcessed: document.getElementById("previewShowProcessed")
 };
 
 let hlsPlayer = null;
@@ -5432,8 +5426,7 @@ function setDevicePreviewModalOpen(open, device = null) {
         els.devicePreviewModalTitle.textContent = `设备预览 - ${device.name || "未知设备"}`;
       }
       
-      // 初始化设备信息显示
-      updateDevicePreviewInfo(device);
+
       
       // 开始预览
       startPreviewForDevice(device);
@@ -5449,54 +5442,9 @@ function setDevicePreviewModalOpen(open, device = null) {
   }
 }
 
-// 更新设备预览信息显示
-function updateDevicePreviewInfo(device) {
-  if (!device) return;
-  
-  // 更新设备名称
-  if (els.previewDeviceName) {
-    els.previewDeviceName.textContent = device.name || "未知设备";
-  }
-  
-  // 更新设备地址
-  if (els.previewDeviceAddress) {
-    const host = device.host || "未知";
-    const port = device.port || "80";
-    els.previewDeviceAddress.textContent = `${host}:${port}`;
-  }
-  
-  // 更新连接状态
-  if (els.previewDeviceStatus) {
-    // 这里可以根据实际连接状态更新
-    // 暂时显示为"准备连接"
-    els.previewDeviceStatus.textContent = "准备连接";
-    els.previewDeviceStatus.style.color = "#f59e0b"; // 橙色表示准备中
-  }
-  
-  // 更新视频流信息
-  if (els.previewStreamInfo) {
-    els.previewStreamInfo.textContent = "等待视频流...";
-  }
-}
 
-// 更新预览流状态
-function updatePreviewStreamStatus(isConnected, streamInfo = "") {
-  // 更新连接状态
-  if (els.previewDeviceStatus) {
-    if (isConnected) {
-      els.previewDeviceStatus.textContent = "已连接";
-      els.previewDeviceStatus.style.color = "#10b981"; // 绿色表示已连接
-    } else {
-      els.previewDeviceStatus.textContent = "连接失败";
-      els.previewDeviceStatus.style.color = "#ef4444"; // 红色表示失败
-    }
-  }
-  
-  // 更新视频流信息
-  if (els.previewStreamInfo && streamInfo) {
-    els.previewStreamInfo.textContent = streamInfo;
-  }
-}
+
+
 
 // 在预览弹窗中显示错误提示
 function setPreviewErrorHint(text, isError = false) {
@@ -5615,8 +5563,6 @@ async function connectAndPlayInPreview() {
     
   } catch (error) {
     console.error("连接预览失败:", error);
-    // 更新连接状态为失败
-    updatePreviewStreamStatus(false, `连接失败: ${error.message}`);
     throw error;
   }
 }
@@ -5658,8 +5604,6 @@ async function playVideoInPreview(sourceUrl) {
         cleanup();
         try {
           await els.previewVideo.play();
-          // 视频播放成功，更新状态
-          updatePreviewStreamStatus(true, "视频流已连接");
         } catch {}
         resolve();
       };
