@@ -115,33 +115,21 @@ async function checkServerAvailable() {
 // 轮询检查服务器是否重启完成
 function startServerPolling() {
   let pollCount = 0;
-  const maxPolls = 60; // 最多轮询60次（约2小时）
-  let pollInterval = 30000; // 初始30秒检查一次
+  const maxPolls = 10; // 最多轮询10次
+  const pollInterval = 60000; // 每60秒检查一次
   
   const poll = async () => {
     pollCount++;
     
     if (pollCount > maxPolls) {
       // 超过最大轮询次数，停止轮询
-      console.log("轮询超时，服务器可能未正常启动");
-      showLoading("服务器重启超时，请手动刷新页面");
-      
-      // 添加手动刷新按钮提示
-      setTimeout(() => {
-        showLoading("服务器重启超时，请手动刷新页面或检查设备状态");
-      }, 5000);
+      console.log("轮询超时（10次，共10分钟），服务器可能未正常启动");
+      showLoading("设备重启超时（已等待10分钟），请手动刷新页面检查设备状态");
       return;
     }
     
-    // 使用指数退避策略：前10次每30秒，10-30次每60秒，30次后每120秒
-    if (pollCount > 30) {
-      pollInterval = 120000; // 30次后每120秒检查一次
-    } else if (pollCount > 10) {
-      pollInterval = 60000; // 10次后每60秒检查一次
-    }
-    
-    const elapsedSeconds = Math.floor(pollCount * pollInterval / 1000);
-    console.log(`轮询检查服务器 (${pollCount}/${maxPolls})，已等待${elapsedSeconds}秒...`);
+    const elapsedMinutes = pollCount; // 每次60秒，所以次数就是分钟数
+    console.log(`轮询检查服务器 (${pollCount}/${maxPolls})，已等待${elapsedMinutes}分钟...`);
     
     const isAvailable = await checkServerAvailable();
     
@@ -158,11 +146,8 @@ function startServerPolling() {
       // 服务器仍未恢复，继续轮询
       console.log("服务器尚未恢复，继续等待...");
       
-      // 显示更详细的等待信息
-      const minutes = Math.floor(elapsedSeconds / 60);
-      const seconds = elapsedSeconds % 60;
-      const timeText = minutes > 0 ? `${minutes}分${seconds}秒` : `${seconds}秒`;
-      showLoading(`设备正在重启... 已等待${timeText}`);
+      // 显示等待信息
+      showLoading(`设备正在重启... 已等待${elapsedMinutes}分钟`);
       
       // 继续轮询
       setTimeout(poll, pollInterval);
@@ -285,9 +270,7 @@ const els = {
   previewSnapshotBtn: document.getElementById("previewSnapshotBtn"),
   previewRtspTransport: document.getElementById("previewRtspTransport"),
   previewProcessMode: document.getElementById("previewProcessMode"),
-  previewShowProcessed: document.getElementById("previewShowProcessed"),
-  namingRulesContainer: document.getElementById("namingRulesContainer"),
-  namingRulesList: document.getElementById("namingRulesList")
+  previewShowProcessed: document.getElementById("previewShowProcessed")
 };
 
 let hlsPlayer = null;
@@ -5096,16 +5079,6 @@ function setDevicePreviewModalOpen(open, device = null) {
         els.devicePreviewModalTitle.textContent = `设备预览 - ${device.name || "未知设备"}`;
       }
       
-      // 显示或隐藏命名规则容器
-      if (els.namingRulesContainer) {
-        els.namingRulesContainer.style.display = isHikvisionIsapi ? "block" : "none";
-      }
-      
-      // 如果是海康ISAPI协议，加载命名规则
-      if (isHikvisionIsapi && els.namingRulesList) {
-        loadNamingRulesForDevice(device);
-      }
-      
       // 开始预览
       startPreviewForDevice(device);
     }
@@ -5117,460 +5090,14 @@ function setDevicePreviewModalOpen(open, device = null) {
     stopPreview();
     devicePreviewModalState.currentDevice = null;
     devicePreviewModalState.isHikvisionIsapi = false;
-    
-    // 清空命名规则列表
-    if (els.namingRulesList) {
-      els.namingRulesList.textContent = "";
-    }
   }
 }
 
-// 加载命名规则
-async function loadNamingRulesForDevice(device) {
-  if (!els.namingRulesList) return;
-  
-  // 清空现有内容
-  els.namingRulesList.textContent = "";
-  
-  // 显示加载中
-  const loadingMsg = document.createElement("div");
-  loadingMsg.textContent = "正在加载FTP配置和命名规则...";
-  loadingMsg.style.cssText = "color: #475569; padding: 12px; text-align: center;";
-  els.namingRulesList.appendChild(loadingMsg);
-  
-  try {
-    // 尝试从服务器获取FTP配置和命名规则
-    let namingRules = [];
-    
-    try {
-      // 调用服务器API获取设备的FTP配置
-      const response = await fetchJson("/api/device/ftp-config", { 
-        connection: {
-          host: device.host,
-          port: device.port,
-          username: device.username,
-          password: device.password
-        }
-      });
-      
-      // 解析FTP配置响应，提取命名规则
-      namingRules = parseFtpConfigResponse(response);
-    } catch (apiError) {
-      console.log("获取FTP配置失败，使用静态数据:", apiError.message);
-      
-      // 使用静态数据作为后备
-      namingRules = [
-        { name: "车牌坐标", value: "X0Y0W0H0" },
-        { name: "设备名", value: "IP CAPTURE CAMERA" },
-        { name: "车辆速度", value: "064" },
-        { name: "国际违法代码", value: "0" },
-        { name: "限速标志", value: "070" },
-        { name: "通道号", value: "01" },
-        { name: "车牌颜色", value: "无" },
-        { name: "车身颜色", value: "其它色" },
-        { name: "车牌号码", value: "无车牌" },
-        { name: "设备IP", value: "192.168.11.253" },
-        { name: "图片序号", value: "01" },
-        { name: "设备号", value: "" },
-        { name: "路口编号", value: "20260419232446445" },
-        { name: "监测点1", value: "20260419232209615" },
-        { name: "自定义", value: "admin" }
-      ];
-    }
-    
-    // 清空加载消息
-    els.namingRulesList.textContent = "";
-    
-    if (namingRules.length === 0) {
-      const emptyMsg = document.createElement("div");
-      emptyMsg.textContent = "未找到命名规则数据";
-      emptyMsg.style.cssText = "color: #6b7280; padding: 12px; text-align: center;";
-      els.namingRulesList.appendChild(emptyMsg);
-      return;
-    }
-    
-    // 创建命名规则列表
-    namingRules.forEach((rule, index) => {
-      const ruleItem = document.createElement("div");
-      ruleItem.style.cssText = `
-        padding: 8px 12px;
-        margin-bottom: 6px;
-        background: white;
-        border-radius: 8px;
-        border: 1px solid rgba(226, 232, 240, 0.8);
-        font-size: 12px;
-        transition: background-color 0.2s;
-      `;
-      
-      // 添加悬停效果
-      ruleItem.addEventListener("mouseenter", () => {
-        ruleItem.style.backgroundColor = "#f8fafc";
-      });
-      ruleItem.addEventListener("mouseleave", () => {
-        ruleItem.style.backgroundColor = "white";
-      });
-      
-      const nameSpan = document.createElement("span");
-      nameSpan.textContent = `${index + 1}. ${rule.name}: `;
-      nameSpan.style.cssText = "color: #475569; font-weight: 500; min-width: 100px; display: inline-block;";
-      
-      const valueSpan = document.createElement("span");
-      valueSpan.textContent = rule.value || "(空)";
-      valueSpan.style.cssText = "color: #0f172a; word-break: break-all;";
-      
-      ruleItem.appendChild(nameSpan);
-      ruleItem.appendChild(valueSpan);
-      els.namingRulesList.appendChild(ruleItem);
-    });
-    
-    // 添加提示信息
-    const hintMsg = document.createElement("div");
-    hintMsg.textContent = `共 ${namingRules.length} 个命名元素`;
-    hintMsg.style.cssText = "color: #6b7280; font-size: 11px; padding: 8px 12px; text-align: center; border-top: 1px solid rgba(226, 232, 240, 0.5); margin-top: 8px;";
-    els.namingRulesList.appendChild(hintMsg);
-    
-  } catch (error) {
-    console.error("加载命名规则失败:", error);
-    els.namingRulesList.textContent = "";
-    
-    const errorMsg = document.createElement("div");
-    errorMsg.textContent = "加载命名规则失败";
-    errorMsg.style.cssText = "color: #dc2626; padding: 12px; text-align: center;";
-    els.namingRulesList.appendChild(errorMsg);
-  }
-}
 
-// 解析FTP配置响应，提取命名规则
-function parseFtpConfigResponse(response) {
-  try {
-    console.log("FTP配置响应:", response);
-    
-    // 检查是否有XML文本
-    if (response?.text) {
-      // 尝试解析XML
-      const parser = new DOMParser();
-      const xmlDoc = parser.parseFromString(response.text, "text/xml");
-      
-      // 检查XML解析错误
-      const parserError = xmlDoc.querySelector("parsererror");
-      if (parserError) {
-        console.error("XML解析错误:", parserError.textContent);
-        return getFallbackNamingRules();
-      }
-      
-      // 解析海康ISAPI FTP配置XML
-      // 根据海康ISAPI文档，FTP配置可能包含以下字段：
-      const namingRules = [];
-      
-      // 1. 基本FTP配置
-      const ftpHost = xmlDoc.querySelector("host")?.textContent || 
-                     xmlDoc.querySelector("FtpHost")?.textContent ||
-                     xmlDoc.querySelector("ftpHost")?.textContent;
-      if (ftpHost) {
-        namingRules.push({ name: "FTP服务器地址", value: ftpHost });
-      }
-      
-      const ftpPort = xmlDoc.querySelector("port")?.textContent || 
-                     xmlDoc.querySelector("FtpPort")?.textContent ||
-                     xmlDoc.querySelector("ftpPort")?.textContent;
-      if (ftpPort) {
-        namingRules.push({ name: "FTP端口", value: ftpPort });
-      }
-      
-      const ftpUsername = xmlDoc.querySelector("userName")?.textContent || 
-                         xmlDoc.querySelector("username")?.textContent ||
-                         xmlDoc.querySelector("FtpUserName")?.textContent;
-      if (ftpUsername) {
-        namingRules.push({ name: "FTP用户名", value: ftpUsername });
-      }
-      
-      // 密码通常不显示或显示为星号
-      const ftpPassword = xmlDoc.querySelector("password")?.textContent || 
-                         xmlDoc.querySelector("FtpPassword")?.textContent;
-      if (ftpPassword) {
-        namingRules.push({ name: "FTP密码", value: "********" });
-      }
-      
-      // 2. 上传目录和文件命名规则
-      const uploadDirectory = xmlDoc.querySelector("directory")?.textContent || 
-                            xmlDoc.querySelector("uploadDirectory")?.textContent ||
-                            xmlDoc.querySelector("UploadDirectory")?.textContent;
-      if (uploadDirectory) {
-        namingRules.push({ name: "上传目录", value: uploadDirectory });
-      }
-      
-      // 3. 文件名格式/命名规则
-      // 海康ISAPI可能使用fileNameFormat或namingRule等字段
-      const fileNameFormat = xmlDoc.querySelector("fileNameFormat")?.textContent || 
-                           xmlDoc.querySelector("fileName")?.textContent ||
-                           xmlDoc.querySelector("FileNameFormat")?.textContent;
-      if (fileNameFormat) {
-        namingRules.push({ name: "文件名格式", value: fileNameFormat });
-      }
-      
-      // 4. 通道相关配置
-      const channel = xmlDoc.querySelector("channel")?.textContent || 
-                     xmlDoc.querySelector("Channel")?.textContent ||
-                     xmlDoc.querySelector("channelNo")?.textContent;
-      if (channel) {
-        namingRules.push({ name: "通道号", value: channel });
-      }
-      
-      // 5. 图片相关配置
-      const imageFormat = xmlDoc.querySelector("imageFormat")?.textContent || 
-                         xmlDoc.querySelector("ImageFormat")?.textContent ||
-                         xmlDoc.querySelector("format")?.textContent;
-      if (imageFormat) {
-        namingRules.push({ name: "图片格式", value: imageFormat });
-      }
-      
-      const imageQuality = xmlDoc.querySelector("imageQuality")?.textContent || 
-                          xmlDoc.querySelector("ImageQuality")?.textContent ||
-                          xmlDoc.querySelector("quality")?.textContent;
-      if (imageQuality) {
-        namingRules.push({ name: "图片质量", value: imageQuality });
-      }
-      
-      // 6. 上传间隔和触发方式
-      const uploadInterval = xmlDoc.querySelector("uploadInterval")?.textContent || 
-                           xmlDoc.querySelector("UploadInterval")?.textContent ||
-                           xmlDoc.querySelector("interval")?.textContent;
-      if (uploadInterval) {
-        namingRules.push({ name: "上传间隔", value: uploadInterval });
-      }
-      
-      const triggerMode = xmlDoc.querySelector("triggerMode")?.textContent || 
-                         xmlDoc.querySelector("TriggerMode")?.textContent ||
-                         xmlDoc.querySelector("trigger")?.textContent;
-      if (triggerMode) {
-        namingRules.push({ name: "触发方式", value: triggerMode });
-      }
-      
-      // 7. 车牌识别相关
-      const plateRecognition = xmlDoc.querySelector("plateRecognition")?.textContent || 
-                              xmlDoc.querySelector("PlateRecognition")?.textContent ||
-                              xmlDoc.querySelector("plateRecog")?.textContent;
-      if (plateRecognition) {
-        namingRules.push({ name: "车牌识别", value: plateRecognition });
-      }
-      
-      // 8. 命名元素解析
-      // 海康ISAPI可能使用namingElements或nameElements字段
-      const namingElements = xmlDoc.querySelector("namingElements")?.textContent || 
-                           xmlDoc.querySelector("NamingElements")?.textContent ||
-                           xmlDoc.querySelector("nameElements")?.textContent;
-      
-      if (namingElements) {
-        // 尝试解析命名元素字符串
-        // 可能是逗号分隔的列表或XML结构
-        const elements = namingElements.split(/[,;|]/).map(e => e.trim()).filter(e => e);
-        elements.forEach((element, index) => {
-          namingRules.push({ name: `命名元素${index + 1}`, value: element });
-        });
-      }
-      
-      // 9. 如果XML中有其他明显的命名规则字段
-      // 查找包含"name"、"naming"、"rule"等关键词的节点
-      const allElements = xmlDoc.querySelectorAll("*");
-      for (const elem of allElements) {
-        const tagName = elem.tagName.toLowerCase();
-        const textContent = elem.textContent.trim();
-        
-        if (textContent && (tagName.includes('name') || tagName.includes('naming') || tagName.includes('rule'))) {
-          if (!namingRules.some(r => r.value === textContent)) {
-            namingRules.push({ name: tagName, value: textContent });
-          }
-        }
-      }
-      
-      // 如果找到了命名规则，返回它们
-      if (namingRules.length > 0) {
-        // 确保最多返回15个元素
-        return namingRules.slice(0, 15);
-      }
-      
-      // 如果没有找到明确的命名规则，尝试从原始文本中提取
-      return extractNamingRulesFromText(response.text);
-    }
-    
-    // 如果没有XML文本，返回后备数据
-    return getFallbackNamingRules();
-  } catch (error) {
-    console.error("解析FTP配置失败:", error);
-    return getFallbackNamingRules();
-  }
-}
 
-// 从文本中提取命名规则（备用方法）
-function extractNamingRulesFromText(text) {
-  const rules = [];
-  const lines = text.split('\n');
-  
-  // 查找可能包含命名规则的文本模式
-  const patterns = [
-    /name[:\s]*([^\n<]+)/i,
-    /naming[:\s]*([^\n<]+)/i,
-    /rule[:\s]*([^\n<]+)/i,
-    /element[:\s]*([^\n<]+)/i,
-    /format[:\s]*([^\n<]+)/i,
-    /pattern[:\s]*([^\n<]+)/i
-  ];
-  
-  for (const line of lines) {
-    for (const pattern of patterns) {
-      const match = line.match(pattern);
-      if (match && match[1]) {
-        const value = match[1].trim();
-        if (value && !rules.some(r => r.value === value)) {
-          rules.push({ name: "命名规则", value });
-        }
-      }
-    }
-  }
-  
-  // 如果从文本中提取到了规则，返回它们
-  if (rules.length > 0) {
-    return rules.slice(0, 15);
-  }
-  
-  // 否则返回后备数据
-  return getFallbackNamingRules();
-}
 
-// 获取后备命名规则数据
-function getFallbackNamingRules() {
-  return [
-    { name: "设备名", value: "IP CAPTURE CAMERA" },
-    { name: "设备号", value: "0007" },
-    { name: "设备IP", value: "192.168.11.253" },
-    { name: "通道名", value: "主通道" },
-    { name: "通道号", value: "01" },
-    { name: "时间", value: "20260420155141157" },
-    { name: "车牌号码", value: "京A12345" },
-    { name: "车牌颜色", value: "蓝色" },
-    { name: "车道号", value: "1" },
-    { name: "车辆速度", value: "60" },
-    { name: "监测点1", value: "33333" },
-    { name: "图片序号", value: "00001" },
-    { name: "车辆序号", value: "13050" },
-    { name: "限速标志", value: "80" },
-    { name: "车牌坐标", value: "X0Y0W0H0" }
-  ];
-}
 
-// 专门提取摄像头图片命名规则元素
-function extractCameraNamingElements(response) {
-  try {
-    console.log("提取摄像头命名元素，响应:", response);
-    
-    // 检查是否有XML文本
-    if (response?.text) {
-      const parser = new DOMParser();
-      const xmlDoc = parser.parseFromString(response.text, "text/xml");
-      
-      // 检查XML解析错误
-      const parserError = xmlDoc.querySelector("parsererror");
-      if (parserError) {
-        console.error("XML解析错误:", parserError.textContent);
-        return null;
-      }
-      
-      // 海康ISAPI中，图片命名规则通常在以下节点中：
-      // 1. <PictureNamingRule> 或 <pictureNamingRule>
-      // 2. <FileNameFormat> 或 <fileNameFormat>
-      // 3. <NamingElements> 或 <namingElements>
-      // 4. <NameElements> 或 <nameElements>
-      
-      const namingElements = [];
-      
-      // 尝试查找命名规则相关节点
-      const namingRuleNodes = [
-        xmlDoc.querySelector("PictureNamingRule"),
-        xmlDoc.querySelector("pictureNamingRule"),
-        xmlDoc.querySelector("FileNameFormat"),
-        xmlDoc.querySelector("fileNameFormat"),
-        xmlDoc.querySelector("NamingElements"),
-        xmlDoc.querySelector("namingElements"),
-        xmlDoc.querySelector("NameElements"),
-        xmlDoc.querySelector("nameElements")
-      ].filter(node => node);
-      
-      // 如果找到命名规则节点
-      if (namingRuleNodes.length > 0) {
-        for (const node of namingRuleNodes) {
-          const text = node.textContent.trim();
-          if (text) {
-            // 尝试解析命名规则文本
-            // 可能是逗号分隔的列表，如："设备名,设备号,时间,车牌号码"
-            const elements = text.split(/[,;|]/).map(e => e.trim()).filter(e => e);
-            elements.forEach(element => {
-              if (!namingElements.includes(element)) {
-                namingElements.push(element);
-              }
-            });
-          }
-        }
-      }
-      
-      // 如果从命名规则节点中提取到了元素，返回它们
-      if (namingElements.length > 0) {
-        console.log("从命名规则节点提取的元素:", namingElements);
-        return namingElements;
-      }
-      
-      // 如果没有找到明确的命名规则节点，尝试查找包含命名元素的子节点
-      // 海康ISAPI可能使用 <element1>, <element2> 等节点
-      const elementNodes = xmlDoc.querySelectorAll("*[id^='element'], *[name^='element'], element, Element");
-      for (const node of elementNodes) {
-        const text = node.textContent.trim();
-        if (text && !namingElements.includes(text)) {
-          namingElements.push(text);
-        }
-      }
-      
-      // 如果找到了元素节点，返回它们
-      if (namingElements.length > 0) {
-        console.log("从元素节点提取的元素:", namingElements);
-        return namingElements;
-      }
-      
-      // 最后，尝试从整个XML中提取可能的命名元素
-      // 查找包含常见命名关键词的节点
-      const commonNamingKeywords = [
-        "设备", "通道", "时间", "车牌", "车辆", "车道", "速度", 
-        "监测", "图片", "序号", "坐标", "颜色", "品牌", "型号",
-        "年份", "标志", "限速", "自定义", "无"
-      ];
-      
-      const allNodes = xmlDoc.querySelectorAll("*");
-      for (const node of allNodes) {
-        const text = node.textContent.trim();
-        if (text && text.length < 20) { // 命名元素通常较短
-          // 检查是否包含常见命名关键词
-          const hasKeyword = commonNamingKeywords.some(keyword => 
-            text.includes(keyword) || node.tagName.toLowerCase().includes(keyword)
-          );
-          
-          if (hasKeyword && !namingElements.includes(text)) {
-            namingElements.push(text);
-          }
-        }
-      }
-      
-      if (namingElements.length > 0) {
-        console.log("从关键词匹配提取的元素:", namingElements);
-        return namingElements;
-      }
-    }
-    
-    // 如果没有找到任何命名元素，返回null
-    return null;
-    
-  } catch (error) {
-    console.error("提取摄像头命名元素失败:", error);
-    return null;
-  }
-}
+
 
 // 在预览弹窗中显示错误提示
 function setPreviewErrorHint(text, isError = false) {
