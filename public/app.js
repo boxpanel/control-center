@@ -1294,14 +1294,29 @@ async function fillPlateDetailModal(record) {
       
       // 添加说明信息
       const cameraSettingsCount = Math.min(isapiNamingRules.length, 23);
-      const extraInfo = isapiNamingRules.length > 23 ? 
-        `<div style="margin-top: 12px; padding: 8px; background: rgba(59, 130, 246, 0.05); border-radius: 6px; border: 1px solid rgba(59, 130, 246, 0.2); font-size: 11px; color: #1e40af;">
-          <div style="font-weight: 600; margin-bottom: 2px;">📋 命名元素说明：</div>
-          <div>• 前${cameraSettingsCount}个元素是摄像头可设置的（共23个）</div>
-          <div>• 包含"无"、"自定义"等特殊选项</div>
-          <div>• 绿色标签表示摄像头可设置的常规元素</div>
-          <div>• 紫色标签表示特殊选项（无/自定义）</div>
-        </div>` : '';
+      const isRealData = isapiNamingRules.some(rule => 
+        rule !== "无" && rule !== "自定义" && rule !== "自定义文本" && 
+        rule !== "设备名" && rule !== "设备号" && rule !== "设备IP"
+      );
+      
+      const dataSource = isRealData ? 
+        '<span style="color: #059669; font-weight: 600;">✓ 实时ISAPI数据</span>' : 
+        '<span style="color: #dc2626; font-weight: 600;">⚠ 默认静态数据</span>';
+      
+      const extraInfo = `<div style="margin-top: 12px; padding: 10px; background: ${isRealData ? 'rgba(5, 150, 105, 0.05)' : 'rgba(220, 38, 38, 0.05)'}; border-radius: 6px; border: 1px solid ${isRealData ? 'rgba(5, 150, 105, 0.2)' : 'rgba(220, 38, 38, 0.2)'}; font-size: 11px; color: ${isRealData ? '#065f46' : '#991b1b'};">
+        <div style="font-weight: 600; margin-bottom: 4px; display: flex; align-items: center; gap: 6px;">
+          <span>📋 命名元素说明</span>
+          <span style="font-size: 10px; padding: 1px 6px; border-radius: 3px; background: ${isRealData ? 'rgba(5, 150, 105, 0.1)' : 'rgba(220, 38, 38, 0.1)'};">${dataSource}</span>
+        </div>
+        <div style="margin-bottom: 2px;">• 前${cameraSettingsCount}个元素是摄像头可设置的（共23个）</div>
+        <div style="margin-bottom: 2px;">• 包含"无"、"自定义"等特殊选项</div>
+        <div style="margin-bottom: 2px;">• 绿色标签：摄像头可设置的常规元素</div>
+        <div style="margin-bottom: 2px;">• 紫色标签：特殊选项（无/自定义）</div>
+        ${isRealData ? 
+          '<div style="margin-top: 4px; color: #059669; font-weight: 500;">✅ 成功从摄像头获取ISAPI命名规则</div>' : 
+          '<div style="margin-top: 4px; color: #dc2626; font-weight: 500;">⚠ 使用默认数据，请检查摄像头连接</div>'
+        }
+      </div>`;
       
       identificationCodesEl.innerHTML = displayHtml + extraInfo;
       
@@ -2328,47 +2343,143 @@ function getManagedDeviceSummaryText(item) {
 async function loadIsapiNamingRulesForRecord(record) {
   try {
     // 尝试从记录中提取设备信息
-    // 这里可以根据实际的数据结构进行调整
+    // 这里需要根据实际的数据结构进行调整
     
-    // 示例：从parsedMeta中提取设备信息
-    const deviceInfo = {
+    // 首先尝试从parsedMeta中提取设备信息
+    let deviceInfo = {
       host: record.parsedMeta?.deviceIp || "192.168.11.253",
       port: 80, // 默认HTTP端口
       username: "admin", // 默认用户名
       password: "admin123" // 默认密码
     };
     
-    // 尝试调用ISAPI API获取命名规则
-    // 注意：这里需要实际的ISAPI API调用
-    // 暂时返回模拟数据
+    // 如果记录中有设备连接信息，优先使用
+    if (record.deviceConnection) {
+      deviceInfo = {
+        host: record.deviceConnection.host || deviceInfo.host,
+        port: record.deviceConnection.port || deviceInfo.port,
+        username: record.deviceConnection.username || deviceInfo.username,
+        password: record.deviceConnection.password || deviceInfo.password
+      };
+    }
     
-    // 模拟ISAPI返回的命名规则（23个摄像头可设置元素）
-    // 根据海康摄像头实际可设置的23个命名元素
-    return [
-      "无",           // 第1个元素 - 空位
-      "自定义",       // 第2个元素 - 自定义文本
-      "设备名",       // 第3个元素
-      "设备号",       // 第4个元素
-      "设备IP",       // 第5个元素
-      "通道名",       // 第6个元素
-      "通道号",       // 第7个元素
-      "时间",         // 第8个元素
-      "车牌号码",     // 第9个元素
-      "车牌颜色",     // 第10个元素
-      "车道号",       // 第11个元素
-      "车辆速度",     // 第12个元素
-      "监测点1",      // 第13个元素
-      "图片序号",     // 第14个元素
-      "车辆序号",     // 第15个元素
-      "限速标志",     // 第16个元素
-      "车牌坐标",     // 第17个元素
-      "车辆类型",     // 第18个元素
-      "车辆颜色",     // 第19个元素
-      "车辆品牌",     // 第20个元素
-      "车辆型号",     // 第21个元素
-      "车辆年份",     // 第22个元素
-      "自定义文本"    // 第23个元素 - 另一个自定义选项
-    ];
+    console.log("尝试获取ISAPI FTP配置，设备信息:", {
+      host: deviceInfo.host,
+      port: deviceInfo.port,
+      username: deviceInfo.username ? "***" : "未设置"
+    });
+    
+    // 尝试调用服务器API获取FTP配置和命名规则
+    try {
+      const response = await fetchJson("/api/device/ftp-config", { 
+        connection: deviceInfo
+      });
+      
+      // 专门提取摄像头图片命名规则元素
+      const cameraNamingElements = extractCameraNamingElements(response);
+      
+      if (cameraNamingElements && cameraNamingElements.length > 0) {
+        console.log("成功获取摄像头命名规则元素，数量:", cameraNamingElements.length);
+        console.log("摄像头命名元素:", cameraNamingElements);
+        
+        // 确保至少有23个元素（如果不足，用默认值填充）
+        if (cameraNamingElements.length >= 23) {
+          return cameraNamingElements.slice(0, 23);
+        } else {
+          // 不足23个，用默认元素填充
+          const defaultElements = [
+            "无", "自定义", "设备名", "设备号", "设备IP", "通道名", "通道号",
+            "时间", "车牌号码", "车牌颜色", "车道号", "车辆速度", "监测点1",
+            "图片序号", "车辆序号", "限速标志", "车牌坐标", "车辆类型",
+            "车辆颜色", "车辆品牌", "车辆型号", "车辆年份", "自定义文本"
+          ];
+          
+          // 合并实际获取的元素和默认元素
+          const mergedElements = [...cameraNamingElements];
+          for (let i = cameraNamingElements.length; i < 23; i++) {
+            mergedElements.push(defaultElements[i] || `元素${i + 1}`);
+          }
+          
+          return mergedElements.slice(0, 23);
+        }
+      } else {
+        console.warn("FTP配置中未找到摄像头命名规则元素，尝试使用通用FTP配置");
+        
+        // 如果专门提取失败，尝试使用通用的FTP配置解析
+        const ftpConfig = parseFtpConfigResponse(response);
+        
+        if (ftpConfig && ftpConfig.namingRules && ftpConfig.namingRules.length > 0) {
+          console.log("从通用FTP配置中提取命名规则，数量:", ftpConfig.namingRules.length);
+          
+          // 提取命名元素名称
+          let namingElements = [];
+          
+          if (typeof ftpConfig.namingRules[0] === 'string') {
+            namingElements = ftpConfig.namingRules;
+          } else if (typeof ftpConfig.namingRules[0] === 'object') {
+            namingElements = ftpConfig.namingRules.map(rule => {
+              if (rule.name) return rule.name;
+              if (rule.element) return rule.element;
+              if (rule.value) return rule.value;
+              return "未知元素";
+            });
+          }
+          
+          // 确保至少有23个元素
+          if (namingElements.length >= 23) {
+            return namingElements.slice(0, 23);
+          } else {
+            // 不足23个，用默认元素填充
+            const defaultElements = [
+              "无", "自定义", "设备名", "设备号", "设备IP", "通道名", "通道号",
+              "时间", "车牌号码", "车牌颜色", "车道号", "车辆速度", "监测点1",
+              "图片序号", "车辆序号", "限速标志", "车牌坐标", "车辆类型",
+              "车辆颜色", "车辆品牌", "车辆型号", "车辆年份", "自定义文本"
+            ];
+            
+            const mergedElements = [...namingElements];
+            for (let i = namingElements.length; i < 23; i++) {
+              mergedElements.push(defaultElements[i] || `元素${i + 1}`);
+            }
+            
+            return mergedElements.slice(0, 23);
+          }
+        } else {
+          console.warn("通用FTP配置中也未找到命名规则，使用默认数据");
+          throw new Error("未找到命名规则");
+        }
+      }
+      
+    } catch (apiError) {
+      console.log("获取ISAPI FTP配置失败，使用静态数据:", apiError.message);
+      
+      // 使用静态数据作为后备
+      return [
+        "无",           // 第1个元素 - 空位
+        "自定义",       // 第2个元素 - 自定义文本
+        "设备名",       // 第3个元素
+        "设备号",       // 第4个元素
+        "设备IP",       // 第5个元素
+        "通道名",       // 第6个元素
+        "通道号",       // 第7个元素
+        "时间",         // 第8个元素
+        "车牌号码",     // 第9个元素
+        "车牌颜色",     // 第10个元素
+        "车道号",       // 第11个元素
+        "车辆速度",     // 第12个元素
+        "监测点1",      // 第13个元素
+        "图片序号",     // 第14个元素
+        "车辆序号",     // 第15个元素
+        "限速标志",     // 第16个元素
+        "车牌坐标",     // 第17个元素
+        "车辆类型",     // 第18个元素
+        "车辆颜色",     // 第19个元素
+        "车辆品牌",     // 第20个元素
+        "车辆型号",     // 第21个元素
+        "车辆年份",     // 第22个元素
+        "自定义文本"    // 第23个元素 - 另一个自定义选项
+      ];
+    }
     
   } catch (error) {
     console.error("加载ISAPI命名规则失败:", error);
@@ -4694,6 +4805,120 @@ function getFallbackNamingRules() {
     { name: "限速标志", value: "80" },
     { name: "车牌坐标", value: "X0Y0W0H0" }
   ];
+}
+
+// 专门提取摄像头图片命名规则元素
+function extractCameraNamingElements(response) {
+  try {
+    console.log("提取摄像头命名元素，响应:", response);
+    
+    // 检查是否有XML文本
+    if (response?.text) {
+      const parser = new DOMParser();
+      const xmlDoc = parser.parseFromString(response.text, "text/xml");
+      
+      // 检查XML解析错误
+      const parserError = xmlDoc.querySelector("parsererror");
+      if (parserError) {
+        console.error("XML解析错误:", parserError.textContent);
+        return null;
+      }
+      
+      // 海康ISAPI中，图片命名规则通常在以下节点中：
+      // 1. <PictureNamingRule> 或 <pictureNamingRule>
+      // 2. <FileNameFormat> 或 <fileNameFormat>
+      // 3. <NamingElements> 或 <namingElements>
+      // 4. <NameElements> 或 <nameElements>
+      
+      const namingElements = [];
+      
+      // 尝试查找命名规则相关节点
+      const namingRuleNodes = [
+        xmlDoc.querySelector("PictureNamingRule"),
+        xmlDoc.querySelector("pictureNamingRule"),
+        xmlDoc.querySelector("FileNameFormat"),
+        xmlDoc.querySelector("fileNameFormat"),
+        xmlDoc.querySelector("NamingElements"),
+        xmlDoc.querySelector("namingElements"),
+        xmlDoc.querySelector("NameElements"),
+        xmlDoc.querySelector("nameElements")
+      ].filter(node => node);
+      
+      // 如果找到命名规则节点
+      if (namingRuleNodes.length > 0) {
+        for (const node of namingRuleNodes) {
+          const text = node.textContent.trim();
+          if (text) {
+            // 尝试解析命名规则文本
+            // 可能是逗号分隔的列表，如："设备名,设备号,时间,车牌号码"
+            const elements = text.split(/[,;|]/).map(e => e.trim()).filter(e => e);
+            elements.forEach(element => {
+              if (!namingElements.includes(element)) {
+                namingElements.push(element);
+              }
+            });
+          }
+        }
+      }
+      
+      // 如果从命名规则节点中提取到了元素，返回它们
+      if (namingElements.length > 0) {
+        console.log("从命名规则节点提取的元素:", namingElements);
+        return namingElements;
+      }
+      
+      // 如果没有找到明确的命名规则节点，尝试查找包含命名元素的子节点
+      // 海康ISAPI可能使用 <element1>, <element2> 等节点
+      const elementNodes = xmlDoc.querySelectorAll("*[id^='element'], *[name^='element'], element, Element");
+      for (const node of elementNodes) {
+        const text = node.textContent.trim();
+        if (text && !namingElements.includes(text)) {
+          namingElements.push(text);
+        }
+      }
+      
+      // 如果找到了元素节点，返回它们
+      if (namingElements.length > 0) {
+        console.log("从元素节点提取的元素:", namingElements);
+        return namingElements;
+      }
+      
+      // 最后，尝试从整个XML中提取可能的命名元素
+      // 查找包含常见命名关键词的节点
+      const commonNamingKeywords = [
+        "设备", "通道", "时间", "车牌", "车辆", "车道", "速度", 
+        "监测", "图片", "序号", "坐标", "颜色", "品牌", "型号",
+        "年份", "标志", "限速", "自定义", "无"
+      ];
+      
+      const allNodes = xmlDoc.querySelectorAll("*");
+      for (const node of allNodes) {
+        const text = node.textContent.trim();
+        if (text && text.length < 20) { // 命名元素通常较短
+          // 检查是否包含常见命名关键词
+          const hasKeyword = commonNamingKeywords.some(keyword => 
+            text.includes(keyword) || node.tagName.toLowerCase().includes(keyword)
+          );
+          
+          if (hasKeyword && !namingElements.includes(text)) {
+            namingElements.push(text);
+          }
+        }
+      }
+      
+      if (namingElements.length > 0) {
+        console.log("从关键词匹配提取的元素:", namingElements);
+        return namingElements;
+      }
+    }
+    
+    // 如果没有找到任何命名元素，返回null
+    return null;
+    
+  } catch (error) {
+    console.error("提取摄像头命名元素失败:", error);
+    return null;
+  }
 }
 
 // 在预览弹窗中显示错误提示
