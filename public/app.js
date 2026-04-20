@@ -1225,7 +1225,6 @@ async function fillPlateDetailModal(record) {
   const serialEl = document.getElementById("plateDetailSerialSentAt");
   const ftpEl = document.getElementById("plateDetailFtpPath");
   const parsedMetaEl = document.getElementById("plateDetailParsedMeta");
-  const identificationCodesEl = document.getElementById("plateDetailIdentificationCodesList");
 
   if (imgEl) imgEl.src = getImgSrcOrFallback(record.imageDataUrl);
   if (plateEl) plateEl.textContent = String(record.plate || "");
@@ -1257,52 +1256,26 @@ async function fillPlateDetailModal(record) {
       parsedMetaTitle.textContent = "ISAPI命名规则";
     }
     
-    // 显示ISAPI命名规则
-    if (identificationCodesEl) {
-      // 先显示加载中
-      identificationCodesEl.innerHTML = '<div style="color: #94a3b8; font-style: italic;">正在加载ISAPI命名规则...</div>';
+    try {
+      // 尝试从记录中获取设备信息，用于调用ISAPI API
+      // 获取完整的ISAPI FTP配置
+      const ftpConfig = await loadIsapiFtpConfigForRecord(record);
       
-      // 获取计数元素
-      const identificationCodesCountEl = document.getElementById('plateDetailIdentificationCodesCount');
-      if (identificationCodesCountEl) {
-        identificationCodesCountEl.textContent = "正在加载...";
+      // 用ISAPI的详细命名规则（带值）替代解析信息
+      if (parsedMetaEl && ftpConfig.namingRules && ftpConfig.namingRules.length > 0) {
+        // 格式化命名规则为文本显示
+        const namingRulesText = formatNamingRulesAsText(ftpConfig.namingRules);
+        parsedMetaEl.textContent = namingRulesText;
+      } else if (parsedMetaEl) {
+        parsedMetaEl.textContent = "未获取到ISAPI命名规则";
       }
       
-      try {
-        // 尝试从记录中获取设备信息，用于调用ISAPI API
-        // 获取完整的ISAPI FTP配置
-        const ftpConfig = await loadIsapiFtpConfigForRecord(record);
-        
-        // 更新计数显示
-        if (identificationCodesCountEl) {
-          identificationCodesCountEl.textContent = "完整配置";
-        }
-        
-        // 格式化并显示完整的FTP配置
-        const fullConfigHtml = formatFullIsapiFtpConfig(ftpConfig);
-        
-        identificationCodesEl.innerHTML = fullConfigHtml;
-        
-        // 用ISAPI的详细命名规则（带值）替代解析信息
-        if (parsedMetaEl && ftpConfig.namingRules && ftpConfig.namingRules.length > 0) {
-          // 格式化命名规则为文本显示
-          const namingRulesText = formatNamingRulesAsText(ftpConfig.namingRules);
-          parsedMetaEl.textContent = namingRulesText;
-        } else if (parsedMetaEl) {
-          parsedMetaEl.textContent = "未获取到ISAPI命名规则";
-        }
-        
-      } catch (error) {
-        console.error("加载ISAPI FTP配置失败:", error);
-        identificationCodesEl.innerHTML = '<div style="color: #dc2626; font-style: italic;">无法加载ISAPI FTP配置</div>';
-        if (identificationCodesCountEl) {
-          identificationCodesCountEl.textContent = "加载失败";
-        }
-        
-        // 如果加载失败，显示错误信息
-        if (parsedMetaEl) {
-          parsedMetaEl.textContent = "加载ISAPI命名规则失败";
-        }
+    } catch (error) {
+      console.error("加载ISAPI FTP配置失败:", error);
+      
+      // 如果加载失败，显示错误信息
+      if (parsedMetaEl) {
+        parsedMetaEl.textContent = "加载ISAPI命名规则失败";
       }
     }
   } else {
@@ -1315,17 +1288,6 @@ async function fillPlateDetailModal(record) {
     const parsedMetaTitle = document.querySelector('.kv .k[data-text="解析信息"]');
     if (parsedMetaTitle) {
       parsedMetaTitle.textContent = "解析信息";
-    }
-    
-    // 对于非ISAPI设备，不显示ISAPI命名规则区域
-    if (identificationCodesEl) {
-      identificationCodesEl.innerHTML = '<div style="color: #94a3b8; font-style: italic; padding: 8px 0;">非ISAPI协议设备，无ISAPI命名规则</div>';
-      
-      // 获取计数元素
-      const identificationCodesCountEl = document.getElementById('plateDetailIdentificationCodesCount');
-      if (identificationCodesCountEl) {
-        identificationCodesCountEl.textContent = "不适用";
-      }
     }
   }
 }
