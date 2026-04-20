@@ -1250,12 +1250,6 @@ async function fillPlateDetailModal(record) {
       parsedMetaEl.textContent = "正在加载ISAPI命名规则...";
     }
     
-    // 更新标题为ISAPI命名规则
-    const parsedMetaTitle = document.querySelector('.kv .k[data-text="解析信息"]');
-    if (parsedMetaTitle) {
-      parsedMetaTitle.textContent = "ISAPI命名规则";
-    }
-    
     try {
       // 尝试从记录中获取设备信息，用于调用ISAPI API
       // 获取完整的ISAPI FTP配置
@@ -1282,12 +1276,6 @@ async function fillPlateDetailModal(record) {
     // 其他协议设备：使用自己分析的解析信息显示
     if (parsedMetaEl) {
       parsedMetaEl.textContent = formatParsedMetaText(record.parsedMeta);
-    }
-    
-    // 更新标题为解析信息
-    const parsedMetaTitle = document.querySelector('.kv .k[data-text="解析信息"]');
-    if (parsedMetaTitle) {
-      parsedMetaTitle.textContent = "解析信息";
     }
   }
 }
