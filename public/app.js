@@ -2083,11 +2083,6 @@ function initPlateModule() {
       const ids = Array.from(plateSelectedIds);
       if (!ids.length) return;
       
-      // 显示删除确认
-      if (!confirm(`确定要删除选中的 ${ids.length} 条记录吗？`)) {
-        return;
-      }
-      
       const originalText = els.plateDeleteBtn.textContent;
       if (els.plateDeleteBtn) {
         els.plateDeleteBtn.disabled = true;
