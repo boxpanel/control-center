@@ -2678,6 +2678,338 @@ function getManagedDeviceSummaryText(item) {
   return parts.join(" | ") || "--";
 }
 
+// 解析FTP配置响应，提取命名规则
+function parseFtpConfigResponse(response) {
+  try {
+    console.log("FTP配置响应:", response);
+    
+    // 检查是否有XML文本
+    if (response?.text) {
+      // 尝试解析XML
+      const parser = new DOMParser();
+      const xmlDoc = parser.parseFromString(response.text, "text/xml");
+      
+      // 检查XML解析错误
+      const parserError = xmlDoc.querySelector("parsererror");
+      if (parserError) {
+        console.error("XML解析错误:", parserError.textContent);
+        return getFallbackNamingRules();
+      }
+      
+      // 解析海康ISAPI FTP配置XML
+      // 根据海康ISAPI文档，FTP配置可能包含以下字段：
+      const namingRules = [];
+      
+      // 1. 基本FTP配置
+      const ftpHost = xmlDoc.querySelector("host")?.textContent || 
+                     xmlDoc.querySelector("FtpHost")?.textContent ||
+                     xmlDoc.querySelector("ftpHost")?.textContent;
+      if (ftpHost) {
+        namingRules.push({ name: "FTP服务器地址", value: ftpHost });
+      }
+      
+      const ftpPort = xmlDoc.querySelector("port")?.textContent || 
+                     xmlDoc.querySelector("FtpPort")?.textContent ||
+                     xmlDoc.querySelector("ftpPort")?.textContent;
+      if (ftpPort) {
+        namingRules.push({ name: "FTP端口", value: ftpPort });
+      }
+      
+      const ftpUsername = xmlDoc.querySelector("userName")?.textContent || 
+                         xmlDoc.querySelector("username")?.textContent ||
+                         xmlDoc.querySelector("FtpUserName")?.textContent;
+      if (ftpUsername) {
+        namingRules.push({ name: "FTP用户名", value: ftpUsername });
+      }
+      
+      // 密码通常不显示或显示为星号
+      const ftpPassword = xmlDoc.querySelector("password")?.textContent || 
+                         xmlDoc.querySelector("FtpPassword")?.textContent;
+      if (ftpPassword) {
+        namingRules.push({ name: "FTP密码", value: "********" });
+      }
+      
+      // 2. 上传目录和文件命名规则
+      const uploadDirectory = xmlDoc.querySelector("directory")?.textContent || 
+                            xmlDoc.querySelector("uploadDirectory")?.textContent ||
+                            xmlDoc.querySelector("UploadDirectory")?.textContent;
+      if (uploadDirectory) {
+        namingRules.push({ name: "上传目录", value: uploadDirectory });
+      }
+      
+      // 3. 文件名格式/命名规则
+      // 海康ISAPI可能使用fileNameFormat或namingRule等字段
+      const fileNameFormat = xmlDoc.querySelector("fileNameFormat")?.textContent || 
+                           xmlDoc.querySelector("fileName")?.textContent ||
+                           xmlDoc.querySelector("FileNameFormat")?.textContent;
+      if (fileNameFormat) {
+        namingRules.push({ name: "文件名格式", value: fileNameFormat });
+      }
+      
+      // 4. 通道相关配置
+      const channel = xmlDoc.querySelector("channel")?.textContent || 
+                     xmlDoc.querySelector("Channel")?.textContent ||
+                     xmlDoc.querySelector("channelNo")?.textContent;
+      if (channel) {
+        namingRules.push({ name: "通道号", value: channel });
+      }
+      
+      // 5. 图片相关配置
+      const imageFormat = xmlDoc.querySelector("imageFormat")?.textContent || 
+                         xmlDoc.querySelector("ImageFormat")?.textContent ||
+                         xmlDoc.querySelector("format")?.textContent;
+      if (imageFormat) {
+        namingRules.push({ name: "图片格式", value: imageFormat });
+      }
+      
+      const imageQuality = xmlDoc.querySelector("imageQuality")?.textContent || 
+                          xmlDoc.querySelector("ImageQuality")?.textContent ||
+                          xmlDoc.querySelector("quality")?.textContent;
+      if (imageQuality) {
+        namingRules.push({ name: "图片质量", value: imageQuality });
+      }
+      
+      // 6. 上传间隔和触发方式
+      const uploadInterval = xmlDoc.querySelector("uploadInterval")?.textContent || 
+                           xmlDoc.querySelector("UploadInterval")?.textContent ||
+                           xmlDoc.querySelector("interval")?.textContent;
+      if (uploadInterval) {
+        namingRules.push({ name: "上传间隔", value: uploadInterval });
+      }
+      
+      const triggerMode = xmlDoc.querySelector("triggerMode")?.textContent || 
+                         xmlDoc.querySelector("TriggerMode")?.textContent ||
+                         xmlDoc.querySelector("trigger")?.textContent;
+      if (triggerMode) {
+        namingRules.push({ name: "触发方式", value: triggerMode });
+      }
+      
+      // 7. 车牌识别相关
+      const plateRecognition = xmlDoc.querySelector("plateRecognition")?.textContent || 
+                              xmlDoc.querySelector("PlateRecognition")?.textContent ||
+                              xmlDoc.querySelector("plateRecog")?.textContent;
+      if (plateRecognition) {
+        namingRules.push({ name: "车牌识别", value: plateRecognition });
+      }
+      
+      // 8. 命名元素解析
+      // 海康ISAPI可能使用namingElements或nameElements字段
+      const namingElements = xmlDoc.querySelector("namingElements")?.textContent || 
+                           xmlDoc.querySelector("NamingElements")?.textContent ||
+                           xmlDoc.querySelector("nameElements")?.textContent;
+      
+      if (namingElements) {
+        // 尝试解析命名元素字符串
+        // 可能是逗号分隔的列表或XML结构
+        const elements = namingElements.split(/[,;|]/).map(e => e.trim()).filter(e => e);
+        elements.forEach((element, index) => {
+          namingRules.push({ name: `命名元素${index + 1}`, value: element });
+        });
+      }
+      
+      // 9. 如果XML中有其他明显的命名规则字段
+      // 查找包含"name"、"naming"、"rule"等关键词的节点
+      const allElements = xmlDoc.querySelectorAll("*");
+      for (const elem of allElements) {
+        const tagName = elem.tagName.toLowerCase();
+        const textContent = elem.textContent.trim();
+        
+        if (textContent && (tagName.includes('name') || tagName.includes('naming') || tagName.includes('rule'))) {
+          if (!namingRules.some(r => r.value === textContent)) {
+            namingRules.push({ name: tagName, value: textContent });
+          }
+        }
+      }
+      
+      // 如果找到了命名规则，返回它们
+      if (namingRules.length > 0) {
+        // 确保最多返回15个元素
+        return namingRules.slice(0, 15);
+      }
+      
+      // 如果没有找到明确的命名规则，尝试从原始文本中提取
+      return extractNamingRulesFromText(response.text);
+    }
+    
+    // 如果没有XML文本，返回后备数据
+    return getFallbackNamingRules();
+  } catch (error) {
+    console.error("解析FTP配置失败:", error);
+    return getFallbackNamingRules();
+  }
+}
+
+// 从文本中提取命名规则（备用方法）
+function extractNamingRulesFromText(text) {
+  const rules = [];
+  const lines = text.split('\n');
+  
+  // 查找可能包含命名规则的文本模式
+  const patterns = [
+    /name[:\s]*([^\n<]+)/i,
+    /naming[:\s]*([^\n<]+)/i,
+    /rule[:\s]*([^\n<]+)/i,
+    /element[:\s]*([^\n<]+)/i,
+    /format[:\s]*([^\n<]+)/i,
+    /pattern[:\s]*([^\n<]+)/i
+  ];
+  
+  for (const line of lines) {
+    for (const pattern of patterns) {
+      const match = line.match(pattern);
+      if (match && match[1]) {
+        const value = match[1].trim();
+        if (value && !rules.some(r => r.value === value)) {
+          rules.push({ name: "命名规则", value });
+        }
+      }
+    }
+  }
+  
+  // 如果从文本中提取到了规则，返回它们
+  if (rules.length > 0) {
+    return rules.slice(0, 15);
+  }
+  
+  // 否则返回后备数据
+  return getFallbackNamingRules();
+}
+
+// 获取后备命名规则数据
+function getFallbackNamingRules() {
+  return [
+    { name: "设备名", value: "IP CAPTURE CAMERA" },
+    { name: "设备号", value: "0007" },
+    { name: "设备IP", value: "192.168.11.253" },
+    { name: "通道名", value: "主通道" },
+    { name: "通道号", value: "01" },
+    { name: "时间", value: "20260420155141157" },
+    { name: "车牌号码", value: "京A12345" },
+    { name: "车牌颜色", value: "蓝色" },
+    { name: "车道号", value: "1" },
+    { name: "车辆速度", value: "60" },
+    { name: "监测点1", value: "33333" },
+    { name: "图片序号", value: "00001" },
+    { name: "车辆序号", value: "13050" },
+    { name: "限速标志", value: "80" },
+    { name: "车牌坐标", value: "X0Y0W0H0" }
+  ];
+}
+
+// 专门提取摄像头图片命名规则元素
+function extractCameraNamingElements(response) {
+  try {
+    console.log("提取摄像头命名元素，响应:", response);
+    
+    // 检查是否有XML文本
+    if (response?.text) {
+      const parser = new DOMParser();
+      const xmlDoc = parser.parseFromString(response.text, "text/xml");
+      
+      // 检查XML解析错误
+      const parserError = xmlDoc.querySelector("parsererror");
+      if (parserError) {
+        console.error("XML解析错误:", parserError.textContent);
+        return null;
+      }
+      
+      // 海康ISAPI中，图片命名规则通常在以下节点中：
+      // 1. <PictureNamingRule> 或 <pictureNamingRule>
+      // 2. <FileNameFormat> 或 <fileNameFormat>
+      // 3. <NamingElements> 或 <namingElements>
+      // 4. <NameElements> 或 <nameElements>
+      
+      const namingElements = [];
+      
+      // 尝试查找命名规则相关节点
+      const namingRuleNodes = [
+        xmlDoc.querySelector("PictureNamingRule"),
+        xmlDoc.querySelector("pictureNamingRule"),
+        xmlDoc.querySelector("FileNameFormat"),
+        xmlDoc.querySelector("fileNameFormat"),
+        xmlDoc.querySelector("NamingElements"),
+        xmlDoc.querySelector("namingElements"),
+        xmlDoc.querySelector("NameElements"),
+        xmlDoc.querySelector("nameElements")
+      ].filter(node => node);
+      
+      // 如果找到命名规则节点
+      if (namingRuleNodes.length > 0) {
+        for (const node of namingRuleNodes) {
+          const text = node.textContent.trim();
+          if (text) {
+            // 尝试解析命名规则文本
+            // 可能是逗号分隔的列表，如："设备名,设备号,时间,车牌号码"
+            const elements = text.split(/[,;|]/).map(e => e.trim()).filter(e => e);
+            elements.forEach(element => {
+              if (!namingElements.includes(element)) {
+                namingElements.push(element);
+              }
+            });
+          }
+        }
+      }
+      
+      // 如果从命名规则节点中提取到了元素，返回它们
+      if (namingElements.length > 0) {
+        console.log("从命名规则节点提取的元素:", namingElements);
+        return namingElements;
+      }
+      
+      // 如果没有找到明确的命名规则节点，尝试查找包含命名元素的子节点
+      // 海康ISAPI可能使用 <element1>, <element2> 等节点
+      const elementNodes = xmlDoc.querySelectorAll("*[id^='element'], *[name^='element'], element, Element");
+      for (const node of elementNodes) {
+        const text = node.textContent.trim();
+        if (text && !namingElements.includes(text)) {
+          namingElements.push(text);
+        }
+      }
+      
+      // 如果找到了元素节点，返回它们
+      if (namingElements.length > 0) {
+        console.log("从元素节点提取的元素:", namingElements);
+        return namingElements;
+      }
+      
+      // 最后，尝试从整个XML中提取可能的命名元素
+      // 查找包含常见命名关键词的节点
+      const commonNamingKeywords = [
+        "设备", "通道", "时间", "车牌", "车辆", "车道", "速度", 
+        "监测", "图片", "序号", "坐标", "颜色", "品牌", "型号",
+        "年份", "标志", "限速", "自定义", "无"
+      ];
+      
+      const allNodes = xmlDoc.querySelectorAll("*");
+      for (const node of allNodes) {
+        const text = node.textContent.trim();
+        if (text && text.length < 20) { // 命名元素通常较短
+          // 检查是否包含常见命名关键词
+          const hasKeyword = commonNamingKeywords.some(keyword => 
+            text.includes(keyword) || node.tagName.toLowerCase().includes(keyword)
+          );
+          
+          if (hasKeyword && !namingElements.includes(text)) {
+            namingElements.push(text);
+          }
+        }
+      }
+      
+      if (namingElements.length > 0) {
+        console.log("从关键词匹配提取的元素:", namingElements);
+        return namingElements;
+      }
+    }
+    
+    // 如果没有找到任何命名元素，返回null
+    return null;
+    
+  } catch (error) {
+    console.error("提取摄像头命名元素失败:", error);
+    return null;
+  }
+}
+
 // 加载完整的ISAPI FTP配置信息
 async function loadIsapiFtpConfigForRecord(record) {
   try {
@@ -2716,10 +3048,10 @@ async function loadIsapiFtpConfigForRecord(record) {
       });
       
       // 解析完整的FTP配置信息
-      const ftpConfig = parseFtpConfigResponse(ftpResponse);
+      const namingRules = parseFtpConfigResponse(ftpResponse);
       
-      if (ftpConfig) {
-        console.log("成功获取ISAPI FTP配置:", ftpConfig);
+      if (namingRules) {
+        console.log("成功获取ISAPI命名规则:", namingRules);
         
         // 提取摄像头图片命名规则元素
         const cameraNamingElements = extractCameraNamingElements(ftpResponse);
@@ -2769,34 +3101,49 @@ async function loadIsapiFtpConfigForRecord(record) {
           snapshotConfig = null;
         }
         
+        // 从命名规则中提取FTP配置信息
+        const extractFromNamingRules = (rules, key) => {
+          if (!rules || !Array.isArray(rules)) return null;
+          const rule = rules.find(r => r.name && r.name.toLowerCase().includes(key.toLowerCase()));
+          return rule ? rule.value : null;
+        };
+        
         // 构建完整的配置对象
         const fullFtpConfig = {
           // 基本FTP配置
-          serverAddress: ftpConfig.serverAddress || "未配置",
-          serverPort: ftpConfig.serverPort || 21,
-          username: ftpConfig.username || "未配置",
-          password: ftpConfig.password ? "***" : "未配置",
-          remotePath: ftpConfig.remotePath || "/",
-          uploadEnabled: ftpConfig.uploadEnabled !== false,
+          serverAddress: extractFromNamingRules(namingRules, "ftp服务器地址") || 
+                        extractFromNamingRules(namingRules, "host") || 
+                        "未配置",
+          serverPort: parseInt(extractFromNamingRules(namingRules, "ftp端口") || 
+                              extractFromNamingRules(namingRules, "port") || 
+                              "21"),
+          username: extractFromNamingRules(namingRules, "ftp用户名") || 
+                   extractFromNamingRules(namingRules, "username") || 
+                   "未配置",
+          password: extractFromNamingRules(namingRules, "ftp密码") ? "***" : "未配置",
+          remotePath: extractFromNamingRules(namingRules, "上传目录") || 
+                     extractFromNamingRules(namingRules, "directory") || 
+                     "/",
+          uploadEnabled: true,
           
           // FTP传输配置
-          transferMode: ftpConfig.transferMode || "PASV", // PASV/ACTIVE
-          encoding: ftpConfig.encoding || "UTF-8",
-          timeout: ftpConfig.timeout || 30, // 秒
-          retryCount: ftpConfig.retryCount || 3,
-          keepAlive: ftpConfig.keepAlive !== false,
+          transferMode: "PASV", // PASV/ACTIVE
+          encoding: "UTF-8",
+          timeout: 30, // 秒
+          retryCount: 3,
+          keepAlive: true,
           
           // 文件上传配置
-          fileType: ftpConfig.fileType || "JPEG",
-          quality: ftpConfig.quality || 85, // 图片质量百分比
-          maxFileSize: ftpConfig.maxFileSize || 1024, // KB
-          uploadInterval: ftpConfig.uploadInterval || 0, // 秒，0表示实时上传
+          fileType: "JPEG",
+          quality: 85, // 图片质量百分比
+          maxFileSize: 1024, // KB
+          uploadInterval: 0, // 秒，0表示实时上传
           
           // 命名规则相关
-          namingRules: ftpConfig.namingRules || [],
+          namingRules: namingRules || [],
           cameraNamingElements: cameraNamingElements || [],
-          namingFormat: ftpConfig.namingFormat || "默认格式",
-          separator: ftpConfig.separator || "_",
+          namingFormat: extractFromNamingRules(namingRules, "文件名格式") || "默认格式",
+          separator: "_",
           
           // 抓拍配置
           snapshotConfig: snapshotConfig,
