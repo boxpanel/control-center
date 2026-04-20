@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>管理平台</title>
-    <link rel="stylesheet" href="/style.css?v=58" />
+    <link rel="stylesheet" href="/style.css?v=61" />
   </head>
   <body class="app-page">
     <div class="app-page-bg" aria-hidden="true"></div>
@@ -245,6 +245,7 @@
               </div>
               <div class="actions" style="margin-top:10px;">
                 <button id="systemSaveBtn" type="button">保存</button>
+                <button id="systemRestartBtn" type="button" style="margin-left: 10px;">重启设备</button>
               </div>
               <div id="systemPassHint" style="margin-top:10px; font-size:12px; color:#6b7280;"></div>
               <div id="fingerprintBox" class="fingerprintBox" style="margin-top:10px;">加载设备指纹中...</div>
@@ -463,6 +464,14 @@
         <div class="modalFooter">
           <!-- 停止预览按钮已移动到预览区域的controls部分 -->
         </div>
+      </div>
+    </div>
+
+    <!-- 加载动画 -->
+    <div id="loadingOverlay" class="loading-overlay" style="display: none;">
+      <div class="loading-spinner">
+        <div class="spinner"></div>
+        <div class="loading-text">正在处理，请稍候...</div>
       </div>
     </div>
 

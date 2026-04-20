@@ -260,10 +260,10 @@ async function deleteImageFiles(imagePaths) {
   
   const uploadsDir = path.join(__dirname, "uploads");
   const errors = [];
-  let deleted = 0;
   
-  for (const imagePath of imagePaths) {
-    if (!imagePath || typeof imagePath !== 'string') continue;
+  // 并行删除文件
+  const deletePromises = imagePaths.map(async (imagePath) => {
+    if (!imagePath || typeof imagePath !== 'string') return null;
     
     try {
       // 构建完整的文件路径
@@ -274,29 +274,41 @@ async function deleteImageFiles(imagePaths) {
         await fs.access(fullPath);
       } catch {
         // 文件不存在，跳过
-        continue;
+        return null;
       }
       
       // 删除文件
       await fs.unlink(fullPath);
-      deleted++;
-      
-      // 尝试删除空目录
-      try {
-        const dirPath = path.dirname(fullPath);
-        const files = await fs.readdir(dirPath);
-        if (files.length === 0) {
-          await fs.rmdir(dirPath);
-        }
-      } catch {
-        // 忽略目录删除错误
-      }
+      return fullPath;
     } catch (error) {
       errors.push({ imagePath, error: error.message });
+      return null;
     }
+  });
+  
+  const deletedPaths = (await Promise.all(deletePromises)).filter(Boolean);
+  
+  // 收集所有需要检查的目录（去重）
+  const dirsToCheck = new Set();
+  for (const fullPath of deletedPaths) {
+    dirsToCheck.add(path.dirname(fullPath));
   }
   
-  return { deleted, errors };
+  // 并行检查并删除空目录
+  const dirCheckPromises = Array.from(dirsToCheck).map(async (dirPath) => {
+    try {
+      const files = await fs.readdir(dirPath);
+      if (files.length === 0) {
+        await fs.rmdir(dirPath);
+      }
+    } catch {
+      // 忽略目录删除错误
+    }
+  });
+  
+  await Promise.allSettled(dirCheckPromises);
+  
+  return { deleted: deletedPaths.length, errors };
 }
 
 // 清理旧数据并删除对应的图片文件
@@ -4799,6 +4811,52 @@ app.post("/api/device/config", async (req, res, next) => {
       throw err;
     }
     res.json({ ok: true, config, networkApplyResult, hostnameChangeResult });
+  } catch (err) {
+    next(err);
+  }
+});
+
+app.post("/api/device/restart", async (req, res, next) => {
+  try {
+    console.log("[System] 收到重启设备请求");
+    
+    // 检查是否在Windows系统上
+    if (process.platform !== "win32") {
+      // 在Linux系统上使用shutdown命令
+      const { exec } = await import("node:child_process");
+      const { promisify } = await import("node:util");
+      const execAsync = promisify(exec);
+      
+      try {
+        // 使用shutdown命令重启系统
+        await execAsync("sudo shutdown -r now");
+        res.json({ ok: true, message: "系统重启命令已发送" });
+      } catch (error) {
+        console.error("[System] 重启命令执行失败:", error);
+        // 尝试使用其他命令
+        try {
+          await execAsync("sudo reboot");
+          res.json({ ok: true, message: "系统重启命令已发送" });
+        } catch (error2) {
+          console.error("[System] 备用重启命令也失败:", error2);
+          throw new Error("无法执行重启命令，请检查权限");
+        }
+      }
+    } else {
+      // 在Windows系统上
+      const { exec } = await import("node:child_process");
+      const { promisify } = await import("node:util");
+      const execAsync = promisify(exec);
+      
+      try {
+        // 使用Windows的shutdown命令
+        await execAsync("shutdown /r /t 0");
+        res.json({ ok: true, message: "系统重启命令已发送" });
+      } catch (error) {
+        console.error("[System] Windows重启命令执行失败:", error);
+        throw new Error("无法执行重启命令");
+      }
+    }
   } catch (err) {
     next(err);
   }

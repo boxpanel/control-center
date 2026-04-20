@@ -13,6 +13,24 @@ function updatePageTitle(systemName) {
   }
 }
 
+// 显示加载动画
+function showLoading(message = "正在处理，请稍候...") {
+  if (els.loadingOverlay) {
+    const textElement = els.loadingOverlay.querySelector(".loading-text");
+    if (textElement) {
+      textElement.textContent = message;
+    }
+    els.loadingOverlay.style.display = "flex";
+  }
+}
+
+// 隐藏加载动画
+function hideLoading() {
+  if (els.loadingOverlay) {
+    els.loadingOverlay.style.display = "none";
+  }
+}
+
 const els = {
   discoverBtn: document.getElementById("discoverBtn"),
   connectBtn: document.getElementById("connectBtn"),
@@ -76,8 +94,9 @@ const els = {
   plateSearchInput: document.getElementById("plateSearchInput"),
   plateDateInput: document.getElementById("plateDateInput"),
   plateQueryBtn: document.getElementById("plateQueryBtn"),
-  plateDownloadBtn: document.getElementById("plateDownloadBtn"),
   plateDeleteBtn: document.getElementById("plateDeleteBtn"),
+  plateDownloadBtn: document.getElementById("plateDownloadBtn"),
+  loadingOverlay: document.getElementById("loadingOverlay"),
   plateViewCardsBtn: document.getElementById("plateViewCardsBtn"),
   plateViewTableBtn: document.getElementById("plateViewTableBtn"),
   plateTableWrap: document.getElementById("plateTableWrap"),
@@ -98,6 +117,7 @@ const els = {
   dataCleanupDays: document.getElementById("dataCleanupDays"),
   systemNewPassword: document.getElementById("systemNewPassword"),
   systemSaveBtn: document.getElementById("systemSaveBtn"),
+  systemRestartBtn: document.getElementById("systemRestartBtn"),
   systemSaveHint: document.getElementById("systemSaveHint"),
   systemPassHint: document.getElementById("systemPassHint"),
   ftpServerEnabled: document.getElementById("ftpServerEnabled"),
@@ -624,6 +644,22 @@ async function initSystemUi() {
       setSystemHint(`保存失败：${String(e?.message || e || "")}`, true);
     } finally {
       els.systemSaveBtn.disabled = false;
+    }
+  });
+
+  els.systemRestartBtn.addEventListener("click", async () => {
+    if (!confirm("确定要重启设备吗？重启后需要重新登录系统。")) {
+      return;
+    }
+    try {
+      els.systemRestartBtn.disabled = true;
+      setSystemHint("正在重启设备...");
+      const result = await fetchJson("/api/device/restart", {});
+      setSystemHint(result?.message || "重启命令已发送");
+    } catch (e) {
+      setSystemHint(`重启失败：${String(e?.message || e || "")}`, true);
+    } finally {
+      els.systemRestartBtn.disabled = false;
     }
   });
 
@@ -2046,24 +2082,84 @@ function initPlateModule() {
     els.plateDeleteBtn.addEventListener("click", async () => {
       const ids = Array.from(plateSelectedIds);
       if (!ids.length) return;
-      if (els.plateDeleteBtn) els.plateDeleteBtn.disabled = true;
+      
+      // 显示删除确认
+      if (!confirm(`确定要删除选中的 ${ids.length} 条记录吗？`)) {
+        return;
+      }
+      
+      const originalText = els.plateDeleteBtn.textContent;
+      if (els.plateDeleteBtn) {
+        els.plateDeleteBtn.disabled = true;
+        els.plateDeleteBtn.textContent = `删除中...`;
+      }
+      
+      // 显示加载动画
+      showLoading(`正在删除 ${ids.length} 条记录...`);
+      
       try {
-        await fetchJson("/api/plates/delete", { ids });
+        // 显示开始删除的提示
+        logLine(`开始删除 ${ids.length} 条记录...`);
+        
+        // 分批删除以避免请求过大
+        const batchSize = 100;
+        let deletedCount = 0;
+        let totalBatches = Math.ceil(ids.length / batchSize);
+        
+        for (let i = 0; i < ids.length; i += batchSize) {
+          const batchIds = ids.slice(i, i + batchSize);
+          const currentBatch = Math.floor(i / batchSize) + 1;
+          
+          // 更新加载动画的进度显示
+          showLoading(`正在删除 ${ids.length} 条记录... (批次 ${currentBatch}/${totalBatches})`);
+          
+          try {
+            const result = await fetchJson("/api/plates/delete", { ids: batchIds });
+            const batchDeleted = result?.dbDeleted || 0;
+            deletedCount += batchDeleted;
+            
+            // 显示批次删除结果
+            let batchMessage = `批次 ${currentBatch}: 删除 ${batchDeleted} 条记录`;
+            if (result?.imagesDeleted > 0) {
+              batchMessage += `，删除 ${result.imagesDeleted} 个图片文件`;
+            }
+            logLine(batchMessage);
+            
+            // 短暂延迟以避免过快的请求
+            if (i + batchSize < ids.length) {
+              await new Promise(resolve => setTimeout(resolve, 100));
+            }
+          } catch (error) {
+            logLine(`批次删除失败: ${error.message}`);
+            // 继续尝试删除其他批次
+          }
+        }
         
         // 清空选中状态
         plateSelectedIds.clear();
         
+        // 更新加载动画显示刷新数据
+        showLoading("正在刷新数据...");
+        
         // 删除后自动刷新数据
+        logLine("正在刷新数据...");
         await applyPlateFiltersFromUi();
         
         // 更新仪表板
         updatePlateDashboard().catch(err => console.error("删除后更新仪表板失败:", err));
         
-        logLine(`已删除 ${ids.length} 条记录`);
+        logLine(`删除完成，共删除 ${deletedCount} 条记录`);
         
-      } catch {
-        logLine("删除记录失败");
+      } catch (error) {
+        logLine(`删除失败: ${error.message}`);
       } finally {
+        // 隐藏加载动画
+        hideLoading();
+        
+        if (els.plateDeleteBtn) {
+          els.plateDeleteBtn.disabled = false;
+          els.plateDeleteBtn.textContent = originalText;
+        }
         updatePlateBulkUi();
       }
     });
