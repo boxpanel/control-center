@@ -5079,6 +5079,8 @@ function setDevicePreviewModalOpen(open, device = null) {
         els.devicePreviewModalTitle.textContent = `设备预览 - ${device.name || "未知设备"}`;
       }
       
+
+      
       // 开始预览
       startPreviewForDevice(device);
     }
@@ -5092,8 +5094,6 @@ function setDevicePreviewModalOpen(open, device = null) {
     devicePreviewModalState.isHikvisionIsapi = false;
   }
 }
-
-
 
 
 
