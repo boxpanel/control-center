@@ -1532,3 +1532,33 @@ body.login-page {
   text-align: center;
   color: #64748b;
 }
+
+/* 系统设置页面输入框优化 */
+#systemPage .field input[type="text"],
+#systemPage .field input[type="password"] {
+  max-width: 300px;
+  width: 100%;
+}
+
+/* 特定输入框的优化宽度 */
+#systemNameInput {
+  max-width: 250px; /* 设备名称不需要太长 */
+}
+
+#systemIpInput,
+#systemPrefixInput,
+#systemGatewayInput {
+  max-width: 200px; /* IP地址、子网掩码、网关不需要太宽 */
+}
+
+#systemNewPassword {
+  max-width: 220px; /* 密码输入框适中宽度 */
+}
+
+/* 保持响应式设计 */
+@media (max-width: 768px) {
+  #systemPage .field input[type="text"],
+  #systemPage .field input[type="password"] {
+    max-width: 100%;
+  }
+}

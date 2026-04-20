@@ -94,7 +94,8 @@ const els = {
   systemPrefixInput: document.getElementById("systemPrefixInput"),
   systemGatewayInput: document.getElementById("systemGatewayInput"),
   systemIfaceInfo: document.getElementById("systemIfaceInfo"),
-  systemOldPassword: document.getElementById("systemOldPassword"),
+  dataCleanupEnabled: document.getElementById("dataCleanupEnabled"),
+  dataCleanupDays: document.getElementById("dataCleanupDays"),
   systemNewPassword: document.getElementById("systemNewPassword"),
   systemSaveBtn: document.getElementById("systemSaveBtn"),
   systemSaveHint: document.getElementById("systemSaveHint"),
@@ -495,6 +496,12 @@ async function initSystemUi() {
   const manualPrefix = String(system?.manualPrefix || "");
   const manualGateway = String(system?.manualGateway || "");
   const manualNetmask = formatNetmaskDisplay(manualPrefix, "");
+  
+  // 数据清理配置
+  const cleanupConfig = system?.dataCleanup || {};
+  const cleanupEnabled = cleanupConfig?.enabled ?? true;
+  const cleanupDays = cleanupConfig?.days ?? 30;
+  
   els.systemNameInput.value = name;
   els.systemNameInput.readOnly = false;
   els.systemNameInput.title = "操作系统主机名（可修改）";
@@ -502,6 +509,14 @@ async function initSystemUi() {
   updatePageTitle(name);
   // 客户端模式默认开启，不再显示开关
   els.systemIpMode.value = ipMode;
+  
+  // 设置数据清理配置
+  if (els.dataCleanupEnabled instanceof HTMLInputElement) {
+    els.dataCleanupEnabled.checked = cleanupEnabled;
+  }
+  if (els.dataCleanupDays) {
+    els.dataCleanupDays.value = String(cleanupDays);
+  }
 
   const ifaces = await loadNetIfaces();
   const autoIp = pickFirstIfaceIp(ifaces);
@@ -558,7 +573,11 @@ async function initSystemUi() {
         ipMode: mode,
         manualIp: mode === "manual" ? String(els.systemIpInput?.value || "").trim() : "",
         manualPrefix: mode === "manual" ? String(els.systemPrefixInput?.value || "").trim() : "",
-        manualGateway: mode === "manual" ? String(els.systemGatewayInput?.value || "").trim() : ""
+        manualGateway: mode === "manual" ? String(els.systemGatewayInput?.value || "").trim() : "",
+        dataCleanup: {
+          enabled: els.dataCleanupEnabled instanceof HTMLInputElement ? els.dataCleanupEnabled.checked : true,
+          days: Number(els.dataCleanupDays?.value || 30)
+        }
       }
     };
     try {
@@ -589,19 +608,13 @@ async function initSystemUi() {
       const systemName = String(els.systemNameInput?.value || "").trim();
       updatePageTitle(systemName);
 
-      const oldPwd = String(els.systemOldPassword?.value || "");
       const newPwd = String(els.systemNewPassword?.value || "");
-      const wantsPassChange = Boolean(oldPwd || newPwd);
+      const wantsPassChange = Boolean(newPwd);
       if (!wantsPassChange) return;
 
-      if (!oldPwd || !newPwd) {
-        setSystemPassHint("若要修改密码，请同时填写当前密码和新密码", true);
-        return;
-      }
       try {
         setSystemPassHint("密码修改中...");
-        await fetchJson("/api/auth/change-password", { oldPassword: oldPwd, newPassword: newPwd });
-        if (els.systemOldPassword) els.systemOldPassword.value = "";
+        await fetchJson("/api/auth/change-password", { newPassword: newPwd });
         if (els.systemNewPassword) els.systemNewPassword.value = "";
         setSystemPassHint("密码修改成功", false, true);
       } catch (e) {
@@ -969,19 +982,21 @@ async function applyPlateFilters({ plateText, date } = {}) {
   
   try {
     let items = [];
+    let totalCount = 0;
+    let pagination = null;
     
-    // 如果查询条件为空，则加载所有数据
+    // 如果查询条件为空，则使用分页API加载数据
     if (!q && !dateVal) {
-      // 先获取总记录数，然后加载所有记录
-      const countResponse = await fetchJsonGet("/api/plates/count");
-      const totalCount = Number(countResponse?.total || 0);
-      console.log(`[调试] applyPlateFilters: 数据库总记录数=${totalCount}`);
+      const page = Math.max(1, Number(plateTableState.page) || 1);
+      const pageSize = Math.max(1, Math.min(500, Number(plateTableState.pageSize) || 100));
       
-      // 加载所有记录（最多10000条，避免性能问题）
-      const limit = Math.min(totalCount, 10000);
-      const r = await fetchJsonGet(`/api/plates/latest?limit=${limit}`);
+      // 使用分页API
+      const r = await fetchJsonGet(`/api/plates/paged?page=${page}&pageSize=${pageSize}`);
       items = Array.isArray(r?.items) ? r.items : [];
-      console.log(`[调试] applyPlateFilters: 加载了 ${items.length} 条记录`);
+      pagination = r?.pagination || null;
+      totalCount = pagination?.total || 0;
+      
+      console.log(`[调试] applyPlateFilters: 分页加载 ${items.length} 条记录，第 ${page}/${pagination?.totalPages || 1} 页，总计 ${totalCount} 条`);
     } else {
       // 构建查询参数
       const params = new URLSearchParams();
@@ -991,6 +1006,7 @@ async function applyPlateFilters({ plateText, date } = {}) {
       // 调用搜索API
       const r = await fetchJsonGet(`/api/plates/search?${params.toString()}`);
       items = Array.isArray(r?.items) ? r.items : [];
+      totalCount = items.length;
       console.log(`[调试] applyPlateFilters: 搜索到 ${items.length} 条记录`);
     }
     
@@ -1011,18 +1027,26 @@ async function applyPlateFilters({ plateText, date } = {}) {
     
     // 更新分页信息
     if (plateUiState.view === "cards") {
-      const pageSize = Math.max(1, Math.min(200, Number(plateTableState.pageSize) || 10));
-      const totalPages = Math.max(1, Math.ceil(items.length / pageSize));
-      plateTableState.page = Math.max(1, Math.min(totalPages, Number(plateTableState.page) || 1));
-      
-      const allCards = Array.from(plateListEl.querySelectorAll(".plate-card"));
-      const startIdx = (plateTableState.page - 1) * pageSize;
-      const endIdx = startIdx + pageSize;
-      
-      for (let i = 0; i < allCards.length; i++) {
-        const card = allCards[i];
-        const inCurrentPage = i >= startIdx && i < endIdx;
-        card.classList.toggle("hidden", !inCurrentPage);
+      // 如果使用分页API，更新分页状态
+      if (pagination) {
+        plateTableState.page = pagination.page;
+        plateTableState.pageSize = pagination.pageSize;
+        plateTableState.total = pagination.total;
+      } else {
+        // 对于搜索查询，使用前端分页
+        const pageSize = Math.max(1, Math.min(200, Number(plateTableState.pageSize) || 10));
+        const totalPages = Math.max(1, Math.ceil(items.length / pageSize));
+        plateTableState.page = Math.max(1, Math.min(totalPages, Number(plateTableState.page) || 1));
+        
+        const allCards = Array.from(plateListEl.querySelectorAll(".plate-card"));
+        const startIdx = (plateTableState.page - 1) * pageSize;
+        const endIdx = startIdx + pageSize;
+        
+        for (let i = 0; i < allCards.length; i++) {
+          const card = allCards[i];
+          const inCurrentPage = i >= startIdx && i < endIdx;
+          card.classList.toggle("hidden", !inCurrentPage);
+        }
       }
       
       updatePlatePageInfo();
@@ -1467,16 +1491,11 @@ async function loadPlateHistoryToUi() {
   let list = [];
   try {
     console.log(`[调试] loadPlateHistoryToUi: 开始从API加载记录`);
-    // 先获取总记录数，然后加载所有记录
-    const countResponse = await fetchJsonGet("/api/plates/count");
-    const totalCount = Number(countResponse?.total || 0);
-    console.log(`[调试] loadPlateHistoryToUi: 数据库总记录数=${totalCount}`);
-    
-    // 加载所有记录（最多10000条，避免性能问题）
-    const limit = Math.min(totalCount, 10000);
-    const r = await fetchJsonGet(`/api/plates/latest?limit=${limit}`);
+    // 使用分页API加载第一页数据（默认100条）
+    const r = await fetchJsonGet(`/api/plates/paged?page=1&pageSize=100`);
     list = Array.isArray(r?.items) ? r.items : [];
-    console.log(`[调试] loadPlateHistoryToUi: API返回 ${list.length} 条记录`);
+    const pagination = r?.pagination || null;
+    console.log(`[调试] loadPlateHistoryToUi: API返回 ${list.length} 条记录，总计 ${pagination?.total || 0} 条`);
   } catch (error) {
     console.error(`[调试] loadPlateHistoryToUi: API调用失败`, error);
     ensureEmptyHint(plateListEl);

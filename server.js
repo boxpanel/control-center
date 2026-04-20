@@ -90,6 +90,7 @@ if (!plateTableColumns.some((col) => String(col?.name || "") === "parsedMetaJson
   plateDb.exec(`ALTER TABLE plate_records ADD COLUMN parsedMetaJson TEXT NOT NULL DEFAULT ''`);
 }
 plateDb.exec(`CREATE INDEX IF NOT EXISTS idx_plate_records_sourceEventKey ON plate_records(sourceEventKey)`);
+plateDb.exec(`CREATE INDEX IF NOT EXISTS idx_plate_records_receivedAt_plate ON plate_records(receivedAt DESC, plate)`);
 
 const stmtPlateInsert = plateDb.prepare(`
   INSERT INTO plate_records (id, plate, receivedAt, eventAt, imagePath, sourceEventKey, ftpRemotePath, serialSentAt, parsedMetaJson)
@@ -108,7 +109,19 @@ const stmtPlateCount = plateDb.prepare(
   `SELECT COUNT(*) as total FROM plate_records`
 );
 const stmtPlateSearch = plateDb.prepare(
-  `SELECT id, plate, receivedAt, eventAt, imagePath, ftpRemotePath, serialSentAt, parsedMetaJson FROM plate_records WHERE (plate LIKE ? OR ? IS NULL) AND (DATE(receivedAt) = ? OR ? IS NULL) ORDER BY receivedAt DESC LIMIT 10000`
+  `SELECT id, plate, receivedAt, eventAt, imagePath, ftpRemotePath, serialSentAt, parsedMetaJson FROM plate_records WHERE (plate LIKE ? OR ? IS NULL) AND (receivedAt >= ? AND receivedAt < ? OR ? IS NULL) ORDER BY receivedAt DESC LIMIT 10000`
+);
+const stmtPlateListPaged = plateDb.prepare(
+  `SELECT id, plate, receivedAt, eventAt, imagePath, ftpRemotePath, serialSentAt, parsedMetaJson FROM plate_records ORDER BY receivedAt DESC LIMIT ? OFFSET ?`
+);
+const stmtPlateDeleteOld = plateDb.prepare(
+  `DELETE FROM plate_records WHERE receivedAt < ?`
+);
+const stmtPlateGetOldImages = plateDb.prepare(
+  `SELECT imagePath FROM plate_records WHERE receivedAt < ? AND imagePath != ''`
+);
+const stmtPlateGetImagesByIds = plateDb.prepare(
+  `SELECT imagePath FROM plate_records WHERE id IN (SELECT value FROM json_each(?)) AND imagePath != ''`
 );
 const stmtPlateUpdateSerialSent = plateDb.prepare(`UPDATE plate_records SET serialSentAt = ? WHERE id = ?`);
 
@@ -202,12 +215,117 @@ async function savePlateImageFileToDisk({ srcPath, eventDate, plate, id, ext }) 
   return path.relative(uploadsDir, abs).split(path.sep).join("/");
 }
 
-function deletePlatesByIds(ids) {
+async function deletePlatesByIds(ids) {
   const arr = Array.isArray(ids) ? ids.map((x) => String(x || "").trim()).filter(Boolean) : [];
   if (!arr.length) return 0;
+  
+  // 1. 先获取要删除的图片路径
+  const idsJson = JSON.stringify(arr);
+  const imageRows = stmtPlateGetImagesByIds.all(idsJson);
+  const imagePaths = imageRows.map(row => row.imagePath).filter(path => path && path.trim() !== '');
+  
+  // 2. 删除图片文件
+  let imagesDeleted = 0;
+  if (imagePaths.length > 0) {
+    const imageDeleteResult = await deleteImageFiles(imagePaths);
+    imagesDeleted = imageDeleteResult.deleted || 0;
+    
+    if (imageDeleteResult.errors.length > 0) {
+      console.log(`[删除记录] 图片删除错误:`, imageDeleteResult.errors);
+    }
+  }
+  
+  // 3. 删除数据库记录
   const placeholders = arr.map(() => "?").join(",");
   const del = plateDb.prepare(`DELETE FROM plate_records WHERE id IN (${placeholders})`);
-  return del.run(...arr).changes || 0;
+  const dbDeleted = del.run(...arr).changes || 0;
+  
+  // 4. 记录日志
+  if (dbDeleted > 0) {
+    let logMessage = `[删除记录] 删除 ${dbDeleted} 条记录`;
+    if (imagesDeleted > 0) {
+      logMessage += `，并删除 ${imagesDeleted} 个对应图片文件`;
+    }
+    console.log(logMessage);
+  }
+  
+  return { dbDeleted, imagesDeleted };
+}
+
+// 删除图片文件
+async function deleteImageFiles(imagePaths) {
+  if (!Array.isArray(imagePaths) || imagePaths.length === 0) {
+    return { deleted: 0, errors: [] };
+  }
+  
+  const uploadsDir = path.join(__dirname, "uploads");
+  const errors = [];
+  let deleted = 0;
+  
+  for (const imagePath of imagePaths) {
+    if (!imagePath || typeof imagePath !== 'string') continue;
+    
+    try {
+      // 构建完整的文件路径
+      const fullPath = path.join(uploadsDir, imagePath);
+      
+      // 检查文件是否存在
+      try {
+        await fs.access(fullPath);
+      } catch {
+        // 文件不存在，跳过
+        continue;
+      }
+      
+      // 删除文件
+      await fs.unlink(fullPath);
+      deleted++;
+      
+      // 尝试删除空目录
+      try {
+        const dirPath = path.dirname(fullPath);
+        const files = await fs.readdir(dirPath);
+        if (files.length === 0) {
+          await fs.rmdir(dirPath);
+        }
+      } catch {
+        // 忽略目录删除错误
+      }
+    } catch (error) {
+      errors.push({ imagePath, error: error.message });
+    }
+  }
+  
+  return { deleted, errors };
+}
+
+// 清理旧数据并删除对应的图片文件
+async function cleanupOldDataWithImages(days) {
+  const cutoffTime = Date.now() - (days * 24 * 60 * 60 * 1000);
+  
+  // 1. 先获取要删除的图片路径
+  const imageRows = stmtPlateGetOldImages.all(cutoffTime);
+  const imagePaths = imageRows.map(row => row.imagePath).filter(path => path && path.trim() !== '');
+  
+  // 2. 删除图片文件
+  let imageDeleteResult = { deleted: 0, errors: [] };
+  if (imagePaths.length > 0) {
+    imageDeleteResult = await deleteImageFiles(imagePaths);
+  }
+  
+  // 3. 删除数据库记录
+  const dbDeleteResult = stmtPlateDeleteOld.run(cutoffTime);
+  
+  // 4. 执行VACUUM回收空间
+  plateDb.exec("VACUUM");
+  
+  return {
+    dbDeleted: dbDeleteResult.changes || 0,
+    imagesDeleted: imageDeleteResult.deleted || 0,
+    imageErrors: imageDeleteResult.errors || [],
+    days,
+    cutoffTime
+  };
 }
 
 function parseCookies(cookieHeader) {
@@ -456,15 +574,9 @@ app.post("/api/auth/change-password", async (req, res) => {
     res.status(401).json({ error: "Unauthorized" });
     return;
   }
-  const oldPassword = String(req.body?.oldPassword || "");
   const newPassword = String(req.body?.newPassword || "");
-  if (!oldPassword || !newPassword) {
+  if (!newPassword) {
     res.status(400).json({ error: "Bad request" });
-    return;
-  }
-  const oldHashed = hashPasswordPbkdf2(oldPassword, { salt: cfg.salt, iterations: cfg.iterations });
-  if (oldHashed.hash !== cfg.hash) {
-    res.status(401).json({ error: "Unauthorized" });
     return;
   }
   const salt = base64urlEncode(crypto.randomBytes(16));
@@ -3459,6 +3571,24 @@ function normalizeSystemPatch(raw) {
     const v = String(raw.manualGateway || "").trim();
     out.manualGateway = isValidIpv4(v) ? v : "";
   }
+  // 数据清理配置
+  if (Object.prototype.hasOwnProperty.call(raw, "dataCleanup")) {
+    const cleanup = raw.dataCleanup;
+    if (typeof cleanup === "object") {
+      const cleanupOut = {};
+      if (Object.prototype.hasOwnProperty.call(cleanup, "enabled")) {
+        cleanupOut.enabled = Boolean(cleanup.enabled);
+      }
+      if (Object.prototype.hasOwnProperty.call(cleanup, "days")) {
+        const days = toPositiveInt(cleanup.days, 30);
+        // 限制在有效范围内（1-360天）
+        cleanupOut.days = Math.max(1, Math.min(360, days));
+      }
+      if (Object.keys(cleanupOut).length > 0) {
+        out.dataCleanup = cleanupOut;
+      }
+    }
+  }
   return Object.keys(out).length ? out : null;
 }
 
@@ -4148,16 +4278,102 @@ app.get("/api/plates/latest", (req, res) => {
   res.json({ ok: true, items });
 });
 
+app.get("/api/plates/paged", (req, res) => {
+  const page = toPositiveInt(req.query?.page, 1);
+  const pageSize = toPositiveInt(req.query?.pageSize, 100);
+  const maxPageSize = Math.max(1, Math.min(1000, pageSize)); // 限制每页最多1000条
+  
+  const offset = (page - 1) * maxPageSize;
+  
+  console.log(`[服务器调试] /api/plates/paged: page=${page}, pageSize=${maxPageSize}, offset=${offset}`);
+  
+  try {
+    const rows = stmtPlateListPaged.all(maxPageSize, offset);
+    const items = rows.map(rowToPlateDto);
+    
+    // 获取总记录数
+    const countResult = stmtPlateCount.get();
+    const total = Number(countResult?.total || 0);
+    const totalPages = Math.ceil(total / maxPageSize);
+    
+    res.json({ 
+      ok: true, 
+      items,
+      pagination: {
+        page,
+        pageSize: maxPageSize,
+        total,
+        totalPages,
+        hasNext: page < totalPages,
+        hasPrev: page > 1
+      }
+    });
+  } catch (error) {
+    console.error(`[服务器调试] /api/plates/paged 错误:`, error);
+    res.status(500).json({ ok: false, error: "分页查询失败" });
+  }
+});
+
 app.get("/api/plates/search", (req, res) => {
   const plate = String(req.query?.plate || "").trim();
   const date = String(req.query?.date || "").trim();
   
   const plateParam = plate ? `%${plate}%` : null;
-  const dateParam = date || null;
   
-  const rows = stmtPlateSearch.all(plateParam, plateParam, dateParam, dateParam);
+  // 将日期字符串转换为时间戳范围
+  let startTimestamp = null;
+  let endTimestamp = null;
+  
+  if (date) {
+    try {
+      // 解析日期字符串，支持格式：YYYY-MM-DD
+      const dateObj = new Date(date);
+      if (!isNaN(dateObj.getTime())) {
+        startTimestamp = dateObj.getTime();
+        // 计算下一天的开始时间
+        const nextDay = new Date(dateObj);
+        nextDay.setDate(nextDay.getDate() + 1);
+        endTimestamp = nextDay.getTime();
+      }
+    } catch (error) {
+      console.error(`日期解析错误: ${date}`, error);
+    }
+  }
+  
+  const rows = stmtPlateSearch.all(plateParam, plateParam, startTimestamp, endTimestamp, startTimestamp);
   const items = rows.map(rowToPlateDto);
   res.json({ ok: true, items });
+});
+
+app.post("/api/plates/cleanup", async (req, res) => {
+  try {
+    const days = toPositiveInt(req.body?.days, 30); // 默认保留30天数据
+    
+    console.log(`[服务器调试] /api/plates/cleanup: 清理 ${days} 天前的数据和对应图片`);
+    
+    const result = await cleanupOldDataWithImages(days);
+    
+    let message = `成功清理 ${result.dbDeleted} 条 ${days} 天前的记录`;
+    if (result.imagesDeleted > 0) {
+      message += `，并删除 ${result.imagesDeleted} 个对应图片文件`;
+    }
+    if (result.imageErrors.length > 0) {
+      message += `（${result.imageErrors.length} 个图片删除失败）`;
+    }
+    
+    res.json({ 
+      ok: true, 
+      dbDeleted: result.dbDeleted,
+      imagesDeleted: result.imagesDeleted,
+      imageErrors: result.imageErrors,
+      days,
+      cutoffTime: result.cutoffTime,
+      message
+    });
+  } catch (error) {
+    console.error(`[服务器调试] /api/plates/cleanup 错误:`, error);
+    res.status(500).json({ ok: false, error: "数据清理失败" });
+  }
 });
 
 app.get("/api/plates/:id", (req, res) => {
@@ -4237,10 +4453,26 @@ app.post("/api/plates/:id/serial-sent", (req, res) => {
   res.json({ ok: true });
 });
 
-app.post("/api/plates/delete", (req, res) => {
-  const ids = Array.isArray(req.body?.ids) ? req.body.ids : [];
-  const changes = deletePlatesByIds(ids);
-  res.json({ ok: true, deleted: changes });
+app.post("/api/plates/delete", async (req, res) => {
+  try {
+    const ids = Array.isArray(req.body?.ids) ? req.body.ids : [];
+    const result = await deletePlatesByIds(ids);
+    
+    let message = `成功删除 ${result.dbDeleted} 条记录`;
+    if (result.imagesDeleted > 0) {
+      message += `，并删除 ${result.imagesDeleted} 个对应图片文件`;
+    }
+    
+    res.json({ 
+      ok: true, 
+      dbDeleted: result.dbDeleted,
+      imagesDeleted: result.imagesDeleted,
+      message
+    });
+  } catch (error) {
+    console.error(`[服务器调试] /api/plates/delete 错误:`, error);
+    res.status(500).json({ ok: false, error: "删除记录失败" });
+  }
 });
 
 app.get("/api/device/fingerprint", async (req, res, next) => {
@@ -5340,6 +5572,57 @@ function listenWithRetry(port, remaining) {
     for (const i of listPrivateIPv4()) {
       process.stdout.write(`http://${i.address}:${port}/\n`);
     }
+    
+    // 启动定时数据清理任务（每天凌晨2点执行）
+    const scheduleDailyCleanup = () => {
+      const now = new Date();
+      const target = new Date(now);
+      target.setHours(2, 0, 0, 0); // 凌晨2点
+      if (target <= now) {
+        target.setDate(target.getDate() + 1); // 如果已经过了今天2点，就设置到明天
+      }
+      
+      const delay = target.getTime() - now.getTime();
+      
+      setTimeout(async () => {
+        // 执行数据清理
+        try {
+          // 从配置中读取数据清理设置
+          const config = await getClientConfig();
+          const cleanupConfig = config?.system?.dataCleanup;
+          const enabled = cleanupConfig?.enabled ?? true; // 默认开启
+          const days = cleanupConfig?.days ?? 30; // 默认30天
+          
+          if (enabled) {
+            const result = await cleanupOldDataWithImages(days);
+            
+            if (result.dbDeleted > 0) {
+              let logMessage = `[定时任务] 自动清理 ${result.dbDeleted} 条 ${days} 天前的记录`;
+              if (result.imagesDeleted > 0) {
+                logMessage += `，并删除 ${result.imagesDeleted} 个对应图片文件`;
+              }
+              if (result.imageErrors.length > 0) {
+                logMessage += `（${result.imageErrors.length} 个图片删除失败）`;
+              }
+              console.log(logMessage);
+            } else {
+              console.log(`[定时任务] 没有需要清理的数据（保留 ${days} 天）`);
+            }
+          } else {
+            console.log(`[定时任务] 数据清理功能已禁用，跳过执行`);
+          }
+        } catch (error) {
+          console.error(`[定时任务] 数据清理失败:`, error);
+        }
+        
+        // 设置下一次执行
+        scheduleDailyCleanup();
+      }, delay);
+    };
+    
+    // 启动定时任务
+    scheduleDailyCleanup();
+    console.log(`[定时任务] 已启动每日数据清理任务，将在凌晨2点执行`);
   });
   (async () => {
     try {

@@ -225,8 +225,18 @@
                   <div id="systemIfaceInfo" class="fingerprintBox" style="margin-top:6px;">加载中...</div>
                 </div>
                 <div class="field span-4">
-                  <label for="systemOldPassword">当前密码</label>
-                  <input id="systemOldPassword" type="password" autocomplete="current-password" placeholder="请输入当前密码" />
+                  <label for="dataCleanupEnabled">数据清理</label>
+                  <div style="display:flex; align-items:center; gap:8px; margin-top:6px;">
+                    <input id="dataCleanupEnabled" type="checkbox" />
+                    <span>开启</span>
+                    <select id="dataCleanupDays" style="max-width: 120px; margin-left: 8px;">
+                      <option value="30" selected>30天</option>
+                      <option value="60">60天</option>
+                      <option value="90">90天</option>
+                      <option value="180">180天</option>
+                      <option value="360">360天</option>
+                    </select>
+                  </div>
                 </div>
                 <div class="field span-4">
                   <label for="systemNewPassword">新密码</label>
