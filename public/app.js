@@ -115,8 +115,8 @@ async function checkServerAvailable() {
 // 轮询检查服务器是否重启完成
 function startServerPolling() {
   let pollCount = 0;
-  const maxPolls = 120; // 最多轮询120次（10分钟）
-  let pollInterval = 3000; // 初始3秒检查一次
+  const maxPolls = 60; // 最多轮询60次（约2小时）
+  let pollInterval = 30000; // 初始30秒检查一次
   
   const poll = async () => {
     pollCount++;
@@ -133,11 +133,11 @@ function startServerPolling() {
       return;
     }
     
-    // 使用指数退避策略：前10次每3秒，然后每5秒，最后每10秒
+    // 使用指数退避策略：前10次每30秒，10-30次每60秒，30次后每120秒
     if (pollCount > 30) {
-      pollInterval = 10000; // 30次后每10秒检查一次
+      pollInterval = 120000; // 30次后每120秒检查一次
     } else if (pollCount > 10) {
-      pollInterval = 5000; // 10次后每5秒检查一次
+      pollInterval = 60000; // 10次后每60秒检查一次
     }
     
     const elapsedSeconds = Math.floor(pollCount * pollInterval / 1000);
