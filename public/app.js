@@ -1246,23 +1246,36 @@ async function fillPlateDetailModal(record) {
   // 根据协议类型选择不同的显示方式
   if (isIsapiDevice) {
     // ISAPI协议设备：使用ISAPI命名规则显示
+    if (parsedMetaEl) {
+      parsedMetaEl.textContent = "正在加载ISAPI命名规则...";
+    }
+    
     // 更新标题为ISAPI命名规则
     const parsedMetaTitle = document.querySelector('.kv .k[data-text="解析信息"]');
     if (parsedMetaTitle) {
       parsedMetaTitle.textContent = "ISAPI命名规则";
     }
     
-    // 检查记录中是否已经保存了ISAPI命名规则
-    if (record.isapiNamingRules && Array.isArray(record.isapiNamingRules) && record.isapiNamingRules.length > 0) {
-      // 使用保存的ISAPI命名规则
-      if (parsedMetaEl) {
-        const namingRulesText = formatNamingRulesAsText(record.isapiNamingRules);
+    try {
+      // 尝试从记录中获取设备信息，用于调用ISAPI API
+      // 获取完整的ISAPI FTP配置
+      const ftpConfig = await loadIsapiFtpConfigForRecord(record);
+      
+      // 用ISAPI的详细命名规则（带值）替代解析信息
+      if (parsedMetaEl && ftpConfig.namingRules && ftpConfig.namingRules.length > 0) {
+        // 格式化命名规则为文本显示
+        const namingRulesText = formatNamingRulesAsText(ftpConfig.namingRules);
         parsedMetaEl.textContent = namingRulesText;
+      } else if (parsedMetaEl) {
+        parsedMetaEl.textContent = "未获取到ISAPI命名规则";
       }
-    } else {
-      // 如果没有保存的命名规则，显示提示信息
+      
+    } catch (error) {
+      console.error("加载ISAPI FTP配置失败:", error);
+      
+      // 如果加载失败，显示错误信息
       if (parsedMetaEl) {
-        parsedMetaEl.textContent = "未获取到ISAPI命名规则（将在接收图片时自动获取）";
+        parsedMetaEl.textContent = "加载ISAPI命名规则失败";
       }
     }
   } else {
@@ -1435,30 +1448,7 @@ async function openPlateDetailById(id) {
   if (!rec) {
     try {
       const r = await fetchJsonGet(`/api/plates/${encodeURIComponent(key)}`);
-      const data = r?.record || null;
-      if (data) {
-        // 解析ISAPI命名规则
-        let isapiNamingRules = null;
-        if (data?.isapiNamingRulesJson && typeof data.isapiNamingRulesJson === 'string' && data.isapiNamingRulesJson.trim()) {
-          try {
-            isapiNamingRules = JSON.parse(data.isapiNamingRulesJson);
-          } catch (error) {
-            console.error("解析ISAPI命名规则失败:", error);
-          }
-        }
-        
-        rec = {
-          id: data.id,
-          plate: data.plate,
-          receivedAt: data.receivedAt,
-          eventAt: data.eventAt,
-          imageDataUrl: data.imageDataUrl || data.imageUrl || "",
-          serialSentAt: Number(data?.serialSentAt || 0) || 0,
-          ftpRemotePath: typeof data?.ftpRemotePath === "string" ? data.ftpRemotePath : "",
-          parsedMeta: data?.parsedMeta && typeof data.parsedMeta === "object" ? data.parsedMeta : null,
-          isapiNamingRules: isapiNamingRules
-        };
-      }
+      rec = r?.record || null;
     } catch {
       rec = null;
     }
@@ -4549,16 +4539,6 @@ function addRecordToBatchFallback(data) {
       ? data.imageUrl
       : "";
 
-  // 解析ISAPI命名规则
-  let isapiNamingRules = null;
-  if (data?.isapiNamingRulesJson && typeof data.isapiNamingRulesJson === 'string' && data.isapiNamingRulesJson.trim()) {
-    try {
-      isapiNamingRules = JSON.parse(data.isapiNamingRulesJson);
-    } catch (error) {
-      console.error("解析ISAPI命名规则失败:", error);
-    }
-  }
-  
   const record = {
     id,
     plate,
@@ -4567,8 +4547,7 @@ function addRecordToBatchFallback(data) {
     imageDataUrl,
     serialSentAt: Number(data?.serialSentAt || 0) || 0,
     ftpRemotePath: typeof data?.ftpRemotePath === "string" ? data.ftpRemotePath : "",
-    parsedMeta: data?.parsedMeta && typeof data.parsedMeta === "object" ? data.parsedMeta : null,
-    isapiNamingRules: isapiNamingRules
+    parsedMeta: data?.parsedMeta && typeof data.parsedMeta === "object" ? data.parsedMeta : null
   };
 
   plateById.set(record.id, record);
