@@ -301,10 +301,15 @@
             <div class="plateDetailImageWrap">
               <img id="plateDetailImg" class="plateDetailImg" alt="车牌截图" />
               <!-- ISAPI命名规则显示区域 -->
-              <div id="plateDetailIdentificationCodes" class="identificationCodesWrap" style="margin-top: 12px; padding: 10px; background: rgba(248, 250, 252, 0.92); border-radius: 8px; border: 1px solid rgba(226, 232, 240, 0.95);">
-                <div style="font-size: 13px; color: #475569; margin-bottom: 8px; font-weight: 500;">ISAPI获取的命名规则</div>
-                <div id="plateDetailIdentificationCodesList" style="font-size: 12px; color: #334155; line-height: 1.4; word-break: break-all;">
-                  正在加载ISAPI命名规则...
+              <div id="plateDetailIdentificationCodes" class="identificationCodesWrap" style="margin-top: 12px; padding: 12px; background: rgba(248, 250, 252, 0.92); border-radius: 8px; border: 1px solid rgba(226, 232, 240, 0.95);">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                  <div style="font-size: 13px; color: #475569; font-weight: 500;">ISAPI获取的命名规则</div>
+                  <div id="plateDetailIdentificationCodesCount" style="font-size: 11px; color: #64748b; background: rgba(226, 232, 240, 0.5); padding: 2px 6px; border-radius: 4px;">
+                    正在加载...
+                  </div>
+                </div>
+                <div id="plateDetailIdentificationCodesList" style="font-size: 12px; color: #334155; line-height: 1.6; max-height: 200px; overflow-y: auto; padding-right: 4px;">
+                  <div style="color: #94a3b8; font-style: italic;">正在加载ISAPI命名规则...</div>
                 </div>
               </div>
             </div>

@@ -1245,15 +1245,47 @@ async function fillPlateDetailModal(record) {
   // 显示ISAPI命名规则
   if (identificationCodesEl) {
     // 先显示加载中
-    identificationCodesEl.textContent = "正在加载ISAPI命名规则...";
+    identificationCodesEl.innerHTML = '<div style="color: #94a3b8; font-style: italic;">正在加载ISAPI命名规则...</div>';
+    
+    // 获取计数元素
+    const identificationCodesCountEl = document.getElementById('plateDetailIdentificationCodesCount');
+    if (identificationCodesCountEl) {
+      identificationCodesCountEl.textContent = "正在加载...";
+    }
     
     try {
       // 尝试从记录中获取设备信息，用于调用ISAPI API
       const isapiNamingRules = await loadIsapiNamingRulesForRecord(record);
-      identificationCodesEl.textContent = formatIsapiNamingRules(isapiNamingRules);
+      
+      // 更新计数显示
+      if (identificationCodesCountEl) {
+        identificationCodesCountEl.textContent = `${isapiNamingRules.length}个元素`;
+      }
+      
+      // 格式化并显示命名规则
+      const formattedRules = formatIsapiNamingRules(isapiNamingRules);
+      
+      // 创建更好的显示格式
+      let displayHtml = '';
+      isapiNamingRules.forEach((rule, index) => {
+        const isCameraSetting = index < 15; // 前15个是摄像头能设置的
+        const badge = isCameraSetting ? '<span style="font-size: 10px; color: #059669; background: rgba(5, 150, 105, 0.1); padding: 1px 4px; border-radius: 3px; margin-left: 4px;">摄像头可设置</span>' : '';
+        
+        displayHtml += `<div style="margin-bottom: 4px;">
+          <span style="font-weight: 500; color: #475569;">${index + 1}：</span>
+          <span style="color: #334155;">${rule}</span>
+          ${badge}
+        </div>`;
+      });
+      
+      identificationCodesEl.innerHTML = displayHtml;
+      
     } catch (error) {
       console.error("加载ISAPI命名规则失败:", error);
-      identificationCodesEl.textContent = "无法加载ISAPI命名规则";
+      identificationCodesEl.innerHTML = '<div style="color: #dc2626; font-style: italic;">无法加载ISAPI命名规则</div>';
+      if (identificationCodesCountEl) {
+        identificationCodesCountEl.textContent = "加载失败";
+      }
     }
   }
 }
@@ -2293,7 +2325,8 @@ async function loadIsapiNamingRulesForRecord(record) {
     // 注意：这里需要实际的ISAPI API调用
     // 暂时返回模拟数据
     
-    // 模拟ISAPI返回的命名规则（15个元素）
+    // 模拟ISAPI返回的命名规则（可能超过15个元素）
+    // 摄像头最多能设置15个，但ISAPI可能返回更多
     return [
       "设备名",
       "设备号", 
@@ -2309,7 +2342,12 @@ async function loadIsapiNamingRulesForRecord(record) {
       "图片序号",
       "车辆序号",
       "限速标志",
-      "车牌坐标"
+      "车牌坐标",
+      "车辆类型",  // 第16个元素
+      "车辆颜色",  // 第17个元素
+      "车辆品牌",  // 第18个元素
+      "车辆型号",  // 第19个元素
+      "车辆年份"   // 第20个元素
     ];
     
   } catch (error) {
@@ -2335,18 +2373,21 @@ async function loadIsapiNamingRulesForRecord(record) {
   }
 }
 
-// 格式化ISAPI命名规则显示
+// 格式化ISAPI命名规则显示（返回文本格式，用于其他用途）
 function formatIsapiNamingRules(rules) {
   if (!Array.isArray(rules) || rules.length === 0) {
     return "无ISAPI命名规则数据";
   }
   
-  // 按顺序显示命名规则，格式为"1：规则1 2：规则2 ... 15：规则15"
+  // 按顺序显示所有命名规则，格式为"1：规则1 2：规则2 ... N：规则N"
   const formattedRules = rules.map((rule, index) => {
     return `${index + 1}：${rule}`;
   });
   
-  return formattedRules.join(" ");
+  // 添加统计信息
+  const stats = `（共${rules.length}个命名元素）`;
+  
+  return formattedRules.join(" ") + stats;
 }
 
 // 格式化识别码显示，格式为"1：识别码 2：识别码 ... 15：识别码"
