@@ -521,8 +521,8 @@ canvas {
   background-color: #dc2626;
   color: white;
   border-color: #b91c1c;
-  padding: 8px 12px;
-  border-radius: 10px;
+  padding: 6px 10px;
+  border-radius: 8px;
   font-size: inherit;
   line-height: inherit;
 }
