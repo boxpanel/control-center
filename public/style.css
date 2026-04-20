@@ -521,6 +521,10 @@ canvas {
   background-color: #dc2626;
   color: white;
   border-color: #b91c1c;
+  padding: 8px 12px;
+  border-radius: 10px;
+  font-size: inherit;
+  line-height: inherit;
 }
 
 #systemRestartBtn:hover:not(:disabled) {
