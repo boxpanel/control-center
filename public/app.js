@@ -1249,19 +1249,25 @@ function formatParsedMetaText(meta) {
   // 检查是否是二进制解析的结果
   const isBinaryParsed = meta.binaryParsed === true;
   
-  // 处理时间
-  const eventAtText = String(meta.eventAtText || "").trim();
-  if (eventAtText) {
-    // 尝试解析格式 "2026/4/19 07:46:10" 为 "2026年4月19日 07:46:10"
-    const timeMatch = eventAtText.match(/^(\d{4})\/(\d{1,2})\/(\d{1,2}) (\d{2}):(\d{2}):(\d{2})$/);
-    if (timeMatch) {
-      const [, year, month, day, hour, minute, second] = timeMatch;
-      parts.push(`时间 : ${year}年${parseInt(month)}月${parseInt(day)}日 ${hour}:${minute}:${second}`);
-    } else {
-      parts.push(`时间 : ${eventAtText}`);
+  // 如果不是二进制解析，显示时间
+  if (!isBinaryParsed) {
+    // 处理时间
+    const eventAtText = String(meta.eventAtText || "").trim();
+    if (eventAtText) {
+      // 尝试解析格式 "2026/4/19 07:46:10" 为 "2026年04月20日 15:22:04"
+      const timeMatch = eventAtText.match(/^(\d{4})\/(\d{1,2})\/(\d{1,2}) (\d{2}):(\d{2}):(\d{2})$/);
+      if (timeMatch) {
+        const [, year, month, day, hour, minute, second] = timeMatch;
+        // 格式化月份和日期为两位数字
+        const formattedMonth = month.padStart(2, '0');
+        const formattedDay = day.padStart(2, '0');
+        parts.push(`时间：${year}年${formattedMonth}月${formattedDay}日 ${hour}:${minute}:${second}`);
+      } else {
+        parts.push(`时间：${eventAtText}`);
+      }
+    } else if (meta.eventAt) {
+      parts.push(`时间：${formatDateTime(meta.eventAt) || "--"}`);
     }
-  } else if (meta.eventAt) {
-    parts.push(`时间 : ${formatDateTime(meta.eventAt) || "--"}`);
   }
   
   // 如果是二进制解析，显示详细信息
