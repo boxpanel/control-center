@@ -232,7 +232,6 @@ const els = {
   platePageSize: document.getElementById("platePageSize"),
   platePrevPageBtn: document.getElementById("platePrevPageBtn"),
   plateNextPageBtn: document.getElementById("plateNextPageBtn"),
-  platePageInfo: document.getElementById("platePageInfo"),
   systemNameInput: document.getElementById("systemNameInput"),
   systemClientMode: document.getElementById("systemClientMode"),
   systemIpMode: document.getElementById("systemIpMode"),
@@ -2028,10 +2027,6 @@ function updatePlatePageInfo() {
   const pageSize = Math.max(1, Math.min(200, Number(plateTableState.pageSize) || 10));
   const totalPages = Math.max(1, Math.ceil(plateTableState.total / pageSize));
   const currentPage = Math.max(1, Math.min(totalPages, Number(plateTableState.page) || 1));
-  
-  if (els.platePageInfo) {
-    els.platePageInfo.textContent = `${currentPage} / ${totalPages}`;
-  }
   
   if (els.platePrevPageBtn) {
     els.platePrevPageBtn.disabled = currentPage <= 1;

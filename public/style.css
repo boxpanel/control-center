@@ -582,13 +582,29 @@ canvas {
 .plate-tablePager {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: 8px;
 }
 
 .plate-tablePager button {
-  padding: 4px 8px;
-  font-size: 12px;
-  min-height: 28px;
+  padding: 6px 12px;
+  font-size: 13px;
+  min-height: 32px;
+  border: 1px solid rgba(17, 24, 39, 0.12);
+  border-radius: 6px;
+  background: #fff;
+  color: #374151;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.plate-tablePager button:hover:not(:disabled) {
+  background: #f9fafb;
+  border-color: rgba(17, 24, 39, 0.2);
+}
+
+.plate-tablePager button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .plate-pageLabel {
@@ -597,20 +613,23 @@ canvas {
 }
 
 .plate-pageSize {
-  height: 28px;
-  padding: 0 6px;
+  padding: 6px 12px;
+  font-size: 13px;
+  min-height: 32px;
   border: 1px solid rgba(17, 24, 39, 0.12);
-  border-radius: 8px;
+  border-radius: 6px;
   background: #fff;
-  font-size: 12px;
+  color: #374151;
+  cursor: pointer;
+  transition: all 0.2s;
 }
 
-.plate-pageInfo {
-  font-size: 12px;
-  color: #374151;
-  min-width: 56px;
-  text-align: center;
+.plate-pageSize:hover {
+  border-color: rgba(17, 24, 39, 0.2);
+  background: #f9fafb;
 }
+
+
 
 .plate-tableScroll {
   border: 1px solid rgba(17, 24, 39, 0.08);
