@@ -1325,7 +1325,9 @@ async function applyPlateFilters({ plateText, date } = {}) {
     }
     
     ensureEmptyHint(plateListEl);
-    renderPlateTable();
+    if (plateUiState.view === "table") {
+      renderPlateTable();
+    }
     updatePlateDashboard().catch(err => console.error("更新仪表板失败:", err));
     updatePlateBulkUi();
     
@@ -1763,8 +1765,9 @@ async function loadPlateHistoryToUi() {
   let list = [];
   try {
     console.log(`[调试] loadPlateHistoryToUi: 开始从API加载记录`);
-    // 使用分页API加载第一页数据（默认100条）
-    const r = await fetchJsonGet(`/api/plates/paged?page=1&pageSize=100`);
+    // 使用当前分页设置加载第一页数据
+    const initialPageSize = Math.max(1, Math.min(500, Number(plateTableState.pageSize) || 10));
+    const r = await fetchJsonGet(`/api/plates/paged?page=1&pageSize=${initialPageSize}`);
     list = Array.isArray(r?.items) ? r.items : [];
     const pagination = r?.pagination || null;
     console.log(`[调试] loadPlateHistoryToUi: API返回 ${list.length} 条记录，总计 ${pagination?.total || 0} 条`);
@@ -1897,67 +1900,57 @@ function compareRecords(a, b, key, dir) {
 }
 
 async function updatePlateDashboard() {
-  // 获取总记录数（从服务器API）
   let totalCount = 0;
-  let filteredCount = 0;
-  
-  try {
-    // 获取总记录数
-    const countResponse = await fetchJsonGet("/api/plates/count");
-    totalCount = Number(countResponse?.total || 0);
-    
-    // 如果有筛选条件，获取筛选结果数量
-    const q = String(lastPlateQueryState.plateText || "").trim();
-    const dateVal = String(lastPlateQueryState.date || "").trim();
-    
-    if (q || dateVal) {
-      // 调用搜索API获取筛选结果数量
-      const params = new URLSearchParams();
-      if (q) params.set("plate", q);
-      if (dateVal) params.set("date", dateVal);
-      
-      const searchResponse = await fetchJsonGet(`/api/plates/search?${params.toString()}`);
-      const searchItems = Array.isArray(searchResponse?.items) ? searchResponse.items : [];
-      filteredCount = searchItems.length;
-    } else {
-      // 没有筛选条件，筛选结果数等于总记录数
-      filteredCount = totalCount;
-    }
-  } catch (error) {
-    console.warn("获取服务器数据失败，使用本地数据:", error);
-    // 如果API失败，使用本地数据作为备选
-    const all = getAllPlateRecords();
-    totalCount = all.length;
-    const filtered = filterPlateRecords(all, lastPlateQueryState);
-    filteredCount = filtered.length;
-  }
-  
-  const all = getAllPlateRecords();
-  const nowMs = Date.now();
-  const startOfToday = new Date();
-  startOfToday.setHours(0, 0, 0, 0);
-  const todayStartMs = startOfToday.getTime();
-  const lastHourStart = nowMs - 60 * 60 * 1000;
-
   let todayCount = 0;
   let lastHourCount = 0;
+  let filteredCount = 0;
   let latest = null;
-  const uniqueToday = new Set();
+  let uniqueTodayCount = 0;
+  const nowMs = Date.now();
 
-  for (const rec of all) {
-    const ts = getRecordTs(rec);
-    if (ts <= 0) continue;
-    if (ts >= todayStartMs) {
-      todayCount += 1;
-      uniqueToday.add(String(rec.plate || ""));
+  try {
+    const params = new URLSearchParams();
+    const q = String(lastPlateQueryState.plateText || "").trim();
+    const dateVal = String(lastPlateQueryState.date || "").trim();
+    if (q) params.set("plate", q);
+    if (dateVal) params.set("date", dateVal);
+    const url = params.size ? `/api/plates/stats?${params.toString()}` : "/api/plates/stats";
+    const statsResponse = await fetchJsonGet(url);
+
+    totalCount = Number(statsResponse?.total || 0);
+    todayCount = Number(statsResponse?.today || 0);
+    lastHourCount = Number(statsResponse?.lastHour || 0);
+    filteredCount = Number(statsResponse?.filtered || 0);
+    uniqueTodayCount = Number(statsResponse?.uniqueToday || 0);
+    latest = statsResponse?.latest || null;
+  } catch (error) {
+    console.warn("获取服务器统计失败，使用本地数据:", error);
+    const all = getAllPlateRecords();
+    const startOfToday = new Date();
+    startOfToday.setHours(0, 0, 0, 0);
+    const todayStartMs = startOfToday.getTime();
+    const lastHourStart = nowMs - 60 * 60 * 1000;
+    const uniqueToday = new Set();
+    totalCount = all.length;
+    filteredCount = filterPlateRecords(all, lastPlateQueryState).length;
+
+    for (const rec of all) {
+      const ts = getRecordTs(rec);
+      if (ts <= 0) continue;
+      if (ts >= todayStartMs) {
+        todayCount += 1;
+        uniqueToday.add(String(rec.plate || ""));
+      }
+      if (ts >= lastHourStart) lastHourCount += 1;
+      if (!latest || ts > getRecordTs(latest)) latest = rec;
     }
-    if (ts >= lastHourStart) lastHourCount += 1;
-    if (!latest || ts > getRecordTs(latest)) latest = rec;
+    uniqueTodayCount = uniqueToday.size;
   }
+
   if (els.dashTotal) els.dashTotal.textContent = String(totalCount);
   if (els.dashToday) els.dashToday.textContent = String(todayCount);
   if (els.dashLastHour) els.dashLastHour.textContent = String(lastHourCount);
-  if (els.dashUniqueToday) els.dashUniqueToday.textContent = String(uniqueToday.size);
+  if (els.dashUniqueToday) els.dashUniqueToday.textContent = String(uniqueTodayCount);
   if (els.dashFiltered) els.dashFiltered.textContent = String(filteredCount);
   if (els.dashLatest) {
     if (!latest) els.dashLatest.textContent = "--";
@@ -5789,8 +5782,6 @@ if (els.previewSnapshotBtn) {
     }
   });
 }
-
-
 
 
 
