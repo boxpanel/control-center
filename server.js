@@ -108,6 +108,30 @@ const stmtPlateListLatest = plateDb.prepare(
 const stmtPlateCount = plateDb.prepare(
   `SELECT COUNT(*) as total FROM plate_records`
 );
+const stmtPlateStatsTotal = plateDb.prepare(
+  `SELECT COUNT(*) as total FROM plate_records`
+);
+const stmtPlateStatsToday = plateDb.prepare(
+  `SELECT COUNT(*) as total FROM plate_records WHERE receivedAt >= ?`
+);
+const stmtPlateStatsLastHour = plateDb.prepare(
+  `SELECT COUNT(*) as total FROM plate_records WHERE receivedAt >= ?`
+);
+const stmtPlateStatsUniqueToday = plateDb.prepare(
+  `SELECT COUNT(DISTINCT plate) as total FROM plate_records WHERE receivedAt >= ?`
+);
+const stmtPlateStatsLatest = plateDb.prepare(
+  `SELECT id, plate, receivedAt, eventAt, imagePath, ftpRemotePath, serialSentAt, parsedMetaJson
+   FROM plate_records
+   ORDER BY receivedAt DESC
+   LIMIT 1`
+);
+const stmtPlateFilteredCount = plateDb.prepare(
+  `SELECT COUNT(*) as total
+   FROM plate_records
+   WHERE (plate LIKE ? OR ? IS NULL)
+     AND ((receivedAt >= ? AND receivedAt < ?) OR ? IS NULL)`
+);
 const stmtPlateSearch = plateDb.prepare(
   `SELECT id, plate, receivedAt, eventAt, imagePath, ftpRemotePath, serialSentAt, parsedMetaJson FROM plate_records WHERE (plate LIKE ? OR ? IS NULL) AND (receivedAt >= ? AND receivedAt < ? OR ? IS NULL) ORDER BY receivedAt DESC LIMIT 10000`
 );
@@ -4282,6 +4306,49 @@ app.get("/api/plates/count", (req, res) => {
   } catch (error) {
     console.error(`[服务器调试] /api/plates/count 错误:`, error);
     res.status(500).json({ ok: false, error: "获取记录数失败" });
+  }
+});
+
+app.get("/api/plates/stats", (req, res) => {
+  try {
+    const plate = String(req.query?.plate || "").trim();
+    const date = String(req.query?.date || "").trim();
+    const plateParam = plate ? `%${plate}%` : null;
+
+    let dateStart = null;
+    let dateEnd = null;
+    if (/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      dateStart = new Date(`${date}T00:00:00`).getTime();
+      dateEnd = new Date(`${date}T23:59:59.999`).getTime();
+    }
+
+    const nowMs = Date.now();
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    const todayStartMs = todayStart.getTime();
+    const lastHourStartMs = nowMs - 60 * 60 * 1000;
+
+    const total = Number(stmtPlateStatsTotal.get()?.total || 0);
+    const today = Number(stmtPlateStatsToday.get(todayStartMs)?.total || 0);
+    const lastHour = Number(stmtPlateStatsLastHour.get(lastHourStartMs)?.total || 0);
+    const uniqueToday = Number(stmtPlateStatsUniqueToday.get(todayStartMs)?.total || 0);
+    const filtered = plate || date
+      ? Number(stmtPlateFilteredCount.get(plateParam, plateParam, dateStart, dateEnd, dateStart)?.total || 0)
+      : total;
+    const latest = rowToPlateDto(stmtPlateStatsLatest.get());
+
+    res.json({
+      ok: true,
+      total,
+      today,
+      lastHour,
+      uniqueToday,
+      filtered,
+      latest
+    });
+  } catch (error) {
+    console.error(`[服务器调试] /api/plates/stats 错误:`, error);
+    res.status(500).json({ ok: false, error: "获取统计失败" });
   }
 });
 

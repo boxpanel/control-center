@@ -1336,6 +1336,14 @@ body.app-page .plate-dashboard .dashCard {
   overflow: hidden;
 }
 
+body.app-page .plate-dashboard .dashGrid {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+body.app-page .plate-dashboard .dashCard:has(#dashUniqueToday) {
+  display: none;
+}
+
 body.app-page .plate-dashboard .dashCard::before {
   content: "";
   position: absolute;
