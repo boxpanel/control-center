@@ -3451,7 +3451,141 @@ async function testDeviceConnectionByProtocol({ protocol, host, port, username, 
   };
 }
 
-async function requestHikvisionIsapi({ host, port, username, password, pathname = "/ISAPI/System/deviceInfo", method = "GET", body = "" }) {
+async function createOnvifCamConnection({ host, port, username, password }) {
+  const conn = normalizeConnectionConfig({ host, port, username, password });
+  if (!conn.host) throw new Error("请填写设备 IP / Host");
+  return await new Promise((resolve, reject) => {
+    const device = new Cam(
+      {
+        hostname: conn.host,
+        port: conn.port,
+        username: conn.username || "",
+        password: conn.password || "",
+        timeout: 10000
+      },
+      function onConnect(err) {
+        if (err) {
+          reject(err);
+          return;
+        }
+        resolve(device);
+      }
+    );
+  });
+}
+
+function callOnvifCamMethod(cam, methodName, ...args) {
+  return new Promise((resolve, reject) => {
+    if (!cam || typeof cam[methodName] !== "function") {
+      reject(new Error(`当前 ONVIF 库不支持 ${methodName}`));
+      return;
+    }
+    cam[methodName](...args, (err, result, xml) => {
+      if (err) {
+        reject(err);
+        return;
+      }
+      resolve({ result, xml });
+    });
+  });
+}
+
+function getOnvifProfileToken(cam, preferredToken = "") {
+  const direct = String(preferredToken || "").trim();
+  if (direct) return direct;
+  const activeToken = String(cam?.activeSource?.profileToken || "").trim();
+  if (activeToken) return activeToken;
+  const firstProfile = Array.isArray(cam?.profiles) ? cam.profiles.find(Boolean) : null;
+  return String(firstProfile?.$.token || firstProfile?.token || "").trim();
+}
+
+function getOnvifVideoSourceToken(cam, preferredToken = "") {
+  const direct = String(preferredToken || "").trim();
+  if (direct) return direct;
+  const activeToken = String(cam?.activeSource?.sourceToken || "").trim();
+  if (activeToken) return activeToken;
+  const firstSource = Array.isArray(cam?.videoSources) ? cam.videoSources.find(Boolean) : null;
+  return String(firstSource?.$.token || firstSource?.token || "").trim();
+}
+
+function getOnvifEncoderToken(cam, preferredToken = "") {
+  const direct = String(preferredToken || "").trim();
+  if (direct) return direct;
+  const config = Array.isArray(cam?.videoEncoderConfigurations) ? cam.videoEncoderConfigurations.find(Boolean) : null;
+  const configToken = String(config?.$.token || config?.token || "").trim();
+  if (configToken) return configToken;
+  const profile = Array.isArray(cam?.profiles) ? cam.profiles.find(Boolean) : null;
+  return String(profile?.videoEncoderConfiguration?.$.token || profile?.videoEncoderConfiguration?.token || "").trim();
+}
+
+async function ensureOnvifEncoderConfigurations(cam) {
+  if (Array.isArray(cam?.videoEncoderConfigurations) && cam.videoEncoderConfigurations.length) {
+    return cam.videoEncoderConfigurations;
+  }
+  const { result } = await callOnvifCamMethod(cam, "getVideoEncoderConfigurations");
+  return result;
+}
+
+async function requestOnvifOperation({ host, port, username, password, operation = "getDeviceInformation", body = "" }) {
+  const conn = normalizeConnectionConfig({ host, port, username, password });
+  if (!conn.host) throw new Error("请填写设备 IP / Host");
+  const op = String(operation || "").trim();
+  if (!op) throw new Error("请填写 ONVIF 操作");
+  const payload = String(body || "").trim() ? JSON.parse(String(body || "")) : {};
+  const cam = await createOnvifCamConnection(conn);
+  let result;
+  let xml = "";
+  if (op === "getDeviceInformation") {
+    ({ result, xml } = await callOnvifCamMethod(cam, "getDeviceInformation"));
+  } else if (op === "getHostname") {
+    ({ result, xml } = await callOnvifCamMethod(cam, "getHostname"));
+  } else if (op === "getSystemDateAndTime") {
+    ({ result, xml } = await callOnvifCamMethod(cam, "getSystemDateAndTime"));
+  } else if (op === "getNetworkInterfaces") {
+    ({ result, xml } = await callOnvifCamMethod(cam, "getNetworkInterfaces"));
+  } else if (op === "getProfiles") {
+    ({ result, xml } = await callOnvifCamMethod(cam, "getProfiles"));
+  } else if (op === "getVideoEncoderConfigurations") {
+    ({ result, xml } = await callOnvifCamMethod(cam, "getVideoEncoderConfigurations"));
+  } else if (op === "getImagingSettings") {
+    const token = getOnvifVideoSourceToken(cam, payload.videoSourceToken || payload.token || "");
+    ({ result, xml } = await callOnvifCamMethod(cam, "getImagingSettings", token ? { token } : {}));
+  } else if (op === "setImagingSettings") {
+    const token = getOnvifVideoSourceToken(cam, payload.videoSourceToken || payload.token || "");
+    const settings = payload.settings && typeof payload.settings === "object" ? { ...payload.settings } : { ...payload };
+    delete settings.settings;
+    delete settings.videoSourceToken;
+    delete settings.token;
+    ({ result, xml } = await callOnvifCamMethod(cam, "setImagingSettings", token ? { token, ...settings } : settings));
+  } else if (op === "getVideoEncoderConfigurationOptions") {
+    await ensureOnvifEncoderConfigurations(cam);
+    const options = {};
+    const configurationToken = getOnvifEncoderToken(cam, payload.configurationToken || payload.token || "");
+    const profileToken = getOnvifProfileToken(cam, payload.profileToken || "");
+    if (configurationToken) options.configurationToken = configurationToken;
+    if (profileToken) options.profileToken = profileToken;
+    ({ result, xml } = await callOnvifCamMethod(cam, "getVideoEncoderConfigurationOptions", options));
+  } else if (op === "setVideoEncoderConfiguration") {
+    await ensureOnvifEncoderConfigurations(cam);
+    const configuration = payload.configuration && typeof payload.configuration === "object" ? { ...payload.configuration } : { ...payload };
+    const token = getOnvifEncoderToken(cam, configuration.token || configuration?.$?.token || "");
+    if (!token) throw new Error("未找到可用的视频编码配置 token");
+    if (!configuration.token && !(configuration.$ && configuration.$.token)) configuration.token = token;
+    ({ result, xml } = await callOnvifCamMethod(cam, "setVideoEncoderConfiguration", configuration));
+  } else {
+    throw new Error(`不支持的 ONVIF 操作：${op}`);
+  }
+  const url = `http://${conn.host}:${conn.port}/onvif/device_service`;
+  return {
+    url,
+    operation: op,
+    result,
+    xml,
+    text: JSON.stringify({ operation: op, requestUrl: url, result }, null, 2)
+  };
+}
+
+async function requestHikvisionIsapi({ host, port, username, password, pathname = "/ISAPI/System/deviceInfo", method = "GET", body = "", contentType = "" }) {
   const conn = normalizeConnectionConfig({ host, port, username, password });
   if (!conn.host) throw new Error("请填写摄像头 IP / Host");
   if (!conn.username) throw new Error("请填写摄像头用户名");
@@ -3461,7 +3595,7 @@ async function requestHikvisionIsapi({ host, port, username, password, pathname 
   const requestOptions = { method: String(method || "GET").toUpperCase(), headers };
   if (String(body || "")) {
     requestOptions.body = String(body);
-    headers["Content-Type"] = "application/xml; charset=utf-8";
+    headers["Content-Type"] = String(contentType || "").trim() || "application/xml; charset=utf-8";
   }
 
   const digestClient = new DigestClient(conn.username, conn.password);
@@ -4775,6 +4909,45 @@ app.post("/api/isapi/device-info", async (req, res, next) => {
   }
 });
 
+app.post("/api/isapi/request", async (req, res, next) => {
+  try {
+    const cfg = await getClientConfig();
+    const baseConn = normalizeConnectionConfig(cfg?.connection);
+    const reqConn = req.body?.connection && typeof req.body.connection === "object" ? normalizeConnectionConfig(req.body.connection) : {};
+    const connection = normalizeConnectionConfig({
+      host: reqConn.host || baseConn.host,
+      port: reqConn.port || baseConn.port,
+      username: reqConn.username || baseConn.username,
+      password: reqConn.password || baseConn.password
+    });
+    const pathname = String(req.body?.pathname || "/ISAPI/System/deviceInfo").trim() || "/ISAPI/System/deviceInfo";
+    const method = String(req.body?.method || "GET").trim().toUpperCase() || "GET";
+    const body = String(req.body?.body || "");
+    const contentType = String(req.body?.contentType || "").trim();
+    const result = await requestHikvisionIsapi({
+      ...connection,
+      pathname,
+      method,
+      body,
+      contentType
+    });
+    res.json({
+      ok: true,
+      connection: {
+        host: connection.host,
+        port: connection.port,
+        username: connection.username
+      },
+      requestUrl: result.url,
+      status: result.status,
+      contentType: result.contentType,
+      rawText: result.text
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
 app.post("/api/device/ftp-config", async (req, res, next) => {
   try {
     const cfg = await getClientConfig();
@@ -4804,6 +4977,48 @@ app.post("/api/device/ftp-config", async (req, res, next) => {
       requestUrl: result.url,
       rawText: result.text,
       ftpConfig: result.text // 返回原始XML文本，由前端解析
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+app.post("/api/onvif/request", async (req, res, next) => {
+  try {
+    const connection = normalizeConnectionConfig(req.body?.connection || {});
+    const operation = String(req.body?.operation || "").trim();
+    const method = String(req.body?.method || "GET").trim().toUpperCase();
+    const body = String(req.body?.body || "");
+    if (!connection.host) {
+      const err = new Error("请填写设备 IP / Host");
+      err.statusCode = 400;
+      throw err;
+    }
+    if (!operation) {
+      const err = new Error("请填写 ONVIF 操作");
+      err.statusCode = 400;
+      throw err;
+    }
+    const result = await requestOnvifOperation({
+      host: connection.host,
+      port: connection.port,
+      username: connection.username,
+      password: connection.password,
+      operation,
+      body
+    });
+    res.json({
+      ok: true,
+      connection: {
+        host: connection.host,
+        port: connection.port,
+        username: connection.username
+      },
+      requestUrl: result.url,
+      operation,
+      method,
+      rawText: result.text,
+      rawXml: String(result.xml || "")
     });
   } catch (err) {
     next(err);

@@ -1,4 +1,4 @@
-function updatePageTitle(systemName) {
+﻿function updatePageTitle(systemName) {
   const baseTitle = "管理平台";
   const titleElement = document.querySelector("title");
   const headerTitleElement = document.querySelector(".app-header-title");
@@ -264,6 +264,16 @@ const els = {
   devicePreviewModal: document.getElementById("devicePreviewModal"),
   devicePreviewModalTitle: document.getElementById("devicePreviewModalTitle"),
   devicePreviewModalCloseBtn: document.getElementById("devicePreviewModalCloseBtn"),
+  devicePreviewIsapiPanel: document.getElementById("devicePreviewIsapiPanel"),
+  devicePreviewIsapiHint: document.getElementById("devicePreviewIsapiHint"),
+  devicePreviewIsapiPreset: document.getElementById("devicePreviewIsapiPreset"),
+  devicePreviewIsapiMethod: document.getElementById("devicePreviewIsapiMethod"),
+  devicePreviewIsapiContentType: document.getElementById("devicePreviewIsapiContentType"),
+  devicePreviewIsapiPath: document.getElementById("devicePreviewIsapiPath"),
+  devicePreviewIsapiBody: document.getElementById("devicePreviewIsapiBody"),
+  devicePreviewIsapiLoadBtn: document.getElementById("devicePreviewIsapiLoadBtn"),
+  devicePreviewIsapiSaveBtn: document.getElementById("devicePreviewIsapiSaveBtn"),
+  devicePreviewIsapiResponse: document.getElementById("devicePreviewIsapiResponse"),
   devicePreviewModalStopBtn: document.getElementById("devicePreviewModalStopBtn"),
   previewVideo: document.getElementById("previewVideo"),
   previewSnapshotBtn: document.getElementById("previewSnapshotBtn"),
@@ -295,7 +305,217 @@ const deviceConfigModalState = {
 const devicePreviewModalState = {
   isOpen: false,
   currentDevice: null,
-  isHikvisionIsapi: false
+  isHikvisionIsapi: false,
+  activeProtocol: ""
+};
+const DEVICE_PREVIEW_ISAPI_PRESETS = {
+  deviceInfo: { label: "设备信息", method: "GET", contentType: "application/xml; charset=utf-8", path: "/ISAPI/System/deviceInfo", body: "" },
+  systemCapabilities: { label: "系统能力集", method: "GET", contentType: "application/xml; charset=utf-8", path: "/ISAPI/System/capabilities", body: "" },
+  time: { label: "时间配置", method: "GET", contentType: "application/xml; charset=utf-8", path: "/ISAPI/System/time", body: "" },
+  ntp: { label: "NTP 配置", method: "GET", contentType: "application/xml; charset=utf-8", path: "/ISAPI/System/time/ntpServers/1", body: "" },
+  networkInterface: { label: "网络接口", method: "GET", contentType: "application/xml; charset=utf-8", path: "/ISAPI/System/Network/interfaces/1", body: "" },
+  eventTriggerCapabilities: { label: "事件联动能力", method: "GET", contentType: "application/xml; charset=utf-8", path: "/ISAPI/Event/triggersCap", body: "" },
+  stream101: { label: "主码流", method: "GET", contentType: "application/xml; charset=utf-8", path: "/ISAPI/Streaming/channels/101", body: "" },
+  streamCapabilities: { label: "码流能力集", method: "GET", contentType: "application/xml; charset=utf-8", path: "/ISAPI/Streaming/channels/101/capabilities", body: "" },
+  stream102: { label: "子码流", method: "GET", contentType: "application/xml; charset=utf-8", path: "/ISAPI/Streaming/channels/102", body: "" },
+  imaging: { label: "图像参数", method: "GET", contentType: "application/xml; charset=utf-8", path: "/ISAPI/Image/channels/1/imaging", body: "" },
+  imagingCapabilities: { label: "图像能力集", method: "GET", contentType: "application/xml; charset=utf-8", path: "/ISAPI/Image/channels/1/capabilities", body: "" },
+  irLight: { label: "补光参数", method: "GET", contentType: "application/xml; charset=utf-8", path: "/ISAPI/Image/channels/1/irLight", body: "" },
+  osd: { label: "OSD 参数", method: "GET", contentType: "application/xml; charset=utf-8", path: "/ISAPI/System/Video/inputs/channels/1/overlays", body: "" },
+  motion: { label: "移动侦测", method: "GET", contentType: "application/xml; charset=utf-8", path: "/ISAPI/System/Video/inputs/channels/1/motionDetection", body: "" },
+  ftp: { label: "FTP 配置", method: "GET", contentType: "application/xml; charset=utf-8", path: "/ISAPI/System/Network/Ftp/channels/1", body: "" },
+  trafficCapabilities: { label: "智能交通能力", method: "GET", contentType: "application/xml; charset=utf-8", path: "/ISAPI/Traffic/channels/1/capabilities", body: "" },
+  manualVehicleTrigger: { label: "手动车辆触发结果", method: "GET", contentType: "application/xml; charset=utf-8", path: "/ISAPI/Traffic/channels/1/vehicleDetect/manualTrigger", body: "" }
+};
+const DEVICE_PREVIEW_ONVIF_PRESETS = {
+  deviceInfo: { label: "设备信息", method: "GET", contentType: "application/json; charset=utf-8", path: "getDeviceInformation", body: "" },
+  hostname: { label: "主机名", method: "GET", contentType: "application/json; charset=utf-8", path: "getHostname", body: "" },
+  time: { label: "时间配置", method: "GET", contentType: "application/json; charset=utf-8", path: "getSystemDateAndTime", body: "" },
+  networkInterfaces: { label: "网络接口", method: "GET", contentType: "application/json; charset=utf-8", path: "getNetworkInterfaces", body: "" },
+  profiles: { label: "媒体配置", method: "GET", contentType: "application/json; charset=utf-8", path: "getProfiles", body: "" },
+  imaging: { label: "图像参数", method: "GET", contentType: "application/json; charset=utf-8", path: "getImagingSettings", body: "" },
+  encoder: { label: "编码参数", method: "GET", contentType: "application/json; charset=utf-8", path: "getVideoEncoderConfigurations", body: "" }
+};
+
+const DEVICE_PREVIEW_ONVIF_SCHEMAS = {
+  deviceInfo: {
+    readOnly: true,
+    loadOperation: "getDeviceInformation",
+    fields: [
+      { key: "manufacturer", label: "厂商", type: "text", readOnly: true },
+      { key: "model", label: "型号", type: "text", readOnly: true },
+      { key: "firmwareVersion", label: "固件版本", type: "text", readOnly: true },
+      { key: "serialNumber", label: "序列号", type: "text", readOnly: true },
+      { key: "hardwareId", label: "硬件ID", type: "text", readOnly: true }
+    ],
+    mapLoadResult(result = {}) {
+      return {
+        manufacturer: result.manufacturer || "",
+        model: result.model || "",
+        firmwareVersion: result.firmwareVersion || "",
+        serialNumber: result.serialNumber || "",
+        hardwareId: result.hardwareId || ""
+      };
+    }
+  },
+  hostname: {
+    readOnly: true,
+    loadOperation: "getHostname",
+    fields: [
+      { key: "name", label: "主机名", type: "text", readOnly: true },
+      { key: "fromDHCP", label: "来自 DHCP", type: "checkbox", readOnly: true }
+    ],
+    mapLoadResult(result = {}) {
+      return {
+        name: result.name || "",
+        fromDHCP: Boolean(result.fromDHCP)
+      };
+    }
+  },
+  time: {
+    readOnly: true,
+    loadOperation: "getSystemDateAndTime",
+    fields: [
+      { key: "timeZone", label: "时区", type: "text", readOnly: true },
+      { key: "localTime", label: "本地时间", type: "text", readOnly: true },
+      { key: "utcTime", label: "UTC 时间", type: "text", readOnly: true },
+      { key: "daylightSavings", label: "夏令时", type: "checkbox", readOnly: true }
+    ],
+    mapLoadResult(result = {}) {
+      return {
+        timeZone: result.timeZone || result.timeZoneName || "",
+        localTime: result.localTime || result.localDateTime || "",
+        utcTime: result.utcTime || result.UTCDateTime || "",
+        daylightSavings: Boolean(result.daylightSavings)
+      };
+    }
+  },
+  networkInterfaces: {
+    readOnly: true,
+    loadOperation: "getNetworkInterfaces",
+    fields: [
+      { key: "token", label: "接口 Token", type: "text", readOnly: true },
+      { key: "name", label: "接口名称", type: "text", readOnly: true },
+      { key: "enabled", label: "启用", type: "checkbox", readOnly: true },
+      { key: "mac", label: "MAC", type: "text", readOnly: true },
+      { key: "ipv4Address", label: "IPv4 地址", type: "text", readOnly: true },
+      { key: "prefixLength", label: "前缀长度", type: "number", readOnly: true },
+      { key: "dhcp", label: "DHCP", type: "checkbox", readOnly: true }
+    ],
+    mapLoadResult(result = {}) {
+      const item = Array.isArray(result) ? result[0] || {} : result;
+      const ipv4 = item?.ipv4 || item?.IPv4 || {};
+      const config = ipv4?.config || ipv4?.manual || {};
+      const manual = Array.isArray(config?.manual) ? config.manual[0] || {} : config?.manual || config || {};
+      return {
+        token: item?.$.token || item?.token || "",
+        name: item?.info?.name || item?.name || "",
+        enabled: Boolean(item?.enabled),
+        mac: item?.info?.hwAddress || item?.hwAddress || item?.mac || "",
+        ipv4Address: manual?.address || manual?.ipv4Address || "",
+        prefixLength: manual?.prefixLength || "",
+        dhcp: Boolean(ipv4?.dhcp || ipv4?.enabled)
+      };
+    }
+  },
+  profiles: {
+    readOnly: true,
+    loadOperation: "getProfiles",
+    fields: [
+      { key: "profileToken", label: "Profile Token", type: "text", readOnly: true },
+      { key: "profileName", label: "配置名称", type: "text", readOnly: true },
+      { key: "videoSourceToken", label: "视频源 Token", type: "text", readOnly: true },
+      { key: "encoderToken", label: "编码 Token", type: "text", readOnly: true },
+      { key: "encoding", label: "编码类型", type: "text", readOnly: true }
+    ],
+    mapLoadResult(result = []) {
+      const item = Array.isArray(result) ? result[0] || {} : result;
+      return {
+        profileToken: item?.$.token || item?.token || "",
+        profileName: item?.name || "",
+        videoSourceToken: item?.videoSourceConfiguration?.sourceToken || "",
+        encoderToken: item?.videoEncoderConfiguration?.$.token || item?.videoEncoderConfiguration?.token || "",
+        encoding: item?.videoEncoderConfiguration?.encoding || ""
+      };
+    }
+  },
+  imaging: {
+    readOnly: false,
+    loadOperation: "getImagingSettings",
+    saveOperation: "setImagingSettings",
+    fields: [
+      { key: "videoSourceToken", label: "视频源 Token", type: "text" },
+      { key: "brightness", label: "亮度", type: "number", min: 0, max: 100, step: 1 },
+      { key: "contrast", label: "对比度", type: "number", min: 0, max: 100, step: 1 },
+      { key: "colorSaturation", label: "饱和度", type: "number", min: 0, max: 100, step: 1 },
+      { key: "sharpness", label: "锐度", type: "number", min: 0, max: 100, step: 1 }
+    ],
+    mapLoadResult(result = {}) {
+      return {
+        brightness: result.brightness ?? "",
+        contrast: result.contrast ?? "",
+        colorSaturation: result.colorSaturation ?? "",
+        sharpness: result.sharpness ?? ""
+      };
+    },
+    buildLoadPayload(values = {}) {
+      return { videoSourceToken: String(values.videoSourceToken || "").trim() };
+    },
+    buildSavePayload(values = {}) {
+      return {
+        videoSourceToken: String(values.videoSourceToken || "").trim(),
+        settings: {
+          brightness: Number(values.brightness || 0),
+          contrast: Number(values.contrast || 0),
+          colorSaturation: Number(values.colorSaturation || 0),
+          sharpness: Number(values.sharpness || 0)
+        }
+      };
+    }
+  },
+  encoder: {
+    readOnly: false,
+    loadOperation: "getVideoEncoderConfigurations",
+    saveOperation: "setVideoEncoderConfiguration",
+    fields: [
+      { key: "token", label: "编码 Token", type: "text" },
+      { key: "encoding", label: "编码类型", type: "select", options: ["H264", "H265", "JPEG", "MPEG4"] },
+      { key: "width", label: "宽度", type: "number", min: 1, step: 1 },
+      { key: "height", label: "高度", type: "number", min: 1, step: 1 },
+      { key: "frameRateLimit", label: "帧率", type: "number", min: 1, step: 1 },
+      { key: "encodingInterval", label: "编码间隔", type: "number", min: 1, step: 1 },
+      { key: "bitrateLimit", label: "码率(kbps)", type: "number", min: 1, step: 1 }
+    ],
+    mapLoadResult(result = []) {
+      const item = Array.isArray(result) ? result[0] || {} : result;
+      return {
+        token: item?.$.token || item?.token || "",
+        encoding: item?.encoding || "H264",
+        width: item?.resolution?.width ?? "",
+        height: item?.resolution?.height ?? "",
+        frameRateLimit: item?.rateControl?.frameRateLimit ?? "",
+        encodingInterval: item?.rateControl?.encodingInterval ?? "",
+        bitrateLimit: item?.rateControl?.bitrateLimit ?? ""
+      };
+    },
+    buildSavePayload(values = {}) {
+      return {
+        configuration: {
+          token: String(values.token || "").trim(),
+          encoding: String(values.encoding || "H264").trim(),
+          resolution: {
+            width: Number(values.width || 0),
+            height: Number(values.height || 0)
+          },
+          rateControl: {
+            frameRateLimit: Number(values.frameRateLimit || 0),
+            encodingInterval: Number(values.encodingInterval || 0),
+            bitrateLimit: Number(values.bitrateLimit || 0)
+          }
+        }
+      };
+    }
+  }
 };
 const DEVICE_PROTOCOL_LABELS = {
   "": "请选择",
@@ -5392,6 +5612,362 @@ window.addEventListener("beforeunload", () => {
   } catch {}
 });
 
+function setDevicePreviewIsapiPanelVisible(visible) {
+  if (!els.devicePreviewIsapiPanel) return;
+  els.devicePreviewIsapiPanel.classList.toggle("view-hidden", !visible);
+}
+
+function getDevicePreviewProtocol(device = null) {
+  return String(device?.protocol || devicePreviewModalState.activeProtocol || "").trim();
+}
+
+function getDevicePreviewPresetMap(protocol = "") {
+  const key = String(protocol || "").trim();
+  if (key === "onvif") return DEVICE_PREVIEW_ONVIF_PRESETS;
+  return DEVICE_PREVIEW_ISAPI_PRESETS;
+}
+
+function getDevicePreviewPanelTitleEl() {
+  return els.devicePreviewIsapiPanel?.querySelector(".logHeader > div") || null;
+}
+
+function getDevicePreviewLabelEl(forId) {
+  if (!els.devicePreviewIsapiPanel) return null;
+  return els.devicePreviewIsapiPanel.querySelector(`label[for="${forId}"]`);
+}
+
+function updateDevicePreviewProtocolTexts(protocol = "") {
+  const normalized = String(protocol || "").trim();
+  const isOnvif = normalized === "onvif";
+  const panelTitle = getDevicePreviewPanelTitleEl();
+  const presetLabel = getDevicePreviewLabelEl("devicePreviewIsapiPreset");
+  const pathLabel = getDevicePreviewLabelEl("devicePreviewIsapiPath");
+  const bodyLabel = getDevicePreviewLabelEl("devicePreviewIsapiBody");
+  const responseLabel = getDevicePreviewLabelEl("devicePreviewIsapiResponse");
+  if (panelTitle) panelTitle.textContent = isOnvif ? "ONVIF 参数" : "ISAPI 参数";
+  if (presetLabel) presetLabel.textContent = "参数分类";
+  if (pathLabel) pathLabel.textContent = isOnvif ? "ONVIF 操作" : "ISAPI 路径";
+  if (bodyLabel) bodyLabel.textContent = isOnvif ? "参数(JSON)" : "请求体";
+  if (responseLabel) responseLabel.textContent = "返回结果";
+  if (els.devicePreviewIsapiPath) {
+    els.devicePreviewIsapiPath.placeholder = isOnvif ? "例如：getDeviceInformation" : "/ISAPI/System/deviceInfo";
+  }
+  if (els.devicePreviewIsapiBody) {
+    els.devicePreviewIsapiBody.placeholder = isOnvif
+      ? "PUT 请求时可填写 JSON 参数"
+      : "PUT 请求时可填写 XML / JSON 内容";
+  }
+  if (els.devicePreviewIsapiResponse) {
+    els.devicePreviewIsapiResponse.placeholder = isOnvif ? "这里显示 ONVIF 返回内容" : "这里显示 ISAPI 返回内容";
+  }
+}
+
+function summarizeHikvisionAbilityProbe(pathname = "", rawText = "") {
+  const path = String(pathname || "").trim();
+  const text = String(rawText || "");
+  const hits = [];
+  if (/triggerMode/i.test(text)) hits.push("triggerMode");
+  if (/CurTriggerMode/i.test(text)) hits.push("CurTriggerMode");
+  if (/ManualSnap/i.test(text)) hits.push("ManualSnap");
+  if (/manualTrigger/i.test(path) || /vehicleDetect\/manualTrigger/i.test(path)) hits.push("manualTrigger");
+  if (!hits.length) {
+    return `GET 成功：${path}`;
+  }
+  return `GET 成功：${path} | 检测到 ${hits.join(" / ")}`;
+}
+
+function getDevicePreviewOnvifSchema(presetKey = "") {
+  const key = String(presetKey || "").trim() || "deviceInfo";
+  return DEVICE_PREVIEW_ONVIF_SCHEMAS[key] || DEVICE_PREVIEW_ONVIF_SCHEMAS.deviceInfo;
+}
+
+function getDevicePreviewFieldContainer(fieldId) {
+  const el = document.getElementById(fieldId);
+  return el?.closest(".field") || null;
+}
+
+function getDevicePreviewInlineFieldsContainer() {
+  return els.devicePreviewIsapiMethod?.closest(".devicePreviewInlineFields") || null;
+}
+
+function ensureDevicePreviewOnvifControlsHost() {
+  if (!els.devicePreviewIsapiPanel) return null;
+  let host = els.devicePreviewIsapiPanel.querySelector("#devicePreviewOnvifControls");
+  if (host) return host;
+  const form = els.devicePreviewIsapiPanel.querySelector(".devicePreviewForm");
+  const beforeField = getDevicePreviewFieldContainer("devicePreviewIsapiPath");
+  if (!form || !beforeField) return null;
+  host = document.createElement("div");
+  host.id = "devicePreviewOnvifControls";
+  host.className = "devicePreviewOnvifControls view-hidden";
+  form.insertBefore(host, beforeField);
+  return host;
+}
+
+function setDevicePreviewOnvifModeActive(active) {
+  const inline = getDevicePreviewInlineFieldsContainer();
+  const pathField = getDevicePreviewFieldContainer("devicePreviewIsapiPath");
+  const bodyField = getDevicePreviewFieldContainer("devicePreviewIsapiBody");
+  const host = ensureDevicePreviewOnvifControlsHost();
+  if (inline) inline.classList.toggle("view-hidden", Boolean(active));
+  if (pathField) pathField.classList.toggle("view-hidden", Boolean(active));
+  if (bodyField) bodyField.classList.toggle("view-hidden", Boolean(active));
+  if (host) host.classList.toggle("view-hidden", !active);
+}
+
+function getOnvifControlValue(field) {
+  if (!field) return "";
+  if (field.type === "checkbox") return Boolean(field.checked);
+  return field.value;
+}
+
+function fillDevicePreviewOnvifControls(values = {}) {
+  const host = ensureDevicePreviewOnvifControlsHost();
+  if (!host) return;
+  Object.entries(values || {}).forEach(([key, value]) => {
+    const field = host.querySelector(`[data-onvif-field="${key}"]`);
+    if (!field) return;
+    if (field.type === "checkbox") {
+      field.checked = Boolean(value);
+    } else {
+      field.value = value == null ? "" : String(value);
+    }
+  });
+}
+
+function collectDevicePreviewOnvifControlValues() {
+  const host = ensureDevicePreviewOnvifControlsHost();
+  const values = {};
+  if (!host) return values;
+  host.querySelectorAll("[data-onvif-field]").forEach((field) => {
+    values[field.getAttribute("data-onvif-field")] = getOnvifControlValue(field);
+  });
+  return values;
+}
+
+function renderDevicePreviewOnvifControls(presetKey = "") {
+  const host = ensureDevicePreviewOnvifControlsHost();
+  if (!host) return;
+  const schema = getDevicePreviewOnvifSchema(presetKey);
+  const html = [
+    '<div class="devicePreviewOnvifGrid">'
+  ];
+  for (const field of schema.fields || []) {
+    html.push('<div class="field devicePreviewOnvifField">');
+    html.push(`<label>${field.label}</label>`);
+    if (field.type === "select") {
+      html.push(`<select data-onvif-field="${field.key}" ${field.readOnly ? "disabled" : ""}>`);
+      for (const option of field.options || []) {
+        html.push(`<option value="${option}">${option}</option>`);
+      }
+      html.push("</select>");
+    } else if (field.type === "checkbox") {
+      html.push(`<label class="devicePreviewOnvifCheckbox"><input type="checkbox" data-onvif-field="${field.key}" ${field.readOnly ? "disabled" : ""} /> <span>${field.readOnly ? "只读显示" : "启用"}</span></label>`);
+    } else {
+      const attrs = [];
+      if (field.readOnly) attrs.push("readonly");
+      if (field.min != null) attrs.push(`min="${field.min}"`);
+      if (field.max != null) attrs.push(`max="${field.max}"`);
+      if (field.step != null) attrs.push(`step="${field.step}"`);
+      html.push(`<input type="${field.type || "text"}" data-onvif-field="${field.key}" ${attrs.join(" ")} />`);
+    }
+    html.push("</div>");
+  }
+  html.push("</div>");
+  host.innerHTML = html.join("");
+  const saveDisabled = Boolean(schema.readOnly || !schema.saveOperation);
+  if (els.devicePreviewIsapiSaveBtn) {
+    els.devicePreviewIsapiSaveBtn.disabled = saveDisabled;
+    els.devicePreviewIsapiSaveBtn.textContent = saveDisabled ? "不可保存" : "保存参数";
+  }
+  if (els.devicePreviewIsapiLoadBtn) {
+    els.devicePreviewIsapiLoadBtn.textContent = "读取参数";
+  }
+}
+
+async function runDevicePreviewOnvifPresetAction(action = "load") {
+  const device = devicePreviewModalState.currentDevice;
+  if (!device) throw new Error("当前没有可操作的设备");
+  const presetKey = String(els.devicePreviewIsapiPreset?.value || "deviceInfo").trim() || "deviceInfo";
+  const schema = getDevicePreviewOnvifSchema(presetKey);
+  const values = collectDevicePreviewOnvifControlValues();
+  const operation = action === "save" ? schema.saveOperation : schema.loadOperation;
+  if (!operation) {
+    throw new Error(action === "save" ? "当前分类不支持保存" : "当前分类不支持读取");
+  }
+  if (els.devicePreviewIsapiResponse) {
+    els.devicePreviewIsapiResponse.value = "正在请求，请稍候...";
+  }
+  const payload = action === "save"
+    ? (typeof schema.buildSavePayload === "function" ? schema.buildSavePayload(values) : values)
+    : (typeof schema.buildLoadPayload === "function" ? schema.buildLoadPayload(values) : values);
+  const response = await fetchJson("/api/onvif/request", {
+    connection: {
+      host: String(device.host || "").trim(),
+      port: Number(device.port || 80) || 80,
+      username: String(device.username || "").trim(),
+      password: String(device.password || "")
+    },
+    operation,
+    method: action === "save" ? "PUT" : "GET",
+    body: JSON.stringify(payload || {}, null, 2)
+  });
+  if (els.devicePreviewIsapiResponse) {
+    els.devicePreviewIsapiResponse.value = String(response?.rawText || "");
+  }
+  if (action === "load" && typeof schema.mapLoadResult === "function") {
+    const raw = JSON.parse(String(response?.rawText || "{}"));
+    fillDevicePreviewOnvifControls(schema.mapLoadResult(raw?.result || {}));
+  }
+  if (els.devicePreviewIsapiHint) {
+    els.devicePreviewIsapiHint.textContent = `${action === "save" ? "保存" : "读取"}成功：${(DEVICE_PREVIEW_ONVIF_PRESETS[presetKey] || {}).label || presetKey}`;
+  }
+  return response;
+}
+
+function setDevicePreviewIsapiInputsDisabled(disabled) {
+  const targets = [
+    els.devicePreviewIsapiPreset,
+    els.devicePreviewIsapiMethod,
+    els.devicePreviewIsapiContentType,
+    els.devicePreviewIsapiPath,
+    els.devicePreviewIsapiBody,
+    els.devicePreviewIsapiLoadBtn,
+    els.devicePreviewIsapiSaveBtn
+  ];
+  for (const el of targets) {
+    if (el) el.disabled = Boolean(disabled);
+  }
+}
+
+function ensureDevicePreviewIsapiPresetOptions() {
+  if (!els.devicePreviewIsapiPreset) return;
+  const presets = getDevicePreviewPresetMap(getDevicePreviewProtocol());
+  const current = String(els.devicePreviewIsapiPreset.value || "").trim();
+  els.devicePreviewIsapiPreset.innerHTML = Object.entries(presets)
+    .map(([value, item]) => `<option value="${value}">${item.label}</option>`)
+    .join("");
+  els.devicePreviewIsapiPreset.value = presets[current] ? current : "deviceInfo";
+}
+
+function applyDevicePreviewIsapiPreset(presetKey, keepBody = false) {
+  ensureDevicePreviewIsapiPresetOptions();
+  const protocol = getDevicePreviewProtocol();
+  const isOnvif = protocol === "onvif";
+  const presets = getDevicePreviewPresetMap(protocol);
+  const key = String(presetKey || "").trim() || "deviceInfo";
+  const preset = presets[key] || presets.deviceInfo;
+  if (els.devicePreviewIsapiPreset) els.devicePreviewIsapiPreset.value = key;
+  if (isOnvif) {
+    setDevicePreviewOnvifModeActive(true);
+    renderDevicePreviewOnvifControls(key);
+    if (els.devicePreviewIsapiResponse) els.devicePreviewIsapiResponse.value = "";
+  } else {
+    setDevicePreviewOnvifModeActive(false);
+    if (els.devicePreviewIsapiSaveBtn) {
+      els.devicePreviewIsapiSaveBtn.disabled = false;
+      els.devicePreviewIsapiSaveBtn.textContent = "保存参数";
+    }
+    if (els.devicePreviewIsapiLoadBtn) {
+      els.devicePreviewIsapiLoadBtn.textContent = "读取参数";
+    }
+    if (els.devicePreviewIsapiMethod) els.devicePreviewIsapiMethod.value = preset.method;
+    if (els.devicePreviewIsapiContentType) els.devicePreviewIsapiContentType.value = preset.contentType;
+    if (els.devicePreviewIsapiPath) els.devicePreviewIsapiPath.value = preset.path;
+    if (els.devicePreviewIsapiBody && !keepBody) {
+      els.devicePreviewIsapiBody.value = preset.body || "";
+    }
+  }
+}
+
+async function autoLoadDevicePreviewPreset(presetKey) {
+  try {
+    await runDevicePreviewIsapiRequest("GET");
+  } catch (error) {
+    if (els.devicePreviewIsapiHint) {
+      els.devicePreviewIsapiHint.textContent = `自动读取失败：${error.message || error}`;
+    }
+    if (els.devicePreviewIsapiResponse) {
+      els.devicePreviewIsapiResponse.value = String(error?.message || error || "");
+    }
+  }
+}
+
+function resetDevicePreviewIsapiPanel(device) {
+  const protocol = getDevicePreviewProtocol(device);
+  const isHikvisionIsapi = protocol === "hikvision-isapi";
+  const isOnvif = protocol === "onvif";
+  const supported = isHikvisionIsapi || isOnvif;
+  updateDevicePreviewProtocolTexts(protocol);
+  setDevicePreviewIsapiPanelVisible(true);
+  setDevicePreviewIsapiInputsDisabled(!supported);
+  applyDevicePreviewIsapiPreset("deviceInfo");
+  if (els.devicePreviewIsapiHint) {
+    els.devicePreviewIsapiHint.textContent = supported
+      ? `已连接：${device?.host || ""}:${device?.port || 80} | ${getDeviceProtocolLabel(protocol)}`
+      : "当前协议暂不支持参数读取与保存";
+  }
+  if (els.devicePreviewIsapiResponse) {
+    els.devicePreviewIsapiResponse.value = supported ? "" : "当前设备协议不支持参数配置。";
+  }
+  if (isOnvif && els.devicePreviewIsapiHint) {
+    els.devicePreviewIsapiHint.textContent = `已连接：${device?.host || ""}:${device?.port || 80} | ONVIF 参数面板`;
+  }
+  if (!isOnvif) {
+    setDevicePreviewOnvifModeActive(false);
+  }
+}
+
+async function runDevicePreviewIsapiRequest(methodOverride = "") {
+  const device = devicePreviewModalState.currentDevice;
+  const protocol = getDevicePreviewProtocol(device);
+  if (!device || !protocol) {
+    throw new Error("当前没有可操作的设备");
+  }
+  if (protocol === "onvif") {
+    return await runDevicePreviewOnvifPresetAction(String(methodOverride || "").trim().toUpperCase() === "PUT" ? "save" : "load");
+  }
+  const pathOrOperation = String(els.devicePreviewIsapiPath?.value || "").trim();
+  if (!pathOrOperation) {
+    throw new Error(protocol === "onvif" ? "请填写 ONVIF 操作" : "请填写 ISAPI 路径");
+  }
+  const method = String(methodOverride || els.devicePreviewIsapiMethod?.value || "GET").trim().toUpperCase();
+  const contentType = String(els.devicePreviewIsapiContentType?.value || "application/xml; charset=utf-8").trim();
+  const body = String(els.devicePreviewIsapiBody?.value || "");
+  if (els.devicePreviewIsapiResponse) {
+    els.devicePreviewIsapiResponse.value = "正在请求，请稍候...";
+  }
+  const connection = {
+    host: String(device.host || "").trim(),
+    port: Number(device.port || 80) || 80,
+    username: String(device.username || "").trim(),
+    password: String(device.password || "")
+  };
+  const response = protocol === "onvif"
+    ? await fetchJson("/api/onvif/request", {
+        connection,
+        operation: pathOrOperation,
+        method,
+        body
+      })
+    : await fetchJson("/api/isapi/request", {
+        connection,
+        pathname: pathOrOperation,
+        method,
+        contentType,
+        body
+      });
+  if (els.devicePreviewIsapiResponse) {
+    els.devicePreviewIsapiResponse.value = String(response?.rawText || "");
+  }
+  if (els.devicePreviewIsapiHint) {
+    els.devicePreviewIsapiHint.textContent = protocol === "hikvision-isapi"
+      ? summarizeHikvisionAbilityProbe(pathOrOperation, response?.rawText || "")
+      : `${method} 成功：${pathOrOperation}`;
+  }
+  return response;
+}
+
 // 设备预览弹窗相关函数
 function setDevicePreviewModalOpen(open, device = null) {
   devicePreviewModalState.isOpen = open;
@@ -5411,25 +5987,25 @@ function setDevicePreviewModalOpen(open, device = null) {
       // 检查是否为海康ISAPI协议
       const isHikvisionIsapi = String(device.protocol || "").trim() === "hikvision-isapi";
       devicePreviewModalState.isHikvisionIsapi = isHikvisionIsapi;
+      devicePreviewModalState.activeProtocol = String(device.protocol || "").trim();
       
       // 设置弹窗标题
       if (els.devicePreviewModalTitle) {
-        els.devicePreviewModalTitle.textContent = `设备预览 - ${device.name || "未知设备"}`;
+        const protocolLabel = getDeviceProtocolLabel(devicePreviewModalState.activeProtocol);
+        els.devicePreviewModalTitle.textContent = `设备参数配置 - ${device.name || "未知设备"} (${protocolLabel})`;
       }
-      
-
-      
-      // 开始预览
-      startPreviewForDevice(device);
+      resetDevicePreviewIsapiPanel(device);
+      void autoLoadDevicePreviewPreset(String(els.devicePreviewIsapiPreset?.value || "deviceInfo"));
     }
   } else {
     modal.classList.remove("open");
     modal.setAttribute("aria-hidden", "true");
-    
-    // 关闭弹窗时停止预览
-    stopPreview();
     devicePreviewModalState.currentDevice = null;
     devicePreviewModalState.isHikvisionIsapi = false;
+    devicePreviewModalState.activeProtocol = "";
+    if (els.devicePreviewIsapiResponse) {
+      els.devicePreviewIsapiResponse.value = "";
+    }
   }
 }
 
@@ -5654,6 +6230,44 @@ function modifyDeviceDoubleClickHandler() {
 if (els.devicePreviewModalCloseBtn) {
   els.devicePreviewModalCloseBtn.addEventListener("click", () => {
     setDevicePreviewModalOpen(false);
+  });
+}
+
+  if (els.devicePreviewIsapiPreset) {
+    els.devicePreviewIsapiPreset.addEventListener("change", () => {
+      const presetKey = els.devicePreviewIsapiPreset.value;
+      applyDevicePreviewIsapiPreset(presetKey);
+      void autoLoadDevicePreviewPreset(presetKey);
+    });
+  }
+
+if (els.devicePreviewIsapiLoadBtn) {
+  els.devicePreviewIsapiLoadBtn.addEventListener("click", async () => {
+    try {
+      await runDevicePreviewIsapiRequest("GET");
+    } catch (e) {
+      if (els.devicePreviewIsapiHint) {
+        els.devicePreviewIsapiHint.textContent = `读取失败：${e?.message || e}`;
+      }
+      if (els.devicePreviewIsapiResponse) {
+        els.devicePreviewIsapiResponse.value = String(e?.message || e || "");
+      }
+    }
+  });
+}
+
+if (els.devicePreviewIsapiSaveBtn) {
+  els.devicePreviewIsapiSaveBtn.addEventListener("click", async () => {
+    try {
+      await runDevicePreviewIsapiRequest("PUT");
+    } catch (e) {
+      if (els.devicePreviewIsapiHint) {
+        els.devicePreviewIsapiHint.textContent = `保存失败：${e?.message || e}`;
+      }
+      if (els.devicePreviewIsapiResponse) {
+        els.devicePreviewIsapiResponse.value = String(e?.message || e || "");
+      }
+    }
   });
 }
 

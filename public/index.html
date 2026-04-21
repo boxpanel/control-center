@@ -408,41 +408,93 @@
           <button id="devicePreviewModalCloseBtn" type="button" class="iconBtn" aria-label="关闭">×</button>
         </div>
         <div class="modalBody" style="padding: 24px;">
-          <!-- 预览画面区域 -->
-          <div style="min-width: 0;">
-            <div class="logHeader">
-              <div>实时预览</div>
-              <button id="previewSnapshotBtn" type="button" disabled>截图</button>
-            </div>
-            <div class="videoWrap" style="margin-top: 16px; border-radius: 12px; overflow: hidden; background: #000; width: 100%; aspect-ratio: 16/9;">
-              <video id="previewVideo" autoplay playsinline muted controls style="width: 100%; height: 100%; object-fit: contain;"></video>
-            </div>
-            <div class="controls" style="margin-top: 20px; display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; align-items: end;">
-              <div class="field">
-                <label for="previewRtspTransport">RTSP 传输</label>
-                <select id="previewRtspTransport">
-                  <option value="auto">自动</option>
-                  <option value="tcp">TCP</option>
-                  <option value="udp">UDP</option>
-                </select>
+          <div class="devicePreviewLayout">
+            <div class="devicePreviewMain">
+              <div class="logHeader">
+                <div>实时预览</div>
+                <button id="previewSnapshotBtn" type="button" disabled>截图</button>
               </div>
-              <div class="field">
-                <label for="previewProcessMode">图像处理</label>
-                <select id="previewProcessMode">
-                  <option value="none">无</option>
-                  <option value="grayscale">灰度</option>
-                  <option value="invert">反色</option>
-                  <option value="edges">边缘检测</option>
-                </select>
+              <div class="videoWrap" style="margin-top: 16px; border-radius: 12px; overflow: hidden; background: #000; width: 100%; aspect-ratio: 16/9;">
+                <video id="previewVideo" autoplay playsinline muted controls style="width: 100%; height: 100%; object-fit: contain;"></video>
               </div>
-              <div class="field" style="display: flex; align-items: center; gap: 16px;">
-                <div style="display: flex; align-items: center;">
-                  <input id="previewShowProcessed" type="checkbox" />
-                  <label for="previewShowProcessed" style="margin-left: 8px;">显示处理效果</label>
+              <div class="controls" style="margin-top: 20px; display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; align-items: end;">
+                <div class="field">
+                  <label for="previewRtspTransport">RTSP 传输</label>
+                  <select id="previewRtspTransport">
+                    <option value="auto">自动</option>
+                    <option value="tcp">TCP</option>
+                    <option value="udp">UDP</option>
+                  </select>
                 </div>
-                <button id="devicePreviewModalStopBtn" type="button" class="primaryBtn" style="height: 42px; min-width: 120px;">停止预览</button>
+                <div class="field">
+                  <label for="previewProcessMode">图像处理</label>
+                  <select id="previewProcessMode">
+                    <option value="none">无</option>
+                    <option value="grayscale">灰度</option>
+                    <option value="invert">反色</option>
+                    <option value="edges">边缘检测</option>
+                  </select>
+                </div>
+                <div class="field" style="display: flex; align-items: center; gap: 16px;">
+                  <div style="display: flex; align-items: center;">
+                    <input id="previewShowProcessed" type="checkbox" />
+                    <label for="previewShowProcessed" style="margin-left: 8px;">显示处理效果</label>
+                  </div>
+                  <button id="devicePreviewModalStopBtn" type="button" class="primaryBtn" style="height: 42px; min-width: 120px;">停止预览</button>
+                </div>
               </div>
             </div>
+            <aside id="devicePreviewIsapiPanel" class="devicePreviewSide view-hidden">
+              <div class="logHeader">
+                <div>ISAPI 参数</div>
+                <span id="devicePreviewIsapiHint" class="devicePreviewIsapiHint">仅海康 ISAPI 设备可用</span>
+              </div>
+              <div class="devicePreviewForm">
+                <div class="field">
+                  <label for="devicePreviewIsapiPreset">常用预设</label>
+                  <select id="devicePreviewIsapiPreset">
+                    <option value="deviceInfo">设备信息</option>
+                    <option value="time">时间配置</option>
+                    <option value="ftp">FTP 配置</option>
+                    <option value="stream101">主码流配置</option>
+                    <option value="imaging">图像参数</option>
+                  </select>
+                </div>
+                <div class="devicePreviewInlineFields">
+                  <div class="field">
+                    <label for="devicePreviewIsapiMethod">请求方法</label>
+                    <select id="devicePreviewIsapiMethod">
+                      <option value="GET">GET</option>
+                      <option value="PUT">PUT</option>
+                    </select>
+                  </div>
+                  <div class="field">
+                    <label for="devicePreviewIsapiContentType">内容类型</label>
+                    <select id="devicePreviewIsapiContentType">
+                      <option value="application/xml; charset=utf-8">XML</option>
+                      <option value="application/json; charset=utf-8">JSON</option>
+                      <option value="text/plain; charset=utf-8">纯文本</option>
+                    </select>
+                  </div>
+                </div>
+                <div class="field">
+                  <label for="devicePreviewIsapiPath">ISAPI 路径</label>
+                  <input id="devicePreviewIsapiPath" type="text" value="/ISAPI/System/deviceInfo" />
+                </div>
+                <div class="field">
+                  <label for="devicePreviewIsapiBody">请求体</label>
+                  <textarea id="devicePreviewIsapiBody" rows="8" placeholder="PUT 请求时可填写 XML / JSON 内容"></textarea>
+                </div>
+                <div class="devicePreviewActionRow">
+                  <button id="devicePreviewIsapiLoadBtn" type="button">读取参数</button>
+                  <button id="devicePreviewIsapiSaveBtn" type="button" class="primaryBtn">保存参数</button>
+                </div>
+                <div class="field">
+                  <label for="devicePreviewIsapiResponse">返回结果</label>
+                  <textarea id="devicePreviewIsapiResponse" rows="12" readonly placeholder="这里显示 ISAPI 返回内容"></textarea>
+                </div>
+              </div>
+            </aside>
           </div>
         </div>
         <div class="modalFooter">
@@ -476,7 +528,6 @@
 <script type="module" src="/app.js?v=78"></script>
   </body>
 </html>
-
 
 
 
