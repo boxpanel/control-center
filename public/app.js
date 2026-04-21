@@ -1196,6 +1196,20 @@ function setPlateSelectedById(id, checked) {
   updatePlateBulkUi();
 }
 
+function clearPlateSelections() {
+  if (!plateSelectedIds.size) {
+    updatePlateBulkUi();
+    return;
+  }
+  const ids = Array.from(plateSelectedIds);
+  plateSelectedIds.clear();
+  for (const id of ids) {
+    syncSelectionToCard(id, false);
+    syncSelectionToTableRow(id, false);
+  }
+  updatePlateBulkUi();
+}
+
 function toLocalIsoDate(ms) {
   const n = Number(ms);
   if (!Number.isFinite(n) || n <= 0) return "";
@@ -2151,6 +2165,7 @@ function initPlateTableUi() {
   if (els.platePageSize) {
     els.platePageSize.value = String(plateTableState.pageSize);
     els.platePageSize.addEventListener("change", () => {
+      clearPlateSelections();
       plateTableState.pageSize = Number(els.platePageSize.value || 10) || 10;
       plateTableState.page = 1;
       if (plateUiState.view === "table") {
@@ -2162,6 +2177,7 @@ function initPlateTableUi() {
   }
   if (els.platePrevPageBtn) {
     els.platePrevPageBtn.addEventListener("click", () => {
+      clearPlateSelections();
       plateTableState.page = Math.max(1, plateTableState.page - 1);
       if (plateUiState.view === "table") {
         renderPlateTable();
@@ -2172,6 +2188,7 @@ function initPlateTableUi() {
   }
   if (els.plateNextPageBtn) {
     els.plateNextPageBtn.addEventListener("click", () => {
+      clearPlateSelections();
       plateTableState.page = plateTableState.page + 1;
       if (plateUiState.view === "table") {
         renderPlateTable();
@@ -5782,6 +5799,5 @@ if (els.previewSnapshotBtn) {
     }
   });
 }
-
 
 
