@@ -5555,26 +5555,16 @@ function getDevicePreviewInlineFieldsContainer() {
 
 function ensureDevicePreviewOnvifControlsHost() {
   if (!els.devicePreviewIsapiPanel) return null;
-  let host = els.devicePreviewIsapiPanel.querySelector("#devicePreviewOnvifControls");
-  if (host) return host;
-  const form = els.devicePreviewIsapiPanel.querySelector(".devicePreviewForm");
-  const beforeField = getDevicePreviewFieldContainer("devicePreviewIsapiPath");
-  if (!form || !beforeField) return null;
-  host = document.createElement("div");
-  host.id = "devicePreviewOnvifControls";
-  host.className = "devicePreviewOnvifControls view-hidden";
-  form.insertBefore(host, beforeField);
+  // 直接使用现有的容器，不需要创建
+  const host = document.getElementById("devicePreviewOnvifControlsHost");
+  if (!host) return null;
+  // 确保容器可见
+  host.classList.remove("view-hidden");
   return host;
 }
 
 function setDevicePreviewOnvifModeActive(active) {
-  const inline = getDevicePreviewInlineFieldsContainer();
-  const pathField = getDevicePreviewFieldContainer("devicePreviewIsapiPath");
-  const bodyField = getDevicePreviewFieldContainer("devicePreviewIsapiBody");
   const host = ensureDevicePreviewOnvifControlsHost();
-  if (inline) inline.classList.toggle("view-hidden", Boolean(active));
-  if (pathField) pathField.classList.toggle("view-hidden", Boolean(active));
-  if (bodyField) bodyField.classList.toggle("view-hidden", Boolean(active));
   if (host) host.classList.toggle("view-hidden", !active);
 }
 
@@ -5953,8 +5943,9 @@ function setDevicePreviewModalOpen(open, device = null) {
         els.devicePreviewMain.style.display = "none";
       }
       
-      // 根据设备类型设置ISAPI面板可见性
-      setDevicePreviewIsapiPanelVisible(isHikvisionIsapi);
+      // 对于ONVIF和ISAPI设备都显示ISAPI面板（显示设备基本信息）
+      const shouldShowPanel = isHikvisionIsapi || devicePreviewModalState.activeProtocol === "onvif";
+      setDevicePreviewIsapiPanelVisible(shouldShowPanel);
       
       resetDevicePreviewIsapiPanel(device);
       void autoLoadDevicePreviewPreset(String(els.devicePreviewIsapiPreset?.value || "deviceInfo"));

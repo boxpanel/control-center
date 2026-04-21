@@ -1134,6 +1134,38 @@ canvas {
   color: #334155;
 }
 
+/* 设备预览参数列表样式 */
+.devicePreviewParamList {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.devicePreviewParamItem {
+  display: grid;
+  grid-template-columns: 120px minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(248, 250, 252, 0.9);
+  border: 1px solid rgba(226, 232, 240, 0.8);
+}
+
+.devicePreviewParamLabel {
+  font-size: 13px;
+  font-weight: 600;
+  color: #475569;
+  text-align: right;
+}
+
+.devicePreviewParamValue {
+  font-size: 13px;
+  color: #0f172a;
+  word-break: break-all;
+  white-space: pre-line;
+}
+
 .devicePreviewIsapiHint {
   display: inline-flex;
   align-items: center;
