@@ -266,13 +266,7 @@ const els = {
   devicePreviewModalCloseBtn: document.getElementById("devicePreviewModalCloseBtn"),
   devicePreviewIsapiPanel: document.getElementById("devicePreviewIsapiPanel"),
   devicePreviewIsapiHint: document.getElementById("devicePreviewIsapiHint"),
-  devicePreviewIsapiPreset: document.getElementById("devicePreviewIsapiPreset"),
-  devicePreviewIsapiMethod: document.getElementById("devicePreviewIsapiMethod"),
-  devicePreviewIsapiContentType: document.getElementById("devicePreviewIsapiContentType"),
-  devicePreviewIsapiPath: document.getElementById("devicePreviewIsapiPath"),
-  devicePreviewIsapiBody: document.getElementById("devicePreviewIsapiBody"),
   devicePreviewIsapiLoadBtn: document.getElementById("devicePreviewIsapiLoadBtn"),
-  devicePreviewIsapiResponse: document.getElementById("devicePreviewIsapiResponse"),
   devicePreviewModalStopBtn: document.getElementById("devicePreviewModalStopBtn"),
   previewVideo: document.getElementById("previewVideo"),
   previewSnapshotBtn: document.getElementById("previewSnapshotBtn"),
@@ -5877,30 +5871,34 @@ async function runDevicePreviewIsapiRequest(methodOverride = "") {
   if (!device || !protocol) {
     throw new Error("当前没有可操作的设备");
   }
-  if (protocol === "onvif") {
-    return await runDevicePreviewOnvifPresetAction(String(methodOverride || "").trim().toUpperCase() === "PUT" ? "save" : "load");
+  
+  if (els.devicePreviewIsapiHint) {
+    els.devicePreviewIsapiHint.textContent = "正在读取设备信息...";
   }
   
-  // 检查是否为ISAPI控件模式
-  const isHikvisionIsapi = protocol === "hikvision-isapi";
-  const presetKey = String(els.devicePreviewIsapiPreset?.value || "deviceInfo").trim() || "deviceInfo";
-  const presets = getDevicePreviewPresetMap(protocol);
-  const preset = presets[presetKey] || presets.deviceInfo;
-  const hasSchema = isHikvisionIsapi && preset.schema && DEVICE_PREVIEW_ISAPI_SCHEMAS[preset.schema];
-  
-  if (hasSchema) {
-    // ISAPI控件模式
-    const schema = DEVICE_PREVIEW_ISAPI_SCHEMAS[preset.schema];
-    const isSave = String(methodOverride || "").trim().toUpperCase() === "PUT";
-    
-    if (isSave) {
-      // 保存操作
-      const values = collectDevicePreviewIsapiControlValues();
-      const body = schema.buildSavePayload(values);
-      const pathname = schema.path;
-      const method = "PUT";
-      const contentType = schema.contentType;
+  if (protocol === "onvif") {
+    // ONVIF设备 - 直接显示设备信息
+    try {
+      // 渲染ONVIF控件
+      renderDevicePreviewOnvifControls("deviceInfo");
+      // 加载设备信息
+      await runDevicePreviewOnvifPresetAction("load");
+      if (els.devicePreviewIsapiHint) {
+        els.devicePreviewIsapiHint.textContent = "设备信息读取成功";
+      }
+    } catch (error) {
+      if (els.devicePreviewIsapiHint) {
+        els.devicePreviewIsapiHint.textContent = `读取失败：${error.message || error}`;
+      }
+      throw error;
+    }
+  } else if (protocol === "hikvision-isapi") {
+    // ISAPI设备 - 直接显示设备信息
+    try {
+      // 渲染ISAPI控件
+      renderDevicePreviewIsapiControls("deviceInfo");
       
+      const schema = DEVICE_PREVIEW_ISAPI_SCHEMAS.deviceInfo;
       const connection = {
         host: String(device.host || "").trim(),
         port: Number(device.port || 80) || 80,
@@ -5910,119 +5908,29 @@ async function runDevicePreviewIsapiRequest(methodOverride = "") {
       
       const response = await fetchJson("/api/isapi/request", {
         connection,
-        pathname,
-        method,
-        contentType,
-        body
+        pathname: schema.path,
+        method: schema.method,
+        contentType: schema.contentType,
+        body: ""
       });
       
-      if (els.devicePreviewIsapiResponse) {
-        els.devicePreviewIsapiResponse.value = String(response?.rawText || "");
-      }
+      // 解析响应并填充控件
+      const values = schema.mapLoadResult(response?.rawText || "", device);
+      fillDevicePreviewIsapiControls(values);
+      
       if (els.devicePreviewIsapiHint) {
-        els.devicePreviewIsapiHint.textContent = `保存成功：${pathname}`;
+        els.devicePreviewIsapiHint.textContent = "设备信息读取成功";
       }
       return response;
-    } else {
-      // 读取操作
-      const pathname = schema.path;
-      const method = schema.method;
-      const contentType = schema.contentType;
-      
-      const connection = {
-        host: String(device.host || "").trim(),
-        port: Number(device.port || 80) || 80,
-        username: String(device.username || "").trim(),
-        password: String(device.password || "")
-      };
-      
-      let response;
-      
-      // 特殊处理FTP配置，使用专门的API端点
-      if (presetKey === "ftp") {
-        response = await fetchJson("/api/device/ftp-config", { 
-          connection
-        });
-        
-        // 从响应中提取rawText
-        const rawText = response?.ftpConfig || response?.rawText || "";
-        
-        // 解析响应并填充控件
-        const values = schema.mapLoadResult(rawText, device);
-        fillDevicePreviewIsapiControls(values);
-        
-        if (els.devicePreviewIsapiResponse) {
-          els.devicePreviewIsapiResponse.value = String(rawText || "");
-        }
-        if (els.devicePreviewIsapiHint) {
-          els.devicePreviewIsapiHint.textContent = `读取成功：${pathname}`;
-        }
-      } else {
-        // 其他配置使用通用ISAPI请求
-        response = await fetchJson("/api/isapi/request", {
-          connection,
-          pathname,
-          method,
-          contentType,
-          body: ""
-        });
-        
-        // 解析响应并填充控件
-        const values = schema.mapLoadResult(response?.rawText || "", device);
-        fillDevicePreviewIsapiControls(values);
-        
-        if (els.devicePreviewIsapiResponse) {
-          els.devicePreviewIsapiResponse.value = String(response?.rawText || "");
-        }
-        if (els.devicePreviewIsapiHint) {
-          els.devicePreviewIsapiHint.textContent = `读取成功：${pathname}`;
-        }
+    } catch (error) {
+      if (els.devicePreviewIsapiHint) {
+        els.devicePreviewIsapiHint.textContent = `读取失败：${error.message || error}`;
       }
-      
-      return response;
+      throw error;
     }
+  } else {
+    throw new Error(`不支持的协议：${protocol}`);
   }
-  
-  // 传统文本模式
-  const pathOrOperation = String(els.devicePreviewIsapiPath?.value || "").trim();
-  if (!pathOrOperation) {
-    throw new Error(protocol === "onvif" ? "请填写 ONVIF 操作" : "请填写 ISAPI 路径");
-  }
-  const method = String(methodOverride || els.devicePreviewIsapiMethod?.value || "GET").trim().toUpperCase();
-  const contentType = String(els.devicePreviewIsapiContentType?.value || "application/xml; charset=utf-8").trim();
-  const body = String(els.devicePreviewIsapiBody?.value || "");
-  if (els.devicePreviewIsapiResponse) {
-    els.devicePreviewIsapiResponse.value = "正在请求，请稍候...";
-  }
-  const connection = {
-    host: String(device.host || "").trim(),
-    port: Number(device.port || 80) || 80,
-    username: String(device.username || "").trim(),
-    password: String(device.password || "")
-  };
-  const response = protocol === "onvif"
-    ? await fetchJson("/api/onvif/request", {
-        connection,
-        operation: pathOrOperation,
-        method,
-        body
-      })
-    : await fetchJson("/api/isapi/request", {
-        connection,
-        pathname: pathOrOperation,
-        method,
-        contentType,
-        body
-      });
-  if (els.devicePreviewIsapiResponse) {
-    els.devicePreviewIsapiResponse.value = String(response?.rawText || "");
-  }
-  if (els.devicePreviewIsapiHint) {
-    els.devicePreviewIsapiHint.textContent = protocol === "hikvision-isapi"
-      ? summarizeHikvisionAbilityProbe(pathOrOperation, response?.rawText || "")
-      : `${method} 成功：${pathOrOperation}`;
-  }
-  return response;
 }
 
 // 设备预览弹窗相关函数

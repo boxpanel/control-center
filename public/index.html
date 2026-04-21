@@ -446,51 +446,13 @@
             </div>
             <aside id="devicePreviewIsapiPanel" class="devicePreviewSide view-hidden">
               <div class="logHeader">
-                <div>ISAPI 参数</div>
-                <span id="devicePreviewIsapiHint" class="devicePreviewIsapiHint">仅海康 ISAPI 设备可用</span>
+                <div>设备基本信息</div>
+                <span id="devicePreviewIsapiHint" class="devicePreviewIsapiHint"></span>
               </div>
               <div class="devicePreviewForm">
-                <div class="field">
-                  <label for="devicePreviewIsapiPreset">常用预设</label>
-                  <select id="devicePreviewIsapiPreset">
-                    <option value="deviceInfo">设备信息</option>
-                    <option value="time">时间配置</option>
-                    <option value="ftp">FTP 配置</option>
-                    <option value="stream101">主码流配置</option>
-                    <option value="imaging">图像参数</option>
-                  </select>
-                </div>
-                <div class="devicePreviewInlineFields">
-                  <div class="field">
-                    <label for="devicePreviewIsapiMethod">请求方法</label>
-                    <select id="devicePreviewIsapiMethod">
-                      <option value="GET">GET</option>
-                      <option value="PUT">PUT</option>
-                    </select>
-                  </div>
-                  <div class="field">
-                    <label for="devicePreviewIsapiContentType">内容类型</label>
-                    <select id="devicePreviewIsapiContentType">
-                      <option value="application/xml; charset=utf-8">XML</option>
-                      <option value="application/json; charset=utf-8">JSON</option>
-                      <option value="text/plain; charset=utf-8">纯文本</option>
-                    </select>
-                  </div>
-                </div>
-                <div class="field">
-                  <label for="devicePreviewIsapiPath">ISAPI 路径</label>
-                  <input id="devicePreviewIsapiPath" type="text" value="/ISAPI/System/deviceInfo" />
-                </div>
-                <div class="field">
-                  <label for="devicePreviewIsapiBody">请求体</label>
-                  <textarea id="devicePreviewIsapiBody" rows="8" placeholder="PUT 请求时可填写 XML / JSON 内容"></textarea>
-                </div>
+                <div id="devicePreviewOnvifControlsHost"></div>
                 <div class="devicePreviewActionRow">
                   <button id="devicePreviewIsapiLoadBtn" type="button">读取参数</button>
-                </div>
-                <div class="field">
-                  <label for="devicePreviewIsapiResponse">返回结果</label>
-                  <textarea id="devicePreviewIsapiResponse" rows="12" readonly placeholder="这里显示 ISAPI 返回内容"></textarea>
                 </div>
               </div>
             </aside>
