@@ -1019,6 +1019,7 @@ const plateUiState = { view: "cards" };
 const plateTableState = {
   page: 1,
   pageSize: 10,
+  total: 0,
   sortKey: "time",
   sortDir: "desc"
 };
@@ -1305,19 +1306,20 @@ async function applyPlateFilters({ plateText, date } = {}) {
         plateTableState.total = pagination.total;
       } else {
         // 对于搜索查询，使用前端分页
-        const pageSize = Math.max(1, Math.min(200, Number(plateTableState.pageSize) || 10));
-        const totalPages = Math.max(1, Math.ceil(items.length / pageSize));
-        plateTableState.page = Math.max(1, Math.min(totalPages, Number(plateTableState.page) || 1));
-        
-        const allCards = Array.from(plateListEl.querySelectorAll(".plate-card"));
-        const startIdx = (plateTableState.page - 1) * pageSize;
-        const endIdx = startIdx + pageSize;
-        
-        for (let i = 0; i < allCards.length; i++) {
-          const card = allCards[i];
-          const inCurrentPage = i >= startIdx && i < endIdx;
-          card.classList.toggle("hidden", !inCurrentPage);
-        }
+      const pageSize = Math.max(1, Math.min(200, Number(plateTableState.pageSize) || 10));
+      plateTableState.total = items.length;
+      const totalPages = Math.max(1, Math.ceil(items.length / pageSize));
+      plateTableState.page = Math.max(1, Math.min(totalPages, Number(plateTableState.page) || 1));
+      
+      const allCards = Array.from(plateListEl.querySelectorAll(".plate-card"));
+      const startIdx = (plateTableState.page - 1) * pageSize;
+      const endIdx = startIdx + pageSize;
+      
+      for (let i = 0; i < allCards.length; i++) {
+        const card = allCards[i];
+        const inCurrentPage = i >= startIdx && i < endIdx;
+        card.classList.toggle("hidden", !inCurrentPage);
+      }
       }
       
       updatePlatePageInfo();
@@ -2023,23 +2025,8 @@ function scheduleDashboardFullUpdate() {
 }
 
 function updatePlatePageInfo() {
-  const plateListEl = document.getElementById("plateList");
-  if (!plateListEl) return;
-  
-  const allCards = Array.from(plateListEl.querySelectorAll(".plate-card"));
-  const visibleCards = allCards.filter(card => {
-    const plate = String(card.dataset.plate || "").toLowerCase();
-    const ts = Number(card.dataset.ts || 0) || 0;
-    const day = toLocalIsoDate(ts);
-    const q = String(lastPlateQueryState.plateText || "").trim().toLowerCase();
-    const dateVal = String(lastPlateQueryState.date || "").trim();
-    const matchPlate = !q || plate.includes(q);
-    const matchDate = !dateVal || day === dateVal;
-    return matchPlate && matchDate;
-  });
-  
   const pageSize = Math.max(1, Math.min(200, Number(plateTableState.pageSize) || 10));
-  const totalPages = Math.max(1, Math.ceil(visibleCards.length / pageSize));
+  const totalPages = Math.max(1, Math.ceil(plateTableState.total / pageSize));
   const currentPage = Math.max(1, Math.min(totalPages, Number(plateTableState.page) || 1));
   
   if (els.platePageInfo) {
@@ -2106,6 +2093,7 @@ function renderPlateTable() {
 
   const pageSize = Math.max(1, Math.min(200, Number(plateTableState.pageSize) || 10));
   plateTableState.pageSize = pageSize;
+  plateTableState.total = filtered.length;
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   plateTableState.page = Math.max(1, Math.min(totalPages, Number(plateTableState.page) || 1));
 
