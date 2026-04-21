@@ -115,20 +115,20 @@ async function checkServerAvailable() {
 // 轮询检查服务器是否重启完成
 function startServerPolling() {
   let pollCount = 0;
-  const maxPolls = 10; // 最多轮询10次
-  const pollInterval = 60000; // 每60秒检查一次
+  const maxPolls = 5; // 最多轮询5次
+  const pollInterval = 120000; // 每120秒检查一次
   
   const poll = async () => {
     pollCount++;
     
     if (pollCount > maxPolls) {
       // 超过最大轮询次数，停止轮询
-      console.log("轮询超时（10次，共10分钟），服务器可能未正常启动");
-      showLoading("设备重启超时（已等待10分钟），请手动刷新页面检查设备状态");
+      console.log(`轮询超时（${maxPolls}次，共${maxPolls * 2}分钟），服务器可能未正常启动`);
+      showLoading(`设备重启超时（已等待${maxPolls * 2}分钟），请手动刷新页面检查设备状态`);
       return;
     }
     
-    const elapsedMinutes = pollCount; // 每次60秒，所以次数就是分钟数
+    const elapsedMinutes = pollCount * 2; // 每次120秒，所以次数乘以2就是分钟数
     console.log(`轮询检查服务器 (${pollCount}/${maxPolls})，已等待${elapsedMinutes}分钟...`);
     
     const isAvailable = await checkServerAvailable();
