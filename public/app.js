@@ -266,7 +266,6 @@ const els = {
   devicePreviewModalCloseBtn: document.getElementById("devicePreviewModalCloseBtn"),
   devicePreviewIsapiPanel: document.getElementById("devicePreviewIsapiPanel"),
   devicePreviewIsapiHint: document.getElementById("devicePreviewIsapiHint"),
-  devicePreviewIsapiLoadBtn: document.getElementById("devicePreviewIsapiLoadBtn"),
   devicePreviewModalStopBtn: document.getElementById("devicePreviewModalStopBtn"),
   previewVideo: document.getElementById("previewVideo"),
   previewSnapshotBtn: document.getElementById("previewSnapshotBtn"),
@@ -5642,9 +5641,6 @@ function renderDevicePreviewOnvifControls(presetKey = "") {
   }
   html.push("</div>");
   host.innerHTML = html.join("");
-  if (els.devicePreviewIsapiLoadBtn) {
-    els.devicePreviewIsapiLoadBtn.textContent = "读取参数";
-  }
 }
 
 function renderDevicePreviewIsapiControls(schemaKey = "") {
@@ -5662,9 +5658,6 @@ function renderDevicePreviewIsapiControls(schemaKey = "") {
   }
   html.push("</div>");
   host.innerHTML = html.join("");
-  if (els.devicePreviewIsapiLoadBtn) {
-    els.devicePreviewIsapiLoadBtn.textContent = "读取参数";
-  }
 }
 
 async function runDevicePreviewOnvifPresetAction(action = "load") {
@@ -5772,8 +5765,7 @@ function setDevicePreviewIsapiInputsDisabled(disabled) {
     els.devicePreviewIsapiMethod,
     els.devicePreviewIsapiContentType,
     els.devicePreviewIsapiPath,
-    els.devicePreviewIsapiBody,
-    els.devicePreviewIsapiLoadBtn
+    els.devicePreviewIsapiBody
   ];
   for (const el of targets) {
     if (el) el.disabled = Boolean(disabled);
@@ -5815,9 +5807,6 @@ function applyDevicePreviewIsapiPreset(presetKey, keepBody = false) {
   } else {
     // 传统文本模式
     setDevicePreviewOnvifModeActive(false);
-    if (els.devicePreviewIsapiLoadBtn) {
-      els.devicePreviewIsapiLoadBtn.textContent = "读取参数";
-    }
     if (els.devicePreviewIsapiMethod) els.devicePreviewIsapiMethod.value = preset.method;
     if (els.devicePreviewIsapiContentType) els.devicePreviewIsapiContentType.value = preset.contentType;
     if (els.devicePreviewIsapiPath) els.devicePreviewIsapiPath.value = preset.path;
@@ -6213,23 +6202,6 @@ if (els.devicePreviewModalCloseBtn) {
       void autoLoadDevicePreviewPreset(presetKey);
     });
   }
-
-if (els.devicePreviewIsapiLoadBtn) {
-  els.devicePreviewIsapiLoadBtn.addEventListener("click", async () => {
-    try {
-      await runDevicePreviewIsapiRequest("GET");
-    } catch (e) {
-      if (els.devicePreviewIsapiHint) {
-        els.devicePreviewIsapiHint.textContent = `读取失败：${e?.message || e}`;
-      }
-      if (els.devicePreviewIsapiResponse) {
-        els.devicePreviewIsapiResponse.value = String(e?.message || e || "");
-      }
-    }
-  });
-}
-
-
 
 if (els.devicePreviewModalStopBtn) {
   els.devicePreviewModalStopBtn.addEventListener("click", () => {
