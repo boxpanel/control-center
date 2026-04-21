@@ -323,7 +323,10 @@ const DEVICE_PREVIEW_ONVIF_SCHEMAS = {
       { key: "model", label: "型号", type: "text", readOnly: true },
       { key: "firmwareVersion", label: "固件版本", type: "text", readOnly: true },
       { key: "serialNumber", label: "序列号", type: "text", readOnly: true },
-      { key: "hardwareId", label: "硬件ID", type: "text", readOnly: true }
+      { key: "hardwareId", label: "硬件ID", type: "text", readOnly: true },
+      { key: "hostname", label: "主机名", type: "text", readOnly: true },
+      { key: "ipAddress", label: "IP地址", type: "text", readOnly: true },
+      { key: "macAddress", label: "MAC地址", type: "text", readOnly: true }
     ],
     mapLoadResult(result = {}) {
       return {
@@ -331,7 +334,10 @@ const DEVICE_PREVIEW_ONVIF_SCHEMAS = {
         model: result.model || "",
         firmwareVersion: result.firmwareVersion || "",
         serialNumber: result.serialNumber || "",
-        hardwareId: result.hardwareId || ""
+        hardwareId: result.hardwareId || "",
+        hostname: result.hostname || "",
+        ipAddress: result.ipAddress || "",
+        macAddress: result.macAddress || ""
       };
     }
   }
@@ -352,14 +358,28 @@ const DEVICE_PREVIEW_ISAPI_SCHEMAS = {
       { key: "firmwareVersion", label: "固件版本", type: "text", readOnly: true },
       { key: "firmwareReleasedDate", label: "固件发布日期", type: "text", readOnly: true },
       { key: "deviceLocation", label: "设备位置", type: "text", readOnly: true },
-      { key: "macAddress", label: "MAC地址", type: "text", readOnly: true }
+      { key: "macAddress", label: "MAC地址", type: "text", readOnly: true },
+      { key: "ipAddress", label: "IP地址", type: "text", readOnly: true }
     ],
-    mapLoadResult(xmlText = "") {
+    mapLoadResult(xmlText = "", device = null) {
       // 从XML中提取设备信息
       const extract = (tag) => {
         const match = xmlText.match(new RegExp(`<${tag}>([\\s\\S]*?)</${tag}>`, "i"));
         return match ? match[1].trim() : "";
       };
+      
+      // 尝试从设备连接信息中获取IP地址
+      let ipAddress = "";
+      if (device && device.host) {
+        ipAddress = String(device.host || "").trim();
+      }
+      
+      // 也可以尝试从XML中提取IP地址（如果存在）
+      const ipFromXml = extract("ipAddress") || extract("IPAddress") || extract("ip") || extract("IP");
+      if (ipFromXml) {
+        ipAddress = ipFromXml;
+      }
+      
       return {
         deviceName: extract("deviceName"),
         deviceID: extract("deviceID"),
@@ -368,7 +388,8 @@ const DEVICE_PREVIEW_ISAPI_SCHEMAS = {
         firmwareVersion: extract("firmwareVersion"),
         firmwareReleasedDate: extract("firmwareReleasedDate"),
         deviceLocation: extract("deviceLocation") || extract("location") || "",
-        macAddress: extract("macAddress") || extract("MAC") || ""
+        macAddress: extract("macAddress") || extract("MAC") || "",
+        ipAddress: ipAddress
       };
     }
   }
@@ -5727,13 +5748,72 @@ async function runDevicePreviewOnvifPresetAction(action = "load") {
     method: action === "save" ? "PUT" : "GET",
     body: JSON.stringify(payload || {}, null, 2)
   });
+  
+  // 如果是读取操作，还需要获取主机名和网络接口信息
+  let deviceInfo = {};
+  if (action === "load") {
+    const raw = JSON.parse(String(response?.rawText || "{}"));
+    deviceInfo = schema.mapLoadResult(raw?.result || {});
+    
+    // 获取主机名
+    try {
+      const hostnameResponse = await fetchJson("/api/onvif/request", {
+        connection: {
+          host: String(device.host || "").trim(),
+          port: Number(device.port || 80) || 80,
+          username: String(device.username || "").trim(),
+          password: String(device.password || "")
+        },
+        operation: "getHostname",
+        method: "GET",
+        body: JSON.stringify({}, null, 2)
+      });
+      const hostnameRaw = JSON.parse(String(hostnameResponse?.rawText || "{}"));
+      deviceInfo.hostname = hostnameRaw?.result?.name || "";
+    } catch (e) {
+      deviceInfo.hostname = "";
+    }
+    
+    // 获取网络接口信息
+    try {
+      const networkResponse = await fetchJson("/api/onvif/request", {
+        connection: {
+          host: String(device.host || "").trim(),
+          port: Number(device.port || 80) || 80,
+          username: String(device.username || "").trim(),
+          password: String(device.password || "")
+        },
+        operation: "getNetworkInterfaces",
+        method: "GET",
+        body: JSON.stringify({}, null, 2)
+      });
+      const networkRaw = JSON.parse(String(networkResponse?.rawText || "{}"));
+      const networkResult = networkRaw?.result || {};
+      
+      // 提取第一个网络接口的信息
+      const interfaces = Array.isArray(networkResult) ? networkResult : [networkResult];
+      const firstInterface = interfaces[0] || {};
+      
+      // 提取IP地址和MAC地址
+      const ipv4 = firstInterface?.ipv4 || firstInterface?.IPv4 || {};
+      const config = ipv4?.config || ipv4?.manual || {};
+      const manual = Array.isArray(config?.manual) ? config.manual[0] || {} : config?.manual || config || {};
+      
+      deviceInfo.ipAddress = manual?.address || manual?.ipv4Address || "";
+      deviceInfo.macAddress = firstInterface?.info?.hwAddress || firstInterface?.hwAddress || firstInterface?.mac || "";
+    } catch (e) {
+      deviceInfo.ipAddress = "";
+      deviceInfo.macAddress = "";
+    }
+    
+    // 填充控件
+    fillDevicePreviewOnvifControls(deviceInfo);
+  }
+  
   if (els.devicePreviewIsapiResponse) {
     els.devicePreviewIsapiResponse.value = String(response?.rawText || "");
   }
-  if (action === "load" && typeof schema.mapLoadResult === "function") {
-    const raw = JSON.parse(String(response?.rawText || "{}"));
-    fillDevicePreviewOnvifControls(schema.mapLoadResult(raw?.result || {}));
-  }
+  
   if (els.devicePreviewIsapiHint) {
     els.devicePreviewIsapiHint.textContent = `${action === "save" ? "保存" : "读取"}成功：${(DEVICE_PREVIEW_ONVIF_PRESETS[presetKey] || {}).label || presetKey}`;
   }
@@ -5916,7 +5996,7 @@ async function runDevicePreviewIsapiRequest(methodOverride = "") {
         const rawText = response?.ftpConfig || response?.rawText || "";
         
         // 解析响应并填充控件
-        const values = schema.mapLoadResult(rawText);
+        const values = schema.mapLoadResult(rawText, device);
         fillDevicePreviewIsapiControls(values);
         
         if (els.devicePreviewIsapiResponse) {
@@ -5936,7 +6016,7 @@ async function runDevicePreviewIsapiRequest(methodOverride = "") {
         });
         
         // 解析响应并填充控件
-        const values = schema.mapLoadResult(response?.rawText || "");
+        const values = schema.mapLoadResult(response?.rawText || "", device);
         fillDevicePreviewIsapiControls(values);
         
         if (els.devicePreviewIsapiResponse) {
