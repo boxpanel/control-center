@@ -1978,7 +1978,7 @@ async function updatePlateDashboard() {
 }
 
 function updatePlateDashboardLight(newRecord) {
-  // 轻量级仪表板更新，只更新必要的统计数据
+  // 轻量级仪表板更新，只更新不会受分页影响的统计数据
   const all = Array.from(plateById.values());
   const nowMs = Date.now();
   const startOfToday = new Date();
@@ -1986,10 +1986,8 @@ function updatePlateDashboardLight(newRecord) {
   const todayStartMs = startOfToday.getTime();
   const lastHourStart = nowMs - 60 * 60 * 1000;
 
-  // 只更新总数和最新记录
-  if (els.dashTotal) els.dashTotal.textContent = String(all.length);
-  
-  // 更新最新记录
+  // 注意：总记录必须走后端数据库统计，不能用当前页内存记录数覆盖
+  // 这里只更新“最近一条”和更新时间，其余交给完整统计刷新
   let latest = null;
   for (const rec of all) {
     const ts = getRecordTs(rec);
@@ -5799,5 +5797,4 @@ if (els.previewSnapshotBtn) {
     }
   });
 }
-
 
