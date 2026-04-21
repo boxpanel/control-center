@@ -323,8 +323,6 @@ const DEVICE_PREVIEW_ONVIF_SCHEMAS = {
       { key: "model", label: "型号", type: "text", readOnly: true },
       { key: "firmwareVersion", label: "固件版本", type: "text", readOnly: true },
       { key: "serialNumber", label: "序列号", type: "text", readOnly: true },
-      { key: "hardwareId", label: "硬件ID", type: "text", readOnly: true },
-      { key: "hostname", label: "主机名", type: "text", readOnly: true },
       { key: "ipAddress", label: "IP地址", type: "text", readOnly: true },
       { key: "macAddress", label: "MAC地址", type: "text", readOnly: true }
     ],
@@ -334,8 +332,6 @@ const DEVICE_PREVIEW_ONVIF_SCHEMAS = {
         model: result.model || "",
         firmwareVersion: result.firmwareVersion || "",
         serialNumber: result.serialNumber || "",
-        hardwareId: result.hardwareId || "",
-        hostname: result.hostname || "",
         ipAddress: result.ipAddress || "",
         macAddress: result.macAddress || ""
       };
@@ -352,14 +348,11 @@ const DEVICE_PREVIEW_ISAPI_SCHEMAS = {
     path: "/ISAPI/System/deviceInfo",
     fields: [
       { key: "deviceName", label: "设备名称", type: "text", readOnly: true },
-      { key: "deviceID", label: "设备ID", type: "text", readOnly: true },
       { key: "model", label: "型号", type: "text", readOnly: true },
       { key: "serialNumber", label: "序列号", type: "text", readOnly: true },
       { key: "firmwareVersion", label: "固件版本", type: "text", readOnly: true },
-      { key: "firmwareReleasedDate", label: "固件发布日期", type: "text", readOnly: true },
-      { key: "deviceLocation", label: "设备位置", type: "text", readOnly: true },
-      { key: "macAddress", label: "MAC地址", type: "text", readOnly: true },
-      { key: "ipAddress", label: "IP地址", type: "text", readOnly: true }
+      { key: "ipAddress", label: "IP地址", type: "text", readOnly: true },
+      { key: "macAddress", label: "MAC地址", type: "text", readOnly: true }
     ],
     mapLoadResult(xmlText = "", device = null) {
       // 从XML中提取设备信息
@@ -382,14 +375,11 @@ const DEVICE_PREVIEW_ISAPI_SCHEMAS = {
       
       return {
         deviceName: extract("deviceName"),
-        deviceID: extract("deviceID"),
         model: extract("model"),
         serialNumber: extract("serialNumber"),
         firmwareVersion: extract("firmwareVersion"),
-        firmwareReleasedDate: extract("firmwareReleasedDate"),
-        deviceLocation: extract("deviceLocation") || extract("location") || "",
-        macAddress: extract("macAddress") || extract("MAC") || "",
-        ipAddress: ipAddress
+        ipAddress: ipAddress,
+        macAddress: extract("macAddress") || extract("MAC") || ""
       };
     }
   }
@@ -5605,11 +5595,8 @@ function fillDevicePreviewOnvifControls(values = {}) {
   Object.entries(values || {}).forEach(([key, value]) => {
     const field = host.querySelector(`[data-onvif-field="${key}"]`);
     if (!field) return;
-    if (field.type === "checkbox") {
-      field.checked = Boolean(value);
-    } else {
-      field.value = value == null ? "" : String(value);
-    }
+    // 现在field是span元素，设置textContent
+    field.textContent = value == null ? "" : String(value);
   });
 }
 
@@ -5639,11 +5626,8 @@ function fillDevicePreviewIsapiControls(values = {}) {
   Object.entries(values || {}).forEach(([key, value]) => {
     const field = host.querySelector(`[data-isapi-field="${key}"]`);
     if (!field) return;
-    if (field.type === "checkbox") {
-      field.checked = Boolean(value);
-    } else {
-      field.value = value == null ? "" : String(value);
-    }
+    // 现在field是span元素，设置textContent
+    field.textContent = value == null ? "" : String(value);
   });
 }
 
@@ -5652,27 +5636,12 @@ function renderDevicePreviewOnvifControls(presetKey = "") {
   if (!host) return;
   const schema = getDevicePreviewOnvifSchema(presetKey);
   const html = [
-    '<div class="devicePreviewOnvifGrid">'
+    '<div class="devicePreviewParamList">'
   ];
   for (const field of schema.fields || []) {
-    html.push('<div class="field devicePreviewOnvifField">');
-    html.push(`<label>${field.label}</label>`);
-    if (field.type === "select") {
-      html.push(`<select data-onvif-field="${field.key}" ${field.readOnly ? "disabled" : ""}>`);
-      for (const option of field.options || []) {
-        html.push(`<option value="${option}">${option}</option>`);
-      }
-      html.push("</select>");
-    } else if (field.type === "checkbox") {
-      html.push(`<label class="devicePreviewOnvifCheckbox"><input type="checkbox" data-onvif-field="${field.key}" ${field.readOnly ? "disabled" : ""} /> <span>${field.readOnly ? "只读显示" : "启用"}</span></label>`);
-    } else {
-      const attrs = [];
-      if (field.readOnly) attrs.push("readonly");
-      if (field.min != null) attrs.push(`min="${field.min}"`);
-      if (field.max != null) attrs.push(`max="${field.max}"`);
-      if (field.step != null) attrs.push(`step="${field.step}"`);
-      html.push(`<input type="${field.type || "text"}" data-onvif-field="${field.key}" ${attrs.join(" ")} />`);
-    }
+    html.push('<div class="devicePreviewParamItem">');
+    html.push(`<span class="devicePreviewParamLabel">${field.label}:</span>`);
+    html.push(`<span class="devicePreviewParamValue" data-onvif-field="${field.key}"></span>`);
     html.push("</div>");
   }
   html.push("</div>");
@@ -5687,31 +5656,12 @@ function renderDevicePreviewIsapiControls(schemaKey = "") {
   if (!host) return;
   const schema = DEVICE_PREVIEW_ISAPI_SCHEMAS[schemaKey] || DEVICE_PREVIEW_ISAPI_SCHEMAS.deviceInfo;
   const html = [
-    '<div class="devicePreviewOnvifGrid">'
+    '<div class="devicePreviewParamList">'
   ];
   for (const field of schema.fields || []) {
-    html.push('<div class="field devicePreviewOnvifField">');
-    html.push(`<label>${field.label}</label>`);
-    if (field.type === "select") {
-      html.push(`<select data-isapi-field="${field.key}" ${field.readOnly ? "disabled" : ""}>`);
-      for (const option of field.options || []) {
-        html.push(`<option value="${option}">${option}</option>`);
-      }
-      html.push("</select>");
-    } else if (field.type === "checkbox") {
-      html.push(`<label class="devicePreviewOnvifCheckbox"><input type="checkbox" data-isapi-field="${field.key}" ${field.readOnly ? "disabled" : ""} /> <span>${field.readOnly ? "只读显示" : "启用"}</span></label>`);
-    } else if (field.type === "password") {
-      html.push(`<input type="password" data-isapi-field="${field.key}" ${field.readOnly ? "readonly" : ""} />`);
-    } else if (field.type === "datetime-local") {
-      html.push(`<input type="datetime-local" data-isapi-field="${field.key}" ${field.readOnly ? "readonly" : ""} />`);
-    } else {
-      const attrs = [];
-      if (field.readOnly) attrs.push("readonly");
-      if (field.min != null) attrs.push(`min="${field.min}"`);
-      if (field.max != null) attrs.push(`max="${field.max}"`);
-      if (field.step != null) attrs.push(`step="${field.step}"`);
-      html.push(`<input type="${field.type || "text"}" data-isapi-field="${field.key}" ${attrs.join(" ")} />`);
-    }
+    html.push('<div class="devicePreviewParamItem">');
+    html.push(`<span class="devicePreviewParamLabel">${field.label}:</span>`);
+    html.push(`<span class="devicePreviewParamValue" data-isapi-field="${field.key}"></span>`);
     html.push("</div>");
   }
   html.push("</div>");
