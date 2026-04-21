@@ -319,6 +319,7 @@ const DEVICE_PREVIEW_ONVIF_SCHEMAS = {
     readOnly: true,
     loadOperation: "getDeviceInformation",
     fields: [
+      { key: "deviceName", label: "设备名称", type: "text", readOnly: true },
       { key: "manufacturer", label: "厂商", type: "text", readOnly: true },
       { key: "model", label: "型号", type: "text", readOnly: true },
       { key: "firmwareVersion", label: "固件版本", type: "text", readOnly: true },
@@ -328,6 +329,7 @@ const DEVICE_PREVIEW_ONVIF_SCHEMAS = {
     ],
     mapLoadResult(result = {}) {
       return {
+        deviceName: result.deviceName || "",
         manufacturer: result.manufacturer || "",
         model: result.model || "",
         firmwareVersion: result.firmwareVersion || "",
@@ -5705,7 +5707,7 @@ async function runDevicePreviewOnvifPresetAction(action = "load") {
     const raw = JSON.parse(String(response?.rawText || "{}"));
     deviceInfo = schema.mapLoadResult(raw?.result || {});
     
-    // 获取主机名
+    // 获取主机名（作为设备名称）
     try {
       const hostnameResponse = await fetchJson("/api/onvif/request", {
         connection: {
@@ -5719,9 +5721,9 @@ async function runDevicePreviewOnvifPresetAction(action = "load") {
         body: JSON.stringify({}, null, 2)
       });
       const hostnameRaw = JSON.parse(String(hostnameResponse?.rawText || "{}"));
-      deviceInfo.hostname = hostnameRaw?.result?.name || "";
+      deviceInfo.deviceName = hostnameRaw?.result?.name || "";
     } catch (e) {
-      deviceInfo.hostname = "";
+      deviceInfo.deviceName = "";
     }
     
     // 获取网络接口信息
