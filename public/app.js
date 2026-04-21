@@ -1,4 +1,4 @@
-﻿function updatePageTitle(systemName) {
+function updatePageTitle(systemName) {
   const baseTitle = "管理平台";
   const titleElement = document.querySelector("title");
   const headerTitleElement = document.querySelector(".app-header-title");
@@ -309,21 +309,22 @@ const devicePreviewModalState = {
   activeProtocol: ""
 };
 const DEVICE_PREVIEW_ISAPI_PRESETS = {
-  deviceInfo: { label: "设备信息", method: "GET", contentType: "application/xml; charset=utf-8", path: "/ISAPI/System/deviceInfo", body: "" },
+  deviceInfo: { label: "设备信息", schema: "deviceInfo" },
+  time: { label: "时间配置", schema: "time" },
+  ftp: { label: "FTP 配置", schema: "ftp" },
+  stream101: { label: "主码流", schema: "stream101" },
+  imaging: { label: "图像参数", schema: "imaging" },
+  // 以下预设暂时保持原样，后续可以添加字段定义
   systemCapabilities: { label: "系统能力集", method: "GET", contentType: "application/xml; charset=utf-8", path: "/ISAPI/System/capabilities", body: "" },
-  time: { label: "时间配置", method: "GET", contentType: "application/xml; charset=utf-8", path: "/ISAPI/System/time", body: "" },
   ntp: { label: "NTP 配置", method: "GET", contentType: "application/xml; charset=utf-8", path: "/ISAPI/System/time/ntpServers/1", body: "" },
   networkInterface: { label: "网络接口", method: "GET", contentType: "application/xml; charset=utf-8", path: "/ISAPI/System/Network/interfaces/1", body: "" },
   eventTriggerCapabilities: { label: "事件联动能力", method: "GET", contentType: "application/xml; charset=utf-8", path: "/ISAPI/Event/triggersCap", body: "" },
-  stream101: { label: "主码流", method: "GET", contentType: "application/xml; charset=utf-8", path: "/ISAPI/Streaming/channels/101", body: "" },
   streamCapabilities: { label: "码流能力集", method: "GET", contentType: "application/xml; charset=utf-8", path: "/ISAPI/Streaming/channels/101/capabilities", body: "" },
   stream102: { label: "子码流", method: "GET", contentType: "application/xml; charset=utf-8", path: "/ISAPI/Streaming/channels/102", body: "" },
-  imaging: { label: "图像参数", method: "GET", contentType: "application/xml; charset=utf-8", path: "/ISAPI/Image/channels/1/imaging", body: "" },
   imagingCapabilities: { label: "图像能力集", method: "GET", contentType: "application/xml; charset=utf-8", path: "/ISAPI/Image/channels/1/capabilities", body: "" },
   irLight: { label: "补光参数", method: "GET", contentType: "application/xml; charset=utf-8", path: "/ISAPI/Image/channels/1/irLight", body: "" },
   osd: { label: "OSD 参数", method: "GET", contentType: "application/xml; charset=utf-8", path: "/ISAPI/System/Video/inputs/channels/1/overlays", body: "" },
   motion: { label: "移动侦测", method: "GET", contentType: "application/xml; charset=utf-8", path: "/ISAPI/System/Video/inputs/channels/1/motionDetection", body: "" },
-  ftp: { label: "FTP 配置", method: "GET", contentType: "application/xml; charset=utf-8", path: "/ISAPI/System/Network/Ftp/channels/1", body: "" },
   trafficCapabilities: { label: "智能交通能力", method: "GET", contentType: "application/xml; charset=utf-8", path: "/ISAPI/Traffic/channels/1/capabilities", body: "" },
   manualVehicleTrigger: { label: "手动车辆触发结果", method: "GET", contentType: "application/xml; charset=utf-8", path: "/ISAPI/Traffic/channels/1/vehicleDetect/manualTrigger", body: "" }
 };
@@ -517,6 +518,207 @@ const DEVICE_PREVIEW_ONVIF_SCHEMAS = {
     }
   }
 };
+
+// ISAPI协议的字段定义
+const DEVICE_PREVIEW_ISAPI_SCHEMAS = {
+  deviceInfo: {
+    readOnly: true,
+    method: "GET",
+    contentType: "application/xml; charset=utf-8",
+    path: "/ISAPI/System/deviceInfo",
+    fields: [
+      { key: "deviceName", label: "设备名称", type: "text", readOnly: true },
+      { key: "deviceID", label: "设备ID", type: "text", readOnly: true },
+      { key: "model", label: "型号", type: "text", readOnly: true },
+      { key: "serialNumber", label: "序列号", type: "text", readOnly: true },
+      { key: "firmwareVersion", label: "固件版本", type: "text", readOnly: true },
+      { key: "firmwareReleasedDate", label: "固件发布日期", type: "text", readOnly: true }
+    ],
+    mapLoadResult(xmlText = "") {
+      // 从XML中提取设备信息
+      const extract = (tag) => {
+        const match = xmlText.match(new RegExp(`<${tag}>([\\s\\S]*?)</${tag}>`, "i"));
+        return match ? match[1].trim() : "";
+      };
+      return {
+        deviceName: extract("deviceName"),
+        deviceID: extract("deviceID"),
+        model: extract("model"),
+        serialNumber: extract("serialNumber"),
+        firmwareVersion: extract("firmwareVersion"),
+        firmwareReleasedDate: extract("firmwareReleasedDate")
+      };
+    }
+  },
+  time: {
+    readOnly: false,
+    method: "GET",
+    contentType: "application/xml; charset=utf-8",
+    path: "/ISAPI/System/time",
+    fields: [
+      { key: "timeMode", label: "时间模式", type: "select", options: ["NTP", "manual"] },
+      { key: "localTime", label: "本地时间", type: "datetime-local" },
+      { key: "timeZone", label: "时区", type: "text" },
+      { key: "daylightSavingMode", label: "夏令时模式", type: "select", options: ["off", "on"] }
+    ],
+    mapLoadResult(xmlText = "") {
+      const extract = (tag) => {
+        const match = xmlText.match(new RegExp(`<${tag}>([\\s\\S]*?)</${tag}>`, "i"));
+        return match ? match[1].trim() : "";
+      };
+      return {
+        timeMode: extract("timeMode"),
+        localTime: extract("localTime"),
+        timeZone: extract("timeZone"),
+        daylightSavingMode: extract("daylightSavingMode")
+      };
+    },
+    buildSavePayload(values = {}) {
+      return `<?xml version="1.0" encoding="UTF-8"?>
+<Time version="2.0" xmlns="http://www.hikvision.com/ver20/XMLSchema">
+  <timeMode>${values.timeMode || "manual"}</timeMode>
+  <localTime>${values.localTime || ""}</localTime>
+  <timeZone>${values.timeZone || ""}</timeZone>
+  <daylightSavingMode>${values.daylightSavingMode || "off"}</daylightSavingMode>
+</Time>`;
+    }
+  },
+  ftp: {
+    readOnly: false,
+    method: "GET",
+    contentType: "application/xml; charset=utf-8",
+    path: "/ISAPI/System/Network/Ftp/channels/1",
+    fields: [
+      { key: "enabled", label: "启用", type: "checkbox" },
+      { key: "host", label: "FTP服务器地址", type: "text" },
+      { key: "port", label: "端口", type: "number", min: 1, max: 65535 },
+      { key: "userName", label: "用户名", type: "text" },
+      { key: "password", label: "密码", type: "password" },
+      { key: "directory", label: "目录", type: "text" },
+      { key: "uploadInterval", label: "上传间隔(秒)", type: "number", min: 1, step: 1 }
+    ],
+    mapLoadResult(xmlText = "") {
+      const extract = (tag) => {
+        const match = xmlText.match(new RegExp(`<${tag}>([\\s\\S]*?)</${tag}>`, "i"));
+        return match ? match[1].trim() : "";
+      };
+      return {
+        enabled: extract("enabled") === "true",
+        host: extract("host"),
+        port: extract("port"),
+        userName: extract("userName"),
+        password: extract("password"),
+        directory: extract("directory"),
+        uploadInterval: extract("uploadInterval")
+      };
+    },
+    buildSavePayload(values = {}) {
+      return `<?xml version="1.0" encoding="UTF-8"?>
+<FTP version="2.0" xmlns="http://www.hikvision.com/ver20/XMLSchema">
+  <enabled>${values.enabled ? "true" : "false"}</enabled>
+  <host>${values.host || ""}</host>
+  <port>${values.port || "21"}</port>
+  <userName>${values.userName || ""}</userName>
+  <password>${values.password || ""}</password>
+  <directory>${values.directory || ""}</directory>
+  <uploadInterval>${values.uploadInterval || "10"}</uploadInterval>
+</FTP>`;
+    }
+  },
+  stream101: {
+    readOnly: false,
+    method: "GET",
+    contentType: "application/xml; charset=utf-8",
+    path: "/ISAPI/Streaming/channels/101",
+    fields: [
+      { key: "enabled", label: "启用", type: "checkbox" },
+      { key: "videoCodecType", label: "视频编码", type: "select", options: ["H.264", "H.265", "MPEG4"] },
+      { key: "videoResolutionWidth", label: "视频宽度", type: "number", min: 1, step: 1 },
+      { key: "videoResolutionHeight", label: "视频高度", type: "number", min: 1, step: 1 },
+      { key: "videoQualityControlType", label: "码率控制", type: "select", options: ["VBR", "CBR"] },
+      { key: "constantBitRate", label: "固定码率(kbps)", type: "number", min: 1, step: 1 },
+      { key: "videoFrameRate", label: "帧率", type: "number", min: 1, max: 60, step: 1 },
+      { key: "videoGovLength", label: "GOP长度", type: "number", min: 1, step: 1 }
+    ],
+    mapLoadResult(xmlText = "") {
+      const extract = (tag) => {
+        const match = xmlText.match(new RegExp(`<${tag}>([\\s\\S]*?)</${tag}>`, "i"));
+        return match ? match[1].trim() : "";
+      };
+      return {
+        enabled: extract("enabled") === "true",
+        videoCodecType: extract("videoCodecType"),
+        videoResolutionWidth: extract("videoResolutionWidth"),
+        videoResolutionHeight: extract("videoResolutionHeight"),
+        videoQualityControlType: extract("videoQualityControlType"),
+        constantBitRate: extract("constantBitRate"),
+        videoFrameRate: extract("videoFrameRate"),
+        videoGovLength: extract("videoGovLength")
+      };
+    },
+    buildSavePayload(values = {}) {
+      return `<?xml version="1.0" encoding="UTF-8"?>
+<StreamingChannel version="2.0" xmlns="http://www.hikvision.com/ver20/XMLSchema">
+  <enabled>${values.enabled ? "true" : "false"}</enabled>
+  <Video>
+    <videoCodecType>${values.videoCodecType || "H.264"}</videoCodecType>
+    <videoResolutionWidth>${values.videoResolutionWidth || "1920"}</videoResolutionWidth>
+    <videoResolutionHeight>${values.videoResolutionHeight || "1080"}</videoResolutionHeight>
+    <videoQualityControlType>${values.videoQualityControlType || "VBR"}</videoQualityControlType>
+    <constantBitRate>${values.constantBitRate || "4096"}</constantBitRate>
+    <videoFrameRate>${values.videoFrameRate || "25"}</videoFrameRate>
+    <videoGovLength>${values.videoGovLength || "50"}</videoGovLength>
+  </Video>
+</StreamingChannel>`;
+    }
+  },
+  imaging: {
+    readOnly: false,
+    method: "GET",
+    contentType: "application/xml; charset=utf-8",
+    path: "/ISAPI/Image/channels/1/imaging",
+    fields: [
+      { key: "brightness", label: "亮度", type: "number", min: 0, max: 100, step: 1 },
+      { key: "contrast", label: "对比度", type: "number", min: 0, max: 100, step: 1 },
+      { key: "saturation", label: "饱和度", type: "number", min: 0, max: 100, step: 1 },
+      { key: "sharpness", label: "锐度", type: "number", min: 0, max: 100, step: 1 },
+      { key: "hue", label: "色调", type: "number", min: 0, max: 100, step: 1 },
+      { key: "exposureMode", label: "曝光模式", type: "select", options: ["auto", "manual"] },
+      { key: "exposureTime", label: "曝光时间", type: "number", min: 1, step: 1 },
+      { key: "gain", label: "增益", type: "number", min: 0, step: 0.1 }
+    ],
+    mapLoadResult(xmlText = "") {
+      const extract = (tag) => {
+        const match = xmlText.match(new RegExp(`<${tag}>([\\s\\S]*?)</${tag}>`, "i"));
+        return match ? match[1].trim() : "";
+      };
+      return {
+        brightness: extract("brightness"),
+        contrast: extract("contrast"),
+        saturation: extract("saturation"),
+        sharpness: extract("sharpness"),
+        hue: extract("hue"),
+        exposureMode: extract("exposureMode"),
+        exposureTime: extract("exposureTime"),
+        gain: extract("gain")
+      };
+    },
+    buildSavePayload(values = {}) {
+      return `<?xml version="1.0" encoding="UTF-8"?>
+<Image version="2.0" xmlns="http://www.hikvision.com/ver20/XMLSchema">
+  <brightness>${values.brightness || "50"}</brightness>
+  <contrast>${values.contrast || "50"}</contrast>
+  <saturation>${values.saturation || "50"}</saturation>
+  <sharpness>${values.sharpness || "50"}</sharpness>
+  <hue>${values.hue || "50"}</hue>
+  <exposureMode>${values.exposureMode || "auto"}</exposureMode>
+  <exposureTime>${values.exposureTime || "100"}</exposureTime>
+  <gain>${values.gain || "1.0"}</gain>
+</Image>`;
+    }
+  }
+};
+
 const DEVICE_PROTOCOL_LABELS = {
   "": "请选择",
   gb28181: "国标GB28181（2016/2022）",
@@ -5745,6 +5947,30 @@ function collectDevicePreviewOnvifControlValues() {
   return values;
 }
 
+function collectDevicePreviewIsapiControlValues() {
+  const host = ensureDevicePreviewOnvifControlsHost();
+  const values = {};
+  if (!host) return values;
+  host.querySelectorAll("[data-isapi-field]").forEach((field) => {
+    values[field.getAttribute("data-isapi-field")] = getOnvifControlValue(field);
+  });
+  return values;
+}
+
+function fillDevicePreviewIsapiControls(values = {}) {
+  const host = ensureDevicePreviewOnvifControlsHost();
+  if (!host) return;
+  Object.entries(values || {}).forEach(([key, value]) => {
+    const field = host.querySelector(`[data-isapi-field="${key}"]`);
+    if (!field) return;
+    if (field.type === "checkbox") {
+      field.checked = Boolean(value);
+    } else {
+      field.value = value == null ? "" : String(value);
+    }
+  });
+}
+
 function renderDevicePreviewOnvifControls(presetKey = "") {
   const host = ensureDevicePreviewOnvifControlsHost();
   if (!host) return;
@@ -5776,6 +6002,50 @@ function renderDevicePreviewOnvifControls(presetKey = "") {
   html.push("</div>");
   host.innerHTML = html.join("");
   const saveDisabled = Boolean(schema.readOnly || !schema.saveOperation);
+  if (els.devicePreviewIsapiSaveBtn) {
+    els.devicePreviewIsapiSaveBtn.disabled = saveDisabled;
+    els.devicePreviewIsapiSaveBtn.textContent = saveDisabled ? "不可保存" : "保存参数";
+  }
+  if (els.devicePreviewIsapiLoadBtn) {
+    els.devicePreviewIsapiLoadBtn.textContent = "读取参数";
+  }
+}
+
+function renderDevicePreviewIsapiControls(schemaKey = "") {
+  const host = ensureDevicePreviewOnvifControlsHost();
+  if (!host) return;
+  const schema = DEVICE_PREVIEW_ISAPI_SCHEMAS[schemaKey] || DEVICE_PREVIEW_ISAPI_SCHEMAS.deviceInfo;
+  const html = [
+    '<div class="devicePreviewOnvifGrid">'
+  ];
+  for (const field of schema.fields || []) {
+    html.push('<div class="field devicePreviewOnvifField">');
+    html.push(`<label>${field.label}</label>`);
+    if (field.type === "select") {
+      html.push(`<select data-isapi-field="${field.key}" ${field.readOnly ? "disabled" : ""}>`);
+      for (const option of field.options || []) {
+        html.push(`<option value="${option}">${option}</option>`);
+      }
+      html.push("</select>");
+    } else if (field.type === "checkbox") {
+      html.push(`<label class="devicePreviewOnvifCheckbox"><input type="checkbox" data-isapi-field="${field.key}" ${field.readOnly ? "disabled" : ""} /> <span>${field.readOnly ? "只读显示" : "启用"}</span></label>`);
+    } else if (field.type === "password") {
+      html.push(`<input type="password" data-isapi-field="${field.key}" ${field.readOnly ? "readonly" : ""} />`);
+    } else if (field.type === "datetime-local") {
+      html.push(`<input type="datetime-local" data-isapi-field="${field.key}" ${field.readOnly ? "readonly" : ""} />`);
+    } else {
+      const attrs = [];
+      if (field.readOnly) attrs.push("readonly");
+      if (field.min != null) attrs.push(`min="${field.min}"`);
+      if (field.max != null) attrs.push(`max="${field.max}"`);
+      if (field.step != null) attrs.push(`step="${field.step}"`);
+      html.push(`<input type="${field.type || "text"}" data-isapi-field="${field.key}" ${attrs.join(" ")} />`);
+    }
+    html.push("</div>");
+  }
+  html.push("</div>");
+  host.innerHTML = html.join("");
+  const saveDisabled = Boolean(schema.readOnly);
   if (els.devicePreviewIsapiSaveBtn) {
     els.devicePreviewIsapiSaveBtn.disabled = saveDisabled;
     els.devicePreviewIsapiSaveBtn.textContent = saveDisabled ? "不可保存" : "保存参数";
@@ -5854,15 +6124,26 @@ function applyDevicePreviewIsapiPreset(presetKey, keepBody = false) {
   ensureDevicePreviewIsapiPresetOptions();
   const protocol = getDevicePreviewProtocol();
   const isOnvif = protocol === "onvif";
+  const isHikvisionIsapi = protocol === "hikvision-isapi";
   const presets = getDevicePreviewPresetMap(protocol);
   const key = String(presetKey || "").trim() || "deviceInfo";
   const preset = presets[key] || presets.deviceInfo;
   if (els.devicePreviewIsapiPreset) els.devicePreviewIsapiPreset.value = key;
+  
+  // 检查是否有schema定义
+  const hasSchema = isHikvisionIsapi && preset.schema && DEVICE_PREVIEW_ISAPI_SCHEMAS[preset.schema];
+  
   if (isOnvif) {
     setDevicePreviewOnvifModeActive(true);
     renderDevicePreviewOnvifControls(key);
     if (els.devicePreviewIsapiResponse) els.devicePreviewIsapiResponse.value = "";
+  } else if (hasSchema) {
+    // ISAPI控件模式
+    setDevicePreviewOnvifModeActive(true);
+    renderDevicePreviewIsapiControls(preset.schema);
+    if (els.devicePreviewIsapiResponse) els.devicePreviewIsapiResponse.value = "";
   } else {
+    // 传统文本模式
     setDevicePreviewOnvifModeActive(false);
     if (els.devicePreviewIsapiSaveBtn) {
       els.devicePreviewIsapiSaveBtn.disabled = false;
@@ -5927,6 +6208,85 @@ async function runDevicePreviewIsapiRequest(methodOverride = "") {
   if (protocol === "onvif") {
     return await runDevicePreviewOnvifPresetAction(String(methodOverride || "").trim().toUpperCase() === "PUT" ? "save" : "load");
   }
+  
+  // 检查是否为ISAPI控件模式
+  const isHikvisionIsapi = protocol === "hikvision-isapi";
+  const presetKey = String(els.devicePreviewIsapiPreset?.value || "deviceInfo").trim() || "deviceInfo";
+  const presets = getDevicePreviewPresetMap(protocol);
+  const preset = presets[presetKey] || presets.deviceInfo;
+  const hasSchema = isHikvisionIsapi && preset.schema && DEVICE_PREVIEW_ISAPI_SCHEMAS[preset.schema];
+  
+  if (hasSchema) {
+    // ISAPI控件模式
+    const schema = DEVICE_PREVIEW_ISAPI_SCHEMAS[preset.schema];
+    const isSave = String(methodOverride || "").trim().toUpperCase() === "PUT";
+    
+    if (isSave) {
+      // 保存操作
+      const values = collectDevicePreviewIsapiControlValues();
+      const body = schema.buildSavePayload(values);
+      const pathname = schema.path;
+      const method = "PUT";
+      const contentType = schema.contentType;
+      
+      const connection = {
+        host: String(device.host || "").trim(),
+        port: Number(device.port || 80) || 80,
+        username: String(device.username || "").trim(),
+        password: String(device.password || "")
+      };
+      
+      const response = await fetchJson("/api/isapi/request", {
+        connection,
+        pathname,
+        method,
+        contentType,
+        body
+      });
+      
+      if (els.devicePreviewIsapiResponse) {
+        els.devicePreviewIsapiResponse.value = String(response?.rawText || "");
+      }
+      if (els.devicePreviewIsapiHint) {
+        els.devicePreviewIsapiHint.textContent = `保存成功：${pathname}`;
+      }
+      return response;
+    } else {
+      // 读取操作
+      const pathname = schema.path;
+      const method = schema.method;
+      const contentType = schema.contentType;
+      
+      const connection = {
+        host: String(device.host || "").trim(),
+        port: Number(device.port || 80) || 80,
+        username: String(device.username || "").trim(),
+        password: String(device.password || "")
+      };
+      
+      const response = await fetchJson("/api/isapi/request", {
+        connection,
+        pathname,
+        method,
+        contentType,
+        body: ""
+      });
+      
+      // 解析响应并填充控件
+      const values = schema.mapLoadResult(response?.rawText || "");
+      fillDevicePreviewIsapiControls(values);
+      
+      if (els.devicePreviewIsapiResponse) {
+        els.devicePreviewIsapiResponse.value = String(response?.rawText || "");
+      }
+      if (els.devicePreviewIsapiHint) {
+        els.devicePreviewIsapiHint.textContent = `读取成功：${pathname}`;
+      }
+      return response;
+    }
+  }
+  
+  // 传统文本模式
   const pathOrOperation = String(els.devicePreviewIsapiPath?.value || "").trim();
   if (!pathOrOperation) {
     throw new Error(protocol === "onvif" ? "请填写 ONVIF 操作" : "请填写 ISAPI 路径");
@@ -5994,6 +6354,14 @@ function setDevicePreviewModalOpen(open, device = null) {
         const protocolLabel = getDeviceProtocolLabel(devicePreviewModalState.activeProtocol);
         els.devicePreviewModalTitle.textContent = `设备参数配置 - ${device.name || "未知设备"} (${protocolLabel})`;
       }
+      // 隐藏实时预览部分（根据用户需求）
+      if (els.devicePreviewMain) {
+        els.devicePreviewMain.style.display = "none";
+      }
+      
+      // 根据设备类型设置ISAPI面板可见性
+      setDevicePreviewIsapiPanelVisible(isHikvisionIsapi);
+      
       resetDevicePreviewIsapiPanel(device);
       void autoLoadDevicePreviewPreset(String(els.devicePreviewIsapiPreset?.value || "deviceInfo"));
     }
