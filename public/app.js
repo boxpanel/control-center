@@ -272,7 +272,6 @@ const els = {
   devicePreviewIsapiPath: document.getElementById("devicePreviewIsapiPath"),
   devicePreviewIsapiBody: document.getElementById("devicePreviewIsapiBody"),
   devicePreviewIsapiLoadBtn: document.getElementById("devicePreviewIsapiLoadBtn"),
-  devicePreviewIsapiSaveBtn: document.getElementById("devicePreviewIsapiSaveBtn"),
   devicePreviewIsapiResponse: document.getElementById("devicePreviewIsapiResponse"),
   devicePreviewModalStopBtn: document.getElementById("devicePreviewModalStopBtn"),
   previewVideo: document.getElementById("previewVideo"),
@@ -309,33 +308,10 @@ const devicePreviewModalState = {
   activeProtocol: ""
 };
 const DEVICE_PREVIEW_ISAPI_PRESETS = {
-  deviceInfo: { label: "设备信息", schema: "deviceInfo" },
-  time: { label: "时间配置", schema: "time" },
-  ftp: { label: "FTP 配置", schema: "ftp" },
-  stream101: { label: "主码流", schema: "stream101" },
-  imaging: { label: "图像参数", schema: "imaging" },
-  // 以下预设暂时保持原样，后续可以添加字段定义
-  systemCapabilities: { label: "系统能力集", method: "GET", contentType: "application/xml; charset=utf-8", path: "/ISAPI/System/capabilities", body: "" },
-  ntp: { label: "NTP 配置", method: "GET", contentType: "application/xml; charset=utf-8", path: "/ISAPI/System/time/ntpServers/1", body: "" },
-  networkInterface: { label: "网络接口", method: "GET", contentType: "application/xml; charset=utf-8", path: "/ISAPI/System/Network/interfaces/1", body: "" },
-  eventTriggerCapabilities: { label: "事件联动能力", method: "GET", contentType: "application/xml; charset=utf-8", path: "/ISAPI/Event/triggersCap", body: "" },
-  streamCapabilities: { label: "码流能力集", method: "GET", contentType: "application/xml; charset=utf-8", path: "/ISAPI/Streaming/channels/101/capabilities", body: "" },
-  stream102: { label: "子码流", method: "GET", contentType: "application/xml; charset=utf-8", path: "/ISAPI/Streaming/channels/102", body: "" },
-  imagingCapabilities: { label: "图像能力集", method: "GET", contentType: "application/xml; charset=utf-8", path: "/ISAPI/Image/channels/1/capabilities", body: "" },
-  irLight: { label: "补光参数", method: "GET", contentType: "application/xml; charset=utf-8", path: "/ISAPI/Image/channels/1/irLight", body: "" },
-  osd: { label: "OSD 参数", method: "GET", contentType: "application/xml; charset=utf-8", path: "/ISAPI/System/Video/inputs/channels/1/overlays", body: "" },
-  motion: { label: "移动侦测", method: "GET", contentType: "application/xml; charset=utf-8", path: "/ISAPI/System/Video/inputs/channels/1/motionDetection", body: "" },
-  trafficCapabilities: { label: "智能交通能力", method: "GET", contentType: "application/xml; charset=utf-8", path: "/ISAPI/Traffic/channels/1/capabilities", body: "" },
-  manualVehicleTrigger: { label: "手动车辆触发结果", method: "GET", contentType: "application/xml; charset=utf-8", path: "/ISAPI/Traffic/channels/1/vehicleDetect/manualTrigger", body: "" }
+  deviceInfo: { label: "设备信息", schema: "deviceInfo" }
 };
 const DEVICE_PREVIEW_ONVIF_PRESETS = {
-  deviceInfo: { label: "设备信息", method: "GET", contentType: "application/json; charset=utf-8", path: "getDeviceInformation", body: "" },
-  hostname: { label: "主机名", method: "GET", contentType: "application/json; charset=utf-8", path: "getHostname", body: "" },
-  time: { label: "时间配置", method: "GET", contentType: "application/json; charset=utf-8", path: "getSystemDateAndTime", body: "" },
-  networkInterfaces: { label: "网络接口", method: "GET", contentType: "application/json; charset=utf-8", path: "getNetworkInterfaces", body: "" },
-  profiles: { label: "媒体配置", method: "GET", contentType: "application/json; charset=utf-8", path: "getProfiles", body: "" },
-  imaging: { label: "图像参数", method: "GET", contentType: "application/json; charset=utf-8", path: "getImagingSettings", body: "" },
-  encoder: { label: "编码参数", method: "GET", contentType: "application/json; charset=utf-8", path: "getVideoEncoderConfigurations", body: "" }
+  deviceInfo: { label: "设备信息", method: "GET", contentType: "application/json; charset=utf-8", path: "getDeviceInformation", body: "" }
 };
 
 const DEVICE_PREVIEW_ONVIF_SCHEMAS = {
@@ -358,168 +334,10 @@ const DEVICE_PREVIEW_ONVIF_SCHEMAS = {
         hardwareId: result.hardwareId || ""
       };
     }
-  },
-  hostname: {
-    readOnly: true,
-    loadOperation: "getHostname",
-    fields: [
-      { key: "name", label: "主机名", type: "text", readOnly: true },
-      { key: "fromDHCP", label: "来自 DHCP", type: "checkbox", readOnly: true }
-    ],
-    mapLoadResult(result = {}) {
-      return {
-        name: result.name || "",
-        fromDHCP: Boolean(result.fromDHCP)
-      };
-    }
-  },
-  time: {
-    readOnly: true,
-    loadOperation: "getSystemDateAndTime",
-    fields: [
-      { key: "timeZone", label: "时区", type: "text", readOnly: true },
-      { key: "localTime", label: "本地时间", type: "text", readOnly: true },
-      { key: "utcTime", label: "UTC 时间", type: "text", readOnly: true },
-      { key: "daylightSavings", label: "夏令时", type: "checkbox", readOnly: true }
-    ],
-    mapLoadResult(result = {}) {
-      return {
-        timeZone: result.timeZone || result.timeZoneName || "",
-        localTime: result.localTime || result.localDateTime || "",
-        utcTime: result.utcTime || result.UTCDateTime || "",
-        daylightSavings: Boolean(result.daylightSavings)
-      };
-    }
-  },
-  networkInterfaces: {
-    readOnly: true,
-    loadOperation: "getNetworkInterfaces",
-    fields: [
-      { key: "token", label: "接口 Token", type: "text", readOnly: true },
-      { key: "name", label: "接口名称", type: "text", readOnly: true },
-      { key: "enabled", label: "启用", type: "checkbox", readOnly: true },
-      { key: "mac", label: "MAC", type: "text", readOnly: true },
-      { key: "ipv4Address", label: "IPv4 地址", type: "text", readOnly: true },
-      { key: "prefixLength", label: "前缀长度", type: "number", readOnly: true },
-      { key: "dhcp", label: "DHCP", type: "checkbox", readOnly: true }
-    ],
-    mapLoadResult(result = {}) {
-      const item = Array.isArray(result) ? result[0] || {} : result;
-      const ipv4 = item?.ipv4 || item?.IPv4 || {};
-      const config = ipv4?.config || ipv4?.manual || {};
-      const manual = Array.isArray(config?.manual) ? config.manual[0] || {} : config?.manual || config || {};
-      return {
-        token: item?.$.token || item?.token || "",
-        name: item?.info?.name || item?.name || "",
-        enabled: Boolean(item?.enabled),
-        mac: item?.info?.hwAddress || item?.hwAddress || item?.mac || "",
-        ipv4Address: manual?.address || manual?.ipv4Address || "",
-        prefixLength: manual?.prefixLength || "",
-        dhcp: Boolean(ipv4?.dhcp || ipv4?.enabled)
-      };
-    }
-  },
-  profiles: {
-    readOnly: true,
-    loadOperation: "getProfiles",
-    fields: [
-      { key: "profileToken", label: "Profile Token", type: "text", readOnly: true },
-      { key: "profileName", label: "配置名称", type: "text", readOnly: true },
-      { key: "videoSourceToken", label: "视频源 Token", type: "text", readOnly: true },
-      { key: "encoderToken", label: "编码 Token", type: "text", readOnly: true },
-      { key: "encoding", label: "编码类型", type: "text", readOnly: true }
-    ],
-    mapLoadResult(result = []) {
-      const item = Array.isArray(result) ? result[0] || {} : result;
-      return {
-        profileToken: item?.$.token || item?.token || "",
-        profileName: item?.name || "",
-        videoSourceToken: item?.videoSourceConfiguration?.sourceToken || "",
-        encoderToken: item?.videoEncoderConfiguration?.$.token || item?.videoEncoderConfiguration?.token || "",
-        encoding: item?.videoEncoderConfiguration?.encoding || ""
-      };
-    }
-  },
-  imaging: {
-    readOnly: false,
-    loadOperation: "getImagingSettings",
-    saveOperation: "setImagingSettings",
-    fields: [
-      { key: "videoSourceToken", label: "视频源 Token", type: "text" },
-      { key: "brightness", label: "亮度", type: "number", min: 0, max: 100, step: 1 },
-      { key: "contrast", label: "对比度", type: "number", min: 0, max: 100, step: 1 },
-      { key: "colorSaturation", label: "饱和度", type: "number", min: 0, max: 100, step: 1 },
-      { key: "sharpness", label: "锐度", type: "number", min: 0, max: 100, step: 1 }
-    ],
-    mapLoadResult(result = {}) {
-      return {
-        brightness: result.brightness ?? "",
-        contrast: result.contrast ?? "",
-        colorSaturation: result.colorSaturation ?? "",
-        sharpness: result.sharpness ?? ""
-      };
-    },
-    buildLoadPayload(values = {}) {
-      return { videoSourceToken: String(values.videoSourceToken || "").trim() };
-    },
-    buildSavePayload(values = {}) {
-      return {
-        videoSourceToken: String(values.videoSourceToken || "").trim(),
-        settings: {
-          brightness: Number(values.brightness || 0),
-          contrast: Number(values.contrast || 0),
-          colorSaturation: Number(values.colorSaturation || 0),
-          sharpness: Number(values.sharpness || 0)
-        }
-      };
-    }
-  },
-  encoder: {
-    readOnly: false,
-    loadOperation: "getVideoEncoderConfigurations",
-    saveOperation: "setVideoEncoderConfiguration",
-    fields: [
-      { key: "token", label: "编码 Token", type: "text" },
-      { key: "encoding", label: "编码类型", type: "select", options: ["H264", "H265", "JPEG", "MPEG4"] },
-      { key: "width", label: "宽度", type: "number", min: 1, step: 1 },
-      { key: "height", label: "高度", type: "number", min: 1, step: 1 },
-      { key: "frameRateLimit", label: "帧率", type: "number", min: 1, step: 1 },
-      { key: "encodingInterval", label: "编码间隔", type: "number", min: 1, step: 1 },
-      { key: "bitrateLimit", label: "码率(kbps)", type: "number", min: 1, step: 1 }
-    ],
-    mapLoadResult(result = []) {
-      const item = Array.isArray(result) ? result[0] || {} : result;
-      return {
-        token: item?.$.token || item?.token || "",
-        encoding: item?.encoding || "H264",
-        width: item?.resolution?.width ?? "",
-        height: item?.resolution?.height ?? "",
-        frameRateLimit: item?.rateControl?.frameRateLimit ?? "",
-        encodingInterval: item?.rateControl?.encodingInterval ?? "",
-        bitrateLimit: item?.rateControl?.bitrateLimit ?? ""
-      };
-    },
-    buildSavePayload(values = {}) {
-      return {
-        configuration: {
-          token: String(values.token || "").trim(),
-          encoding: String(values.encoding || "H264").trim(),
-          resolution: {
-            width: Number(values.width || 0),
-            height: Number(values.height || 0)
-          },
-          rateControl: {
-            frameRateLimit: Number(values.frameRateLimit || 0),
-            encodingInterval: Number(values.encodingInterval || 0),
-            bitrateLimit: Number(values.bitrateLimit || 0)
-          }
-        }
-      };
-    }
   }
 };
 
-// ISAPI协议的字段定义
+// ISAPI协议的字段定义 - 修改为只显示设备基本信息
 const DEVICE_PREVIEW_ISAPI_SCHEMAS = {
   deviceInfo: {
     readOnly: true,
@@ -532,7 +350,9 @@ const DEVICE_PREVIEW_ISAPI_SCHEMAS = {
       { key: "model", label: "型号", type: "text", readOnly: true },
       { key: "serialNumber", label: "序列号", type: "text", readOnly: true },
       { key: "firmwareVersion", label: "固件版本", type: "text", readOnly: true },
-      { key: "firmwareReleasedDate", label: "固件发布日期", type: "text", readOnly: true }
+      { key: "firmwareReleasedDate", label: "固件发布日期", type: "text", readOnly: true },
+      { key: "deviceLocation", label: "设备位置", type: "text", readOnly: true },
+      { key: "macAddress", label: "MAC地址", type: "text", readOnly: true }
     ],
     mapLoadResult(xmlText = "") {
       // 从XML中提取设备信息
@@ -546,175 +366,10 @@ const DEVICE_PREVIEW_ISAPI_SCHEMAS = {
         model: extract("model"),
         serialNumber: extract("serialNumber"),
         firmwareVersion: extract("firmwareVersion"),
-        firmwareReleasedDate: extract("firmwareReleasedDate")
+        firmwareReleasedDate: extract("firmwareReleasedDate"),
+        deviceLocation: extract("deviceLocation") || extract("location") || "",
+        macAddress: extract("macAddress") || extract("MAC") || ""
       };
-    }
-  },
-  time: {
-    readOnly: false,
-    method: "GET",
-    contentType: "application/xml; charset=utf-8",
-    path: "/ISAPI/System/time",
-    fields: [
-      { key: "timeMode", label: "时间模式", type: "select", options: ["NTP", "manual"] },
-      { key: "localTime", label: "本地时间", type: "datetime-local" },
-      { key: "timeZone", label: "时区", type: "text" },
-      { key: "daylightSavingMode", label: "夏令时模式", type: "select", options: ["off", "on"] }
-    ],
-    mapLoadResult(xmlText = "") {
-      const extract = (tag) => {
-        const match = xmlText.match(new RegExp(`<${tag}>([\\s\\S]*?)</${tag}>`, "i"));
-        return match ? match[1].trim() : "";
-      };
-      return {
-        timeMode: extract("timeMode"),
-        localTime: extract("localTime"),
-        timeZone: extract("timeZone"),
-        daylightSavingMode: extract("daylightSavingMode")
-      };
-    },
-    buildSavePayload(values = {}) {
-      return `<?xml version="1.0" encoding="UTF-8"?>
-<Time version="2.0" xmlns="http://www.hikvision.com/ver20/XMLSchema">
-  <timeMode>${values.timeMode || "manual"}</timeMode>
-  <localTime>${values.localTime || ""}</localTime>
-  <timeZone>${values.timeZone || ""}</timeZone>
-  <daylightSavingMode>${values.daylightSavingMode || "off"}</daylightSavingMode>
-</Time>`;
-    }
-  },
-  ftp: {
-    readOnly: false,
-    method: "GET",
-    contentType: "application/xml; charset=utf-8",
-    path: "/ISAPI/System/Network/Ftp/channels/1",
-    fields: [
-      { key: "enabled", label: "启用", type: "checkbox" },
-      { key: "host", label: "FTP服务器地址", type: "text" },
-      { key: "port", label: "端口", type: "number", min: 1, max: 65535 },
-      { key: "userName", label: "用户名", type: "text" },
-      { key: "password", label: "密码", type: "password" },
-      { key: "directory", label: "目录", type: "text" },
-      { key: "uploadInterval", label: "上传间隔(秒)", type: "number", min: 1, step: 1 }
-    ],
-    mapLoadResult(xmlText = "") {
-      const extract = (tag) => {
-        const match = xmlText.match(new RegExp(`<${tag}>([\\s\\S]*?)</${tag}>`, "i"));
-        return match ? match[1].trim() : "";
-      };
-      return {
-        enabled: extract("enabled") === "true",
-        host: extract("host"),
-        port: extract("port"),
-        userName: extract("userName"),
-        password: extract("password"),
-        directory: extract("directory"),
-        uploadInterval: extract("uploadInterval")
-      };
-    },
-    buildSavePayload(values = {}) {
-      return `<?xml version="1.0" encoding="UTF-8"?>
-<FTP version="2.0" xmlns="http://www.hikvision.com/ver20/XMLSchema">
-  <enabled>${values.enabled ? "true" : "false"}</enabled>
-  <host>${values.host || ""}</host>
-  <port>${values.port || "21"}</port>
-  <userName>${values.userName || ""}</userName>
-  <password>${values.password || ""}</password>
-  <directory>${values.directory || ""}</directory>
-  <uploadInterval>${values.uploadInterval || "10"}</uploadInterval>
-</FTP>`;
-    }
-  },
-  stream101: {
-    readOnly: false,
-    method: "GET",
-    contentType: "application/xml; charset=utf-8",
-    path: "/ISAPI/Streaming/channels/101",
-    fields: [
-      { key: "enabled", label: "启用", type: "checkbox" },
-      { key: "videoCodecType", label: "视频编码", type: "select", options: ["H.264", "H.265", "MPEG4"] },
-      { key: "videoResolutionWidth", label: "视频宽度", type: "number", min: 1, step: 1 },
-      { key: "videoResolutionHeight", label: "视频高度", type: "number", min: 1, step: 1 },
-      { key: "videoQualityControlType", label: "码率控制", type: "select", options: ["VBR", "CBR"] },
-      { key: "constantBitRate", label: "固定码率(kbps)", type: "number", min: 1, step: 1 },
-      { key: "videoFrameRate", label: "帧率", type: "number", min: 1, max: 60, step: 1 },
-      { key: "videoGovLength", label: "GOP长度", type: "number", min: 1, step: 1 }
-    ],
-    mapLoadResult(xmlText = "") {
-      const extract = (tag) => {
-        const match = xmlText.match(new RegExp(`<${tag}>([\\s\\S]*?)</${tag}>`, "i"));
-        return match ? match[1].trim() : "";
-      };
-      return {
-        enabled: extract("enabled") === "true",
-        videoCodecType: extract("videoCodecType"),
-        videoResolutionWidth: extract("videoResolutionWidth"),
-        videoResolutionHeight: extract("videoResolutionHeight"),
-        videoQualityControlType: extract("videoQualityControlType"),
-        constantBitRate: extract("constantBitRate"),
-        videoFrameRate: extract("videoFrameRate"),
-        videoGovLength: extract("videoGovLength")
-      };
-    },
-    buildSavePayload(values = {}) {
-      return `<?xml version="1.0" encoding="UTF-8"?>
-<StreamingChannel version="2.0" xmlns="http://www.hikvision.com/ver20/XMLSchema">
-  <enabled>${values.enabled ? "true" : "false"}</enabled>
-  <Video>
-    <videoCodecType>${values.videoCodecType || "H.264"}</videoCodecType>
-    <videoResolutionWidth>${values.videoResolutionWidth || "1920"}</videoResolutionWidth>
-    <videoResolutionHeight>${values.videoResolutionHeight || "1080"}</videoResolutionHeight>
-    <videoQualityControlType>${values.videoQualityControlType || "VBR"}</videoQualityControlType>
-    <constantBitRate>${values.constantBitRate || "4096"}</constantBitRate>
-    <videoFrameRate>${values.videoFrameRate || "25"}</videoFrameRate>
-    <videoGovLength>${values.videoGovLength || "50"}</videoGovLength>
-  </Video>
-</StreamingChannel>`;
-    }
-  },
-  imaging: {
-    readOnly: false,
-    method: "GET",
-    contentType: "application/xml; charset=utf-8",
-    path: "/ISAPI/Image/channels/1/imaging",
-    fields: [
-      { key: "brightness", label: "亮度", type: "number", min: 0, max: 100, step: 1 },
-      { key: "contrast", label: "对比度", type: "number", min: 0, max: 100, step: 1 },
-      { key: "saturation", label: "饱和度", type: "number", min: 0, max: 100, step: 1 },
-      { key: "sharpness", label: "锐度", type: "number", min: 0, max: 100, step: 1 },
-      { key: "hue", label: "色调", type: "number", min: 0, max: 100, step: 1 },
-      { key: "exposureMode", label: "曝光模式", type: "select", options: ["auto", "manual"] },
-      { key: "exposureTime", label: "曝光时间", type: "number", min: 1, step: 1 },
-      { key: "gain", label: "增益", type: "number", min: 0, step: 0.1 }
-    ],
-    mapLoadResult(xmlText = "") {
-      const extract = (tag) => {
-        const match = xmlText.match(new RegExp(`<${tag}>([\\s\\S]*?)</${tag}>`, "i"));
-        return match ? match[1].trim() : "";
-      };
-      return {
-        brightness: extract("brightness"),
-        contrast: extract("contrast"),
-        saturation: extract("saturation"),
-        sharpness: extract("sharpness"),
-        hue: extract("hue"),
-        exposureMode: extract("exposureMode"),
-        exposureTime: extract("exposureTime"),
-        gain: extract("gain")
-      };
-    },
-    buildSavePayload(values = {}) {
-      return `<?xml version="1.0" encoding="UTF-8"?>
-<Image version="2.0" xmlns="http://www.hikvision.com/ver20/XMLSchema">
-  <brightness>${values.brightness || "50"}</brightness>
-  <contrast>${values.contrast || "50"}</contrast>
-  <saturation>${values.saturation || "50"}</saturation>
-  <sharpness>${values.sharpness || "50"}</sharpness>
-  <hue>${values.hue || "50"}</hue>
-  <exposureMode>${values.exposureMode || "auto"}</exposureMode>
-  <exposureTime>${values.exposureTime || "100"}</exposureTime>
-  <gain>${values.gain || "1.0"}</gain>
-</Image>`;
     }
   }
 };
@@ -6001,11 +5656,6 @@ function renderDevicePreviewOnvifControls(presetKey = "") {
   }
   html.push("</div>");
   host.innerHTML = html.join("");
-  const saveDisabled = Boolean(schema.readOnly || !schema.saveOperation);
-  if (els.devicePreviewIsapiSaveBtn) {
-    els.devicePreviewIsapiSaveBtn.disabled = saveDisabled;
-    els.devicePreviewIsapiSaveBtn.textContent = saveDisabled ? "不可保存" : "保存参数";
-  }
   if (els.devicePreviewIsapiLoadBtn) {
     els.devicePreviewIsapiLoadBtn.textContent = "读取参数";
   }
@@ -6045,11 +5695,6 @@ function renderDevicePreviewIsapiControls(schemaKey = "") {
   }
   html.push("</div>");
   host.innerHTML = html.join("");
-  const saveDisabled = Boolean(schema.readOnly);
-  if (els.devicePreviewIsapiSaveBtn) {
-    els.devicePreviewIsapiSaveBtn.disabled = saveDisabled;
-    els.devicePreviewIsapiSaveBtn.textContent = saveDisabled ? "不可保存" : "保存参数";
-  }
   if (els.devicePreviewIsapiLoadBtn) {
     els.devicePreviewIsapiLoadBtn.textContent = "读取参数";
   }
@@ -6102,8 +5747,7 @@ function setDevicePreviewIsapiInputsDisabled(disabled) {
     els.devicePreviewIsapiContentType,
     els.devicePreviewIsapiPath,
     els.devicePreviewIsapiBody,
-    els.devicePreviewIsapiLoadBtn,
-    els.devicePreviewIsapiSaveBtn
+    els.devicePreviewIsapiLoadBtn
   ];
   for (const el of targets) {
     if (el) el.disabled = Boolean(disabled);
@@ -6145,10 +5789,6 @@ function applyDevicePreviewIsapiPreset(presetKey, keepBody = false) {
   } else {
     // 传统文本模式
     setDevicePreviewOnvifModeActive(false);
-    if (els.devicePreviewIsapiSaveBtn) {
-      els.devicePreviewIsapiSaveBtn.disabled = false;
-      els.devicePreviewIsapiSaveBtn.textContent = "保存参数";
-    }
     if (els.devicePreviewIsapiLoadBtn) {
       els.devicePreviewIsapiLoadBtn.textContent = "读取参数";
     }
@@ -6264,24 +5904,49 @@ async function runDevicePreviewIsapiRequest(methodOverride = "") {
         password: String(device.password || "")
       };
       
-      const response = await fetchJson("/api/isapi/request", {
-        connection,
-        pathname,
-        method,
-        contentType,
-        body: ""
-      });
+      let response;
       
-      // 解析响应并填充控件
-      const values = schema.mapLoadResult(response?.rawText || "");
-      fillDevicePreviewIsapiControls(values);
+      // 特殊处理FTP配置，使用专门的API端点
+      if (presetKey === "ftp") {
+        response = await fetchJson("/api/device/ftp-config", { 
+          connection
+        });
+        
+        // 从响应中提取rawText
+        const rawText = response?.ftpConfig || response?.rawText || "";
+        
+        // 解析响应并填充控件
+        const values = schema.mapLoadResult(rawText);
+        fillDevicePreviewIsapiControls(values);
+        
+        if (els.devicePreviewIsapiResponse) {
+          els.devicePreviewIsapiResponse.value = String(rawText || "");
+        }
+        if (els.devicePreviewIsapiHint) {
+          els.devicePreviewIsapiHint.textContent = `读取成功：${pathname}`;
+        }
+      } else {
+        // 其他配置使用通用ISAPI请求
+        response = await fetchJson("/api/isapi/request", {
+          connection,
+          pathname,
+          method,
+          contentType,
+          body: ""
+        });
+        
+        // 解析响应并填充控件
+        const values = schema.mapLoadResult(response?.rawText || "");
+        fillDevicePreviewIsapiControls(values);
+        
+        if (els.devicePreviewIsapiResponse) {
+          els.devicePreviewIsapiResponse.value = String(response?.rawText || "");
+        }
+        if (els.devicePreviewIsapiHint) {
+          els.devicePreviewIsapiHint.textContent = `读取成功：${pathname}`;
+        }
+      }
       
-      if (els.devicePreviewIsapiResponse) {
-        els.devicePreviewIsapiResponse.value = String(response?.rawText || "");
-      }
-      if (els.devicePreviewIsapiHint) {
-        els.devicePreviewIsapiHint.textContent = `读取成功：${pathname}`;
-      }
       return response;
     }
   }
@@ -6624,20 +6289,7 @@ if (els.devicePreviewIsapiLoadBtn) {
   });
 }
 
-if (els.devicePreviewIsapiSaveBtn) {
-  els.devicePreviewIsapiSaveBtn.addEventListener("click", async () => {
-    try {
-      await runDevicePreviewIsapiRequest("PUT");
-    } catch (e) {
-      if (els.devicePreviewIsapiHint) {
-        els.devicePreviewIsapiHint.textContent = `保存失败：${e?.message || e}`;
-      }
-      if (els.devicePreviewIsapiResponse) {
-        els.devicePreviewIsapiResponse.value = String(e?.message || e || "");
-      }
-    }
-  });
-}
+
 
 if (els.devicePreviewModalStopBtn) {
   els.devicePreviewModalStopBtn.addEventListener("click", () => {
