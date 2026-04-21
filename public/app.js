@@ -1134,8 +1134,8 @@ function removeEmptyHint(plateListEl) {
 }
 
 function ensureEmptyHint(plateListEl) {
-  const hasCard = plateListEl.querySelector(".plate-card:not(.hidden)");
-  if (hasCard) return;
+  const hasAnyCard = plateListEl.querySelector(".plate-card");
+  if (hasAnyCard) return;
   const emptyHint = plateListEl.querySelector(".empty-hint");
   if (emptyHint) return;
   const el = document.createElement("div");
