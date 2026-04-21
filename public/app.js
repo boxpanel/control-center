@@ -5728,10 +5728,19 @@ async function runDevicePreviewOnvifPresetAction(action = "load") {
       const config = ipv4?.config || ipv4?.manual || {};
       const manual = Array.isArray(config?.manual) ? config.manual[0] || {} : config?.manual || config || {};
       
-      deviceInfo.ipAddress = manual?.address || manual?.ipv4Address || "";
+      // 优先使用从网络接口获取的IP地址，如果没有则使用设备本身的IP地址
+      const networkIp = manual?.address || manual?.ipv4Address || "";
+      const host = String(device.host || "").trim();
+      const deviceIp = host.match(/^([^:]+)/)?.[1] || host;
+      
+      deviceInfo.ipAddress = networkIp || deviceIp;
       deviceInfo.macAddress = firstInterface?.info?.hwAddress || firstInterface?.hwAddress || firstInterface?.mac || "";
     } catch (e) {
-      deviceInfo.ipAddress = "";
+      // 如果获取网络接口失败，使用设备本身的IP地址作为备用
+      const host = String(device.host || "").trim();
+      // 从host中提取IP地址（可能包含端口号）
+      const ipMatch = host.match(/^([^:]+)/);
+      deviceInfo.ipAddress = ipMatch ? ipMatch[1] : host;
       deviceInfo.macAddress = "";
     }
     
