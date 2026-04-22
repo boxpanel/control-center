@@ -123,6 +123,40 @@ class HikvisionSdkBridgeEnhanced {
     }
     
     /**
+     * 获取JNA jar包路径
+     */
+    getJnaJarPath() {
+        const possiblePaths = [
+            join(__dirname, 'jna.jar'),
+            '/usr/share/java/jna.jar',
+            '/usr/share/java/jna-5.13.0.jar',
+            '/usr/local/share/java/jna.jar'
+        ];
+        for (const p of possiblePaths) {
+            if (existsSync(p)) {
+                return p;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * 构建Java classpath
+     */
+    buildClasspath() {
+        const pathSeparator = this.platform === 'win32' ? ';' : ':';
+        let classpath = `"${__dirname}"`;
+        if (this.linuxSdkAvailable) {
+            classpath += `${pathSeparator}"${this.linuxLibsDir}/*"`;
+        }
+        const jnaJarPath = this.getJnaJarPath();
+        if (jnaJarPath) {
+            classpath += `${pathSeparator}"${jnaJarPath}"`;
+        }
+        return classpath;
+    }
+
+    /**
      * 检查Java环境
      */
     async checkJavaEnvironment() {
@@ -137,12 +171,12 @@ class HikvisionSdkBridgeEnhanced {
             console.log('[SDK Bridge] Java已安装');
             
             // 检查JNA库
-            const jnaJarPath = join(__dirname, 'jna.jar');
-            if (existsSync(jnaJarPath)) {
+            const jnaJarPath = this.getJnaJarPath();
+            if (jnaJarPath) {
                 try {
                     const jnaCheck = await this.execCommand(`java -cp "${jnaJarPath}" com.sun.jna.Native`);
                     if (jnaCheck.success || jnaCheck.stdout.includes('JNA native library')) {
-                        console.log('[SDK Bridge] JNA库可用');
+                        console.log('[SDK Bridge] JNA库可用:', jnaJarPath);
                         this.javaAvailable = true;
                         return true;
                     }
@@ -186,8 +220,8 @@ class HikvisionSdkBridgeEnhanced {
                 classpath += `:"${this.linuxLibsDir}/*"`;
             }
             // 添加JNA库
-            const jnaJarPath = join(__dirname, 'jna.jar');
-            if (existsSync(jnaJarPath)) {
+            const jnaJarPath = this.getJnaJarPath();
+            if (jnaJarPath) {
                 classpath += `:"${jnaJarPath}"`;
             }
             
@@ -352,13 +386,7 @@ class HikvisionSdkBridgeEnhanced {
         try {
             const { ip, port = 8000, username = 'admin', password = 'admin123' } = deviceInfo;
             
-            // 构建Java命令
-            // 在Windows上使用分号作为classpath分隔符，Linux上使用冒号
-            const pathSeparator = this.platform === 'win32' ? ';' : ':';
-            let classpath = `"${__dirname}"`;
-            if (this.linuxSdkAvailable) {
-                classpath += `${pathSeparator}"${this.linuxLibsDir}/*"`;
-            }
+            const classpath = this.buildClasspath();
             
             const result = await this.execCommand(
                 `java -cp ${classpath} HikvisionSdkTool getTriggerConfig "${ip}" ${port} "${username}" "${password}"`
@@ -424,13 +452,7 @@ class HikvisionSdkBridgeEnhanced {
         try {
             const { ip, port = 8000, username = 'admin', password = 'admin123' } = deviceInfo;
             
-            // 构建Java命令
-            // 在Windows上使用分号作为classpath分隔符，Linux上使用冒号
-            const pathSeparator = this.platform === 'win32' ? ';' : ':';
-            let classpath = `"${__dirname}"`;
-            if (this.linuxSdkAvailable) {
-                classpath += `${pathSeparator}"${this.linuxLibsDir}/*"`;
-            }
+            const classpath = this.buildClasspath();
             
             const result = await this.execCommand(
                 `java -cp ${classpath} HikvisionSdkTool getEnhancedTriggerConfig "${ip}" ${port} "${username}" "${password}"`
@@ -502,13 +524,7 @@ class HikvisionSdkBridgeEnhanced {
                 await this.compileJavaTools();
             }
             
-            // 构建Java命令
-            // 在Windows上使用分号作为classpath分隔符，Linux上使用冒号
-            const pathSeparator = this.platform === 'win32' ? ';' : ':';
-            let classpath = `"${__dirname}"`;
-            if (this.linuxSdkAvailable) {
-                classpath += `${pathSeparator}"${this.linuxLibsDir}/*"`;
-            }
+            const classpath = this.buildClasspath();
             
             const result = await this.execCommand(
                 `java -cp ${classpath} HikvisionSdkTool getFtpConfig "${ip}" ${port} "${username}" "${password}"`
@@ -582,13 +598,7 @@ class HikvisionSdkBridgeEnhanced {
                 await this.compileJavaTools();
             }
             
-            // 构建Java命令
-            // 在Windows上使用分号作为classpath分隔符，Linux上使用冒号
-            const pathSeparator = this.platform === 'win32' ? ';' : ':';
-            let classpath = `"${__dirname}"`;
-            if (this.linuxSdkAvailable) {
-                classpath += `${pathSeparator}"${this.linuxLibsDir}/*"`;
-            }
+            const classpath = this.buildClasspath();
             
             const result = await this.execCommand(
                 `java -cp ${classpath} HikvisionSdkTool getPictureNamingRule "${ip}" ${port} "${username}" "${password}"`
