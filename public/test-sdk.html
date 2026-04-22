@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SDK功能测试</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 30px;
+            border-bottom: 2px solid #4f46e5;
+            padding-bottom: 10px;
+        }
+        .test-section {
+            margin-bottom: 40px;
+            padding: 20px;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            background: #f9fafb;
+        }
+        .test-section h2 {
+            color: #4f46e5;
+            margin-top: 0;
+        }
+        .device-info {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        .field {
+            margin-bottom: 15px;
+        }
+        .field label {
+            display: block;
+            margin-bottom: 5px;
+            color: #6b7280;
+            font-weight: 500;
+        }
+        .field input, .field select {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            font-size: 14px;
+        }
+        .buttons {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+        }
+        button {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .primary-btn {
+            background: #4f46e5;
+            color: white;
+        }
+        .primary-btn:hover {
+            background: #4338ca;
+        }
+        .secondary-btn {
+            background: #6b7280;
+            color: white;
+        }
+        .secondary-btn:hover {
+            background: #4b5563;
+        }
+        .results {
+            margin-top: 30px;
+            padding: 20px;
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .results h3 {
+            margin-top: 0;
+            color: #334155;
+        }
+        .result-item {
+            margin-bottom: 15px;
+            padding: 10px;
+            background: white;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+        }
+        .result-item h4 {
+            margin: 0 0 10px 0;
+            color: #4f46e5;
+        }
+        .result-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 10px;
+        }
+        .result-field {
+            padding: 8px;
+            background: #f8fafc;
+            border-radius: 4px;
+        }
+        .result-field label {
+            display: block;
+            font-size: 12px;
+            color: #64748b;
+            margin-bottom: 2px;
+        }
+        .result-field span {
+            font-size: 14px;
+            color: #334155;
+            font-weight: 500;
+        }
+        .status {
+            padding: 10px;
+            border-radius: 6px;
+            margin-bottom: 15px;
+            font-weight: 500;
+        }
+        .status.success {
+            background: #dcfce7;
+            color: #166534;
+            border: 1px solid #bbf7d0;
+        }
+        .status.error {
+            background: #fee2e2;
+            color: #991b1b;
+            border: 1px solid #fecaca;
+        }
+        .status.info {
+            background: #dbeafe;
+            color: #1e40af;
+            border: 1px solid #bfdbfe;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>海康SDK功能测试</h1>
+        
+        <div class="test-section">
+            <h2>设备连接信息</h2>
+            <div class="device-info">
+                <div class="field">
+                    <label for="deviceIp">设备IP地址</label>
+                    <input type="text" id="deviceIp" value="192.168.1.100" placeholder="例如：192.168.1.100">
+                </div>
+                <div class="field">
+                    <label for="devicePort">设备端口</label>
+                    <input type="number" id="devicePort" value="80" placeholder="例如：80">
+                </div>
+                <div class="field">
+                    <label for="deviceUsername">用户名</label>
+                    <input type="text" id="deviceUsername" value="admin" placeholder="例如：admin">
+                </div>
+                <div class="field">
+                    <label for="devicePassword">密码</label>
+                    <input type="password" id="devicePassword" value="admin123" placeholder="例如：admin123">
+                </div>
+            </div>
+            
+            <div class="buttons">
+                <button class="primary-btn" onclick="testFtpConfig()">测试FTP配置获取</button>
+                <button class="primary-btn" onclick="testNamingRules()">测试命名规则获取</button>
+                <button class="secondary-btn" onclick="testBoth()">测试全部功能</button>
+            </div>
+        </div>
+        
+        <div id="status" class="status info">
+            准备测试，请点击上面的按钮开始测试。
+        </div>
+        
+        <div class="results">
+            <h3>测试结果</h3>
+            <div id="ftpResults" style="display: none;">
+                <div class="result-item">
+                    <h4>FTP配置信息</h4>
+                    <div class="result-grid" id="ftpResultGrid"></div>
+                </div>
+            </div>
+            
+            <div id="namingResults" style="display: none;">
+                <div class="result-item">
+                    <h4>命名规则信息</h4>
+                    <div class="result-grid" id="namingResultGrid"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function updateStatus(message, type = 'info') {
+            const statusEl = document.getElementById('status');
+            statusEl.textContent = message;
+            statusEl.className = `status ${type}`;
+        }
+
+        function getDeviceInfo() {
+            return {
+                ip: document.getElementById('deviceIp').value.trim(),
+                port: parseInt(document.getElementById('devicePort').value) || 80,
+                username: document.getElementById('deviceUsername').value.trim(),
+                password: document.getElementById('devicePassword').value.trim()
+            };
+        }
+
+        async function testFtpConfig() {
+            const device = getDeviceInfo();
+            updateStatus('正在获取FTP配置...', 'info');
+            
+            try {
+                const response = await fetch('/api/sdk/ftp-config', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(device)
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    updateStatus(`FTP配置获取成功: ${data.message}`, 'success');
+                    displayFtpResults(data);
+                } else {
+                    updateStatus(`FTP配置获取失败: ${data.error || data.message}`, 'error');
+                }
+            } catch (error) {
+                updateStatus(`请求失败: ${error.message}`, 'error');
+            }
+        }
+
+        async function testNamingRules() {
+            const device = getDeviceInfo();
+            updateStatus('正在获取命名规则...', 'info');
+            
+            try {
+                const response = await fetch('/api/sdk/naming-rules', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(device)
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    updateStatus(`命名规则获取成功: ${data.message}`, 'success');
+                    displayNamingResults(data);
+                } else {
+                    updateStatus(`命名规则获取失败: ${data.error || data.message}`, 'error');
+                }
+            } catch (error) {
+                updateStatus(`请求失败: ${error.message}`, 'error');
+            }
+        }
+
+        async function testBoth() {
+            await testFtpConfig();
+            await testNamingRules();
+        }
+
+        function displayFtpResults(data) {
+            const ftpResults = document.getElementById('ftpResults');
+            const ftpGrid = document.getElementById('ftpResultGrid');
+            
+            ftpResults.style.display = 'block';
+            ftpGrid.innerHTML = '';
+            
+            const fields = [
+                { key: 'ftpEnabled', label: 'FTP启用状态', value: data.ftpEnabled ? '已启用' : '已禁用' },
+                { key: 'ftpServer', label: 'FTP服务器', value: data.ftpServer || '未设置' },
+                { key: 'ftpPort', label: 'FTP端口', value: data.ftpPort || '未设置' },
+                { key: 'ftpUsername', label: 'FTP用户名', value: data.ftpUsername || '未设置' },
+                { key: 'ftpPassword', label: 'FTP密码', value: data.ftpPassword || '未设置' },
+                { key: 'ftpDirectory', label: 'FTP目录', value: data.ftpDirectory || '未设置' },
+                { key: 'ftpUploadMode', label: '上传模式', value: data.ftpUploadMode || '未设置' },
+                { key: 'ftpUploadInterval', label: '上传间隔(秒)', value: data.ftpUploadInterval || '未设置' },
+                { key: 'ftpImageQuality', label: '图片质量', value: data.ftpImageQuality || '未设置' },
+                { key: 'ftpImageResolution', label: '图片分辨率', value: data.ftpImageResolution || '未设置' },
+                { key: 'sdkAvailable', label: 'SDK可用性', value: data.sdkAvailable ? '可用' : '不可用' },
+                { key: 'mock', label: '数据来源', value: data.mock ? '模拟数据' : '真实数据' }
+            ];
+            
+            fields.forEach(field => {
+                const fieldEl = document.createElement('div');
+                fieldEl.className = 'result-field';
+                fieldEl.innerHTML = `
+                    <label>${field.label}</label>
+                    <span>${field.value}</span>
+                `;
+                ftpGrid.appendChild(fieldEl);
+            });
+        }
+
+        function displayNamingResults(data) {
+            const namingResults = document.getElementById('namingResults');
+            const namingGrid = document.getElementById('namingResultGrid');
+            
+            namingResults.style.display = 'block';
+            namingGrid.innerHTML = '';
+            
+            const fields = [
+                { key: 'namingRule', label: '命名规则', value: data.namingRule || '未设置' },
+                { key: 'timeFormat', label: '时间格式', value: data.timeFormat || '未设置' },
+                { key: 'includeCameraName', label: '包含摄像头名称', value: data.includeCameraName ? '是' : '否' },
+                { key: 'includePlateNumber', label: '包含车牌号码', value: data.includePlateNumber ? '是' : '否' },
+                { key: 'includeTimestamp', label: '包含时间戳', value: data.includeTimestamp ? '是' : '否' },
+                { key: 'fileExtension', label: '文件扩展名', value: data.fileExtension || '未设置' },
+                { key: 'maxFileNameLength', label: '最大文件名长度', value: data.maxFileNameLength || '未设置' },
+                { key: 'prefix', label: '前缀', value: data.prefix || '未设置' },
+                { key: 'suffix', label: '后缀', value: data.suffix || '未设置' },
+                { key: 'example', label: '示例', value: data.example || '未设置' },
+                { key: 'sdkAvailable', label: 'SDK可用性', value: data.sdkAvailable ? '可用' : '不可用' },
+                { key: 'mock', label: '数据来源', value: data.mock ? '模拟数据' : '真实数据' }
+            ];
+            
+            fields.forEach(field => {
+                const fieldEl = document.createElement('div');
+                fieldEl.className = 'result-field';
+                fieldEl.innerHTML = `
+                    <label>${field.label}</label>
+                    <span>${field.value}</span>
+                `;
+                namingGrid.appendChild(fieldEl);
+            });
+        }
+    </script>
+</body>
+</html>

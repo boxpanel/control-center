@@ -301,7 +301,9 @@ const devicePreviewModalState = {
   activeProtocol: ""
 };
 const DEVICE_PREVIEW_ISAPI_PRESETS = {
-  deviceInfo: { label: "设备信息", schema: "deviceInfo" }
+  deviceInfo: { label: "设备信息", schema: "deviceInfo" },
+  ftpConfig: { label: "FTP配置", schema: "ftpConfig" },
+  namingRules: { label: "命名规则", schema: "namingRules" }
 };
 const DEVICE_PREVIEW_ONVIF_PRESETS = {
   deviceInfo: { label: "设备信息", method: "GET", contentType: "application/json; charset=utf-8", path: "getDeviceInformation", body: "" }
@@ -375,6 +377,94 @@ const DEVICE_PREVIEW_ISAPI_SCHEMAS = {
         firmwareVersion: extract("firmwareVersion"),
         ipAddress: ipAddress,
         macAddress: extract("macAddress") || extract("MAC") || ""
+      };
+    }
+  },
+  
+  // FTP配置schema
+  ftpConfig: {
+    readOnly: true,
+    method: "SDK", // 使用SDK而不是HTTP
+    fields: [
+      { key: "ftpEnabled", label: "FTP启用状态", type: "text", readOnly: true },
+      { key: "ftpServer", label: "FTP服务器地址", type: "text", readOnly: true },
+      { key: "ftpPort", label: "FTP端口", type: "text", readOnly: true },
+      { key: "ftpUsername", label: "FTP用户名", type: "text", readOnly: true },
+      { key: "ftpPassword", label: "FTP密码", type: "text", readOnly: true },
+      { key: "ftpDirectory", label: "FTP目录", type: "text", readOnly: true },
+      { key: "ftpUploadMode", label: "上传模式", type: "text", readOnly: true },
+      { key: "ftpUploadInterval", label: "上传间隔(秒)", type: "text", readOnly: true },
+      { key: "ftpImageQuality", label: "图片质量", type: "text", readOnly: true },
+      { key: "ftpImageResolution", label: "图片分辨率", type: "text", readOnly: true }
+    ],
+    mapLoadResult(data = {}, device = null) {
+      // 适配SDK返回的数据格式
+      const enabled = data.enabled !== undefined ? data.enabled : data.ftpEnabled;
+      const server = data.server || data.ftpServer || "";
+      const port = data.port || data.ftpPort || 21;
+      const username = data.username || data.ftpUsername || "";
+      const password = data.password || data.ftpPassword || "";
+      const directory = data.directory || data.ftpDirectory || "";
+      const uploadMode = data.uploadMode || data.ftpUploadMode || "主动模式";
+      const uploadInterval = data.uploadInterval || data.ftpUploadInterval || 5;
+      const imageQuality = data.imageQuality || data.ftpImageQuality || "高";
+      const imageResolution = data.imageResolution || data.ftpImageResolution || "1920x1080";
+      
+      return {
+        ftpEnabled: enabled ? "已启用" : "已禁用",
+        ftpServer: server,
+        ftpPort: port,
+        ftpUsername: username,
+        ftpPassword: password ? "******" : "",
+        ftpDirectory: directory,
+        ftpUploadMode: uploadMode,
+        ftpUploadInterval: uploadInterval,
+        ftpImageQuality: imageQuality,
+        ftpImageResolution: imageResolution
+      };
+    }
+  },
+  
+  // 命名规则schema
+  namingRules: {
+    readOnly: true,
+    method: "SDK", // 使用SDK而不是HTTP
+    fields: [
+      { key: "namingRule", label: "命名规则", type: "text", readOnly: true },
+      { key: "timeFormat", label: "时间格式", type: "text", readOnly: true },
+      { key: "includeCameraName", label: "包含摄像头名称", type: "text", readOnly: true },
+      { key: "includePlateNumber", label: "包含车牌号码", type: "text", readOnly: true },
+      { key: "includeTimestamp", label: "包含时间戳", type: "text", readOnly: true },
+      { key: "fileExtension", label: "文件扩展名", type: "text", readOnly: true },
+      { key: "maxFileNameLength", label: "最大文件名长度", type: "text", readOnly: true },
+      { key: "prefix", label: "前缀", type: "text", readOnly: true },
+      { key: "suffix", label: "后缀", type: "text", readOnly: true },
+      { key: "example", label: "示例", type: "text", readOnly: true }
+    ],
+    mapLoadResult(data = {}, device = null) {
+      // 适配SDK返回的数据格式
+      const namingRule = data.namingRule || data.rule || "[摄像头名称]_[车牌号码]_[时间戳].jpg";
+      const timeFormat = data.timeFormat || data.dateTimeFormat || "YYYYMMDD_HHmmss";
+      const includeCameraName = data.includeCameraName !== undefined ? data.includeCameraName : true;
+      const includePlateNumber = data.includePlateNumber !== undefined ? data.includePlateNumber : true;
+      const includeTimestamp = data.includeTimestamp !== undefined ? data.includeTimestamp : true;
+      const fileExtension = data.fileExtension || data.extension || ".jpg";
+      const maxFileNameLength = data.maxFileNameLength || data.maxLength || 255;
+      const prefix = data.prefix || "";
+      const suffix = data.suffix || "";
+      const example = data.example || `${prefix}${namingRule}${suffix}`;
+      
+      return {
+        namingRule: namingRule,
+        timeFormat: timeFormat,
+        includeCameraName: includeCameraName ? "是" : "否",
+        includePlateNumber: includePlateNumber ? "是" : "否",
+        includeTimestamp: includeTimestamp ? "是" : "否",
+        fileExtension: fileExtension,
+        maxFileNameLength: maxFileNameLength,
+        prefix: prefix,
+        suffix: suffix,
+        example: example
       };
     }
   }
@@ -5803,6 +5893,14 @@ function applyDevicePreviewIsapiPreset(presetKey, keepBody = false) {
     setDevicePreviewOnvifModeActive(true);
     renderDevicePreviewIsapiControls(preset.schema);
     if (els.devicePreviewIsapiResponse) els.devicePreviewIsapiResponse.value = "";
+    
+    // 如果是SDK方法，显示SDK提示
+    const schema = DEVICE_PREVIEW_ISAPI_SCHEMAS[preset.schema];
+    if (schema && schema.method === "SDK") {
+      if (els.devicePreviewIsapiHint) {
+        els.devicePreviewIsapiHint.textContent = `已选择：${preset.label} (通过SDK获取)`;
+      }
+    }
   } else {
     // 传统文本模式
     setDevicePreviewOnvifModeActive(false);
@@ -5817,7 +5915,28 @@ function applyDevicePreviewIsapiPreset(presetKey, keepBody = false) {
 
 async function autoLoadDevicePreviewPreset(presetKey) {
   try {
-    await runDevicePreviewIsapiRequest("GET");
+    const device = devicePreviewModalState.currentDevice;
+    const protocol = getDevicePreviewProtocol(device);
+    
+    if (protocol === "hikvision-isapi") {
+      // 获取预设信息
+      const preset = DEVICE_PREVIEW_ISAPI_PRESETS[presetKey] || DEVICE_PREVIEW_ISAPI_PRESETS.deviceInfo;
+      const schema = DEVICE_PREVIEW_ISAPI_SCHEMAS[preset.schema] || DEVICE_PREVIEW_ISAPI_SCHEMAS.deviceInfo;
+      
+      // 渲染控件
+      renderDevicePreviewIsapiControls(preset.schema);
+      
+      // 检查是否为SDK方法
+      if (schema.method === "SDK") {
+        // 使用SDK获取数据
+        await runDevicePreviewSdkRequest(preset.schema, device);
+      } else {
+        // 使用HTTP ISAPI获取数据
+        await runDevicePreviewIsapiRequest("GET");
+      }
+    } else {
+      await runDevicePreviewIsapiRequest("GET");
+    }
   } catch (error) {
     if (els.devicePreviewIsapiHint) {
       els.devicePreviewIsapiHint.textContent = `自动读取失败：${error.message || error}`;
@@ -5837,17 +5956,31 @@ function resetDevicePreviewIsapiPanel(device) {
   setDevicePreviewIsapiPanelVisible(true);
   setDevicePreviewIsapiInputsDisabled(!supported);
   applyDevicePreviewIsapiPreset("deviceInfo");
+  
+  // 检查是否为SDK预设
+  const presetKey = String(els.devicePreviewIsapiPreset?.value || "deviceInfo").trim() || "deviceInfo";
+  const preset = DEVICE_PREVIEW_ISAPI_PRESETS[presetKey] || DEVICE_PREVIEW_ISAPI_PRESETS.deviceInfo;
+  const schema = DEVICE_PREVIEW_ISAPI_SCHEMAS[preset.schema] || DEVICE_PREVIEW_ISAPI_SCHEMAS.deviceInfo;
+  const isSdkMethod = schema && schema.method === "SDK";
+  
   if (els.devicePreviewIsapiHint) {
-    els.devicePreviewIsapiHint.textContent = supported
-      ? `已连接：${device?.host || ""}:${device?.port || 80} | ${getDeviceProtocolLabel(protocol)}`
-      : "当前协议暂不支持参数读取与保存";
+    if (isSdkMethod) {
+      els.devicePreviewIsapiHint.textContent = `已连接：${device?.host || ""}:${device?.port || 80} | ${getDeviceProtocolLabel(protocol)} (通过SDK获取)`;
+    } else {
+      els.devicePreviewIsapiHint.textContent = supported
+        ? `已连接：${device?.host || ""}:${device?.port || 80} | ${getDeviceProtocolLabel(protocol)}`
+        : "当前协议暂不支持参数读取与保存";
+    }
   }
+  
   if (els.devicePreviewIsapiResponse) {
     els.devicePreviewIsapiResponse.value = supported ? "" : "当前设备协议不支持参数配置。";
   }
+  
   if (isOnvif && els.devicePreviewIsapiHint) {
     els.devicePreviewIsapiHint.textContent = `已连接：${device?.host || ""}:${device?.port || 80} | ONVIF 参数面板`;
   }
+  
   if (!isOnvif) {
     setDevicePreviewOnvifModeActive(false);
   }
@@ -5883,33 +6016,43 @@ async function runDevicePreviewIsapiRequest(methodOverride = "") {
   } else if (protocol === "hikvision-isapi") {
     // ISAPI设备 - 直接显示设备信息
     try {
+      // 获取当前选中的预设
+      const presetKey = String(els.devicePreviewIsapiPreset?.value || "deviceInfo").trim() || "deviceInfo";
+      const preset = DEVICE_PREVIEW_ISAPI_PRESETS[presetKey] || DEVICE_PREVIEW_ISAPI_PRESETS.deviceInfo;
+      const schema = DEVICE_PREVIEW_ISAPI_SCHEMAS[preset.schema] || DEVICE_PREVIEW_ISAPI_SCHEMAS.deviceInfo;
+      
       // 渲染ISAPI控件
-      renderDevicePreviewIsapiControls("deviceInfo");
+      renderDevicePreviewIsapiControls(preset.schema);
       
-      const schema = DEVICE_PREVIEW_ISAPI_SCHEMAS.deviceInfo;
-      const connection = {
-        host: String(device.host || "").trim(),
-        port: Number(device.port || 80) || 80,
-        username: String(device.username || "").trim(),
-        password: String(device.password || "")
-      };
-      
-      const response = await fetchJson("/api/isapi/request", {
-        connection,
-        pathname: schema.path,
-        method: schema.method,
-        contentType: schema.contentType,
-        body: ""
-      });
-      
-      // 解析响应并填充控件
-      const values = schema.mapLoadResult(response?.rawText || "", device);
-      fillDevicePreviewIsapiControls(values);
+      // 检查是否为SDK方法
+      if (schema.method === "SDK") {
+        // 使用SDK获取数据
+        await runDevicePreviewSdkRequest(preset.schema, device);
+      } else {
+        // 使用HTTP ISAPI获取数据
+        const connection = {
+          host: String(device.host || "").trim(),
+          port: Number(device.port || 80) || 80,
+          username: String(device.username || "").trim(),
+          password: String(device.password || "")
+        };
+        
+        const response = await fetchJson("/api/isapi/request", {
+          connection,
+          pathname: schema.path,
+          method: schema.method,
+          contentType: schema.contentType,
+          body: ""
+        });
+        
+        // 解析响应并填充控件
+        const values = schema.mapLoadResult(response?.rawText || "", device);
+        fillDevicePreviewIsapiControls(values);
+      }
       
       if (els.devicePreviewIsapiHint) {
         els.devicePreviewIsapiHint.textContent = "设备信息读取成功";
       }
-      return response;
     } catch (error) {
       if (els.devicePreviewIsapiHint) {
         els.devicePreviewIsapiHint.textContent = `读取失败：${error.message || error}`;
@@ -5918,6 +6061,73 @@ async function runDevicePreviewIsapiRequest(methodOverride = "") {
     }
   } else {
     throw new Error(`不支持的协议：${protocol}`);
+  }
+}
+
+// 通过SDK获取设备数据
+async function runDevicePreviewSdkRequest(schemaKey, device) {
+  try {
+    if (els.devicePreviewIsapiHint) {
+      els.devicePreviewIsapiHint.textContent = "正在通过SDK获取设备数据...";
+    }
+    
+    const schema = DEVICE_PREVIEW_ISAPI_SCHEMAS[schemaKey];
+    if (!schema) {
+      throw new Error(`未找到schema定义：${schemaKey}`);
+    }
+    
+    let response;
+    let values = {};
+    
+    // 根据schema类型调用不同的SDK API
+    if (schemaKey === "ftpConfig") {
+      // 获取FTP配置
+      response = await fetchJson("/api/sdk/ftp-config", {
+        ip: String(device.host || "").trim(),
+        port: Number(device.port || 80) || 80,
+        username: String(device.username || "").trim(),
+        password: String(device.password || "")
+      });
+      
+      // 解析FTP配置数据
+      if (response && response.success) {
+        const ftpData = response.data || {};
+        // 使用schema的mapLoadResult方法处理数据
+        values = schema.mapLoadResult(ftpData, device);
+      }
+    } else if (schemaKey === "namingRules") {
+      // 获取命名规则
+      response = await fetchJson("/api/sdk/naming-rules", {
+        ip: String(device.host || "").trim(),
+        port: Number(device.port || 80) || 80,
+        username: String(device.username || "").trim(),
+        password: String(device.password || "")
+      });
+      
+      // 解析命名规则数据
+      if (response && response.success) {
+        const namingData = response.data || {};
+        // 使用schema的mapLoadResult方法处理数据
+        values = schema.mapLoadResult(namingData, device);
+      }
+    } else {
+      throw new Error(`不支持的SDK schema类型：${schemaKey}`);
+    }
+    
+    // 填充控件
+    fillDevicePreviewIsapiControls(values);
+    
+    if (els.devicePreviewIsapiHint) {
+      els.devicePreviewIsapiHint.textContent = "SDK数据获取成功";
+    }
+    
+    return response;
+  } catch (error) {
+    console.error("SDK请求失败:", error);
+    if (els.devicePreviewIsapiHint) {
+      els.devicePreviewIsapiHint.textContent = `SDK获取失败：${error.message || error}`;
+    }
+    throw error;
   }
 }
 
