@@ -6362,14 +6362,8 @@ async function autoLoadDevicePreviewPreset(presetKey) {
       // 渲染控件
       renderDevicePreviewIsapiControls(preset.schema);
       
-      // 检查是否为SDK方法
-      if (schema.method === "SDK") {
-        // 使用SDK获取数据
-        await runDevicePreviewSdkRequest(preset.schema, device);
-      } else {
-        // 使用HTTP ISAPI获取数据
-        await runDevicePreviewIsapiRequest("GET");
-      }
+      // 总是使用ISAPI方式获取数据，不再使用SDK
+      await runDevicePreviewIsapiRequest("GET");
     } else {
       await runDevicePreviewIsapiRequest("GET");
     }
@@ -6460,31 +6454,25 @@ async function runDevicePreviewIsapiRequest(methodOverride = "") {
       // 渲染ISAPI控件
       renderDevicePreviewIsapiControls(preset.schema);
       
-      // 检查是否为SDK方法
-      if (schema.method === "SDK") {
-        // 使用SDK获取数据
-        await runDevicePreviewSdkRequest(preset.schema, device);
-      } else {
-        // 使用HTTP ISAPI获取数据
-        const connection = {
-          host: String(device.host || "").trim(),
-          port: Number(device.port || 80) || 80,
-          username: String(device.username || "").trim(),
-          password: String(device.password || "")
-        };
-        
-        const response = await fetchJson("/api/isapi/request", {
-          connection,
-          pathname: schema.path,
-          method: schema.method,
-          contentType: schema.contentType,
-          body: ""
-        });
-        
-        // 解析响应并填充控件
-        const values = schema.mapLoadResult(response?.rawText || "", device);
-        fillDevicePreviewIsapiControls(values);
-      }
+      // 总是使用ISAPI方式获取数据，不再使用SDK
+      const connection = {
+        host: String(device.host || "").trim(),
+        port: Number(device.port || 80) || 80,
+        username: String(device.username || "").trim(),
+        password: String(device.password || "")
+      };
+      
+      const response = await fetchJson("/api/isapi/request", {
+        connection,
+        pathname: schema.path,
+        method: schema.method,
+        contentType: schema.contentType,
+        body: ""
+      });
+      
+      // 解析响应并填充控件
+      const values = schema.mapLoadResult(response?.rawText || "", device);
+      fillDevicePreviewIsapiControls(values);
       
       if (els.devicePreviewIsapiHint) {
         els.devicePreviewIsapiHint.textContent = "设备信息读取成功";
