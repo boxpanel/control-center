@@ -389,7 +389,7 @@ const DEVICE_PREVIEW_ISAPI_SCHEMAS = {
   // 触发模式配置schema
   triggerConfig: {
     readOnly: true,
-    method: "ISAPI",
+    method: "GET",
     contentType: "application/xml; charset=utf-8",
     path: "/ISAPI/Event/triggers",
     fields: [
@@ -457,7 +457,7 @@ const DEVICE_PREVIEW_ISAPI_SCHEMAS = {
   // 智能事件触发配置schema
   smartTriggerConfig: {
     readOnly: true,
-    method: "ISAPI",
+    method: "GET",
     contentType: "application/xml; charset=utf-8",
     path: "/ISAPI/Smart/Event/triggers",
     fields: [
@@ -514,7 +514,7 @@ const DEVICE_PREVIEW_ISAPI_SCHEMAS = {
   // 视频输入触发配置schema
   videoTriggerConfig: {
     readOnly: true,
-    method: "ISAPI",
+    method: "GET",
     contentType: "application/xml; charset=utf-8",
     path: "/ISAPI/System/Video/inputs/channels/1/triggers",
     fields: [
@@ -568,7 +568,7 @@ const DEVICE_PREVIEW_ISAPI_SCHEMAS = {
   // 报警输入触发配置schema
   ioTriggerConfig: {
     readOnly: true,
-    method: "ISAPI",
+    method: "GET",
     contentType: "application/xml; charset=utf-8",
     path: "/ISAPI/System/IO/inputs",
     fields: [
@@ -650,7 +650,7 @@ const DEVICE_PREVIEW_ISAPI_SCHEMAS = {
   // FTP配置schema - ISAPI方式
   ftpConfig: {
     readOnly: true,
-    method: "ISAPI",
+    method: "GET",
     contentType: "application/xml; charset=utf-8",
     path: "/ISAPI/System/Network/Ftp/channels/1",
     fields: [
@@ -711,7 +711,7 @@ const DEVICE_PREVIEW_ISAPI_SCHEMAS = {
   // 命名规则schema - ISAPI方式（从FTP配置中提取）
   namingRules: {
     readOnly: true,
-    method: "ISAPI",
+    method: "GET",
     contentType: "application/xml; charset=utf-8",
     path: "/ISAPI/System/Network/Ftp/channels/1",
     fields: [
@@ -3659,45 +3659,21 @@ async function loadIsapiFtpConfigForRecord(record) {
         // 尝试获取抓拍配置
         let snapshotConfig = null;
         try {
-          // 这里可以调用抓拍配置的API，暂时使用模拟数据
-          snapshotConfig = {
-            // 抓拍触发配置
-            triggerMode: "视频触发", // 视频触发/IO触发/手动触发
-            sensitivity: 85, // 灵敏度百分比
-            minVehicleSize: 50, // 最小车辆尺寸（像素）
-            maxVehicleSize: 800, // 最大车辆尺寸（像素）
-            
-            // 图像处理配置
-            imageResolution: "1920x1080", // 图像分辨率
-            imageQuality: 90, // 图像质量百分比
-            exposureMode: "自动", // 曝光模式
-            whiteBalance: "自动", // 白平衡
-            brightness: 50, // 亮度
-            contrast: 50, // 对比度
-            saturation: 50, // 饱和度
-            
-            // 车牌识别配置
-            plateRecognitionEnabled: true,
-            recognitionRegion: "全画面", // 识别区域
-            minPlateWidth: 80, // 最小车牌宽度（像素）
-            maxPlateWidth: 300, // 最大车牌宽度（像素）
-            plateColorDetection: true, // 车牌颜色检测
-            vehicleTypeDetection: true, // 车辆类型检测
-            
-            // 抓拍规则配置
-            captureDelay: 0, // 抓拍延迟（毫秒）
-            preCaptureFrames: 5, // 预抓拍帧数
-            postCaptureFrames: 10, // 后抓拍帧数
-            maxCapturePerVehicle: 3, // 每辆车最大抓拍数
-            
-            // 其他配置
-            antiFlicker: "关闭", // 抗闪烁
-            dayNightMode: "自动", // 日夜模式
-            infraredCompensation: true, // 红外补偿
-            isRealData: false // 标记为模拟数据
-          };
+          // 调用ISAPI API获取抓拍配置
+          const snapshotResponse = await fetch(`/api/isapi/snapshot-config`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ip: deviceInfo.host, port: deviceInfo.port, username: deviceInfo.username, password: deviceInfo.password })
+          });
+          
+          if (snapshotResponse.ok) {
+            const snapshotData = await snapshotResponse.json();
+            if (snapshotData.success && snapshotData.data) {
+              snapshotConfig = snapshotData.data;
+            }
+          }
         } catch (snapshotError) {
-          console.log("获取抓拍配置失败，使用默认配置:", snapshotError.message);
+          console.log("获取抓拍配置失败:", snapshotError.message);
           snapshotConfig = null;
         }
         
@@ -3831,9 +3807,8 @@ async function loadIsapiFtpConfigForRecord(record) {
         
         // 其他配置信息
         connectionInfo: deviceInfo,
-        responseTime: new Date().toISOString(),
-        isRealData: false,
-        rawResponse: "使用默认配置，ISAPI接口调用失败"
+      responseTime: new Date().toISOString(),
+      rawResponse: "使用默认配置，ISAPI接口调用失败"
       };
     }
     
@@ -3864,7 +3839,6 @@ async function loadIsapiFtpConfigForRecord(record) {
       snapshotConfig: null,
       connectionInfo: { host: "未知", port: 80, username: "未知" },
       responseTime: new Date().toISOString(),
-      isRealData: false,
       rawResponse: "配置加载失败: " + error.message
     };
   }
@@ -3899,10 +3873,7 @@ function formatFullIsapiFtpConfig(ftpConfig) {
     return '<div style="color: #dc2626; font-style: italic;">无ISAPI FTP配置数据</div>';
   }
   
-  const isRealData = ftpConfig.isRealData === true;
-  const dataSourceBadge = isRealData ? 
-    '<span style="font-size: 10px; color: #059669; background: rgba(5, 150, 105, 0.1); padding: 2px 6px; border-radius: 3px; margin-left: 6px; font-weight: 500;">实时数据</span>' :
-    '<span style="font-size: 10px; color: #dc2626; background: rgba(220, 38, 38, 0.1); padding: 2px 6px; border-radius: 3px; margin-left: 6px; font-weight: 500;">默认数据</span>';
+  const dataSourceBadge = '<span style="font-size: 10px; color: #059669; background: rgba(5, 150, 105, 0.1); padding: 2px 6px; border-radius: 3px; margin-left: 6px; font-weight: 500;">实时数据</span>';
   
   let html = '';
   
@@ -3914,7 +3885,7 @@ function formatFullIsapiFtpConfig(ftpConfig) {
     </div>
     <div style="font-size: 11px; color: #64748b;">
       获取时间: ${new Date(ftpConfig.responseTime).toLocaleString('zh-CN')}
-      ${isRealData ? '• 成功从摄像头获取' : '• 使用默认配置'}
+      • 成功从摄像头获取
     </div>
   </div>`;
   
@@ -3970,13 +3941,11 @@ function formatFullIsapiFtpConfig(ftpConfig) {
   // 6. 抓拍配置
   if (ftpConfig.snapshotConfig && typeof ftpConfig.snapshotConfig === 'object') {
     const snapshot = ftpConfig.snapshotConfig;
-    const isSnapshotRealData = snapshot.isRealData === true;
-    const snapshotDataSource = isSnapshotRealData ? '实时数据' : '模拟数据';
     
     html += `<div style="margin-bottom: 16px;">
       <div style="display: flex; align-items: center; margin-bottom: 8px;">
         <div style="font-size: 13px; color: #475569; font-weight: 600; padding-bottom: 4px; border-bottom: 1px solid rgba(226, 232, 240, 0.8);">📷 抓拍配置</div>
-        <span style="font-size: 10px; color: ${isSnapshotRealData ? '#059669' : '#9333ea'}; background: ${isSnapshotRealData ? 'rgba(5, 150, 105, 0.1)' : 'rgba(147, 51, 234, 0.1)'}; padding: 2px 6px; border-radius: 3px; margin-left: 6px; font-weight: 500;">${snapshotDataSource}</span>
+        <span style="font-size: 10px; color: #059669; background: rgba(5, 150, 105, 0.1); padding: 2px 6px; border-radius: 3px; margin-left: 6px; font-weight: 500;">实时数据</span>
       </div>
       
       <!-- 抓拍触发配置 -->
@@ -6330,11 +6299,11 @@ function applyDevicePreviewIsapiPreset(presetKey, keepBody = false) {
     renderDevicePreviewIsapiControls(preset.schema);
     if (els.devicePreviewIsapiResponse) els.devicePreviewIsapiResponse.value = "";
     
-    // 如果是SDK方法，显示SDK提示
+    // 显示ISAPI提示
     const schema = DEVICE_PREVIEW_ISAPI_SCHEMAS[preset.schema];
-    if (schema && schema.method === "SDK") {
+    if (schema) {
       if (els.devicePreviewIsapiHint) {
-        els.devicePreviewIsapiHint.textContent = `已选择：${preset.label} (通过SDK获取)`;
+        els.devicePreviewIsapiHint.textContent = `已选择：${preset.label} (通过ISAPI获取)`;
       }
     }
   } else {
@@ -6636,14 +6605,14 @@ async function runDevicePreviewSdkRequest(schemaKey, device) {
     fillDevicePreviewIsapiControls(values);
     
     if (els.devicePreviewIsapiHint) {
-      els.devicePreviewIsapiHint.textContent = "SDK数据获取成功";
+      els.devicePreviewIsapiHint.textContent = "ISAPI数据获取成功";
     }
     
     return response;
   } catch (error) {
-    console.error("SDK请求失败:", error);
+    console.error("ISAPI请求失败:", error);
     if (els.devicePreviewIsapiHint) {
-      els.devicePreviewIsapiHint.textContent = `SDK获取失败：${error.message || error}`;
+      els.devicePreviewIsapiHint.textContent = `ISAPI获取失败：${error.message || error}`;
     }
     throw error;
   }

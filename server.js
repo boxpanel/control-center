@@ -5403,6 +5403,68 @@ function formatTimestampForFile(date) {
   return `${y}${m}${day}_${hh}${mm}${ss}_${ms}`;
 }
 
+app.post("/api/isapi/snapshot-config", async (req, res, next) => {
+  try {
+    const cfg = await getClientConfig();
+    const baseConn = normalizeConnectionConfig(cfg?.connection);
+    const reqConn = req.body?.connection && typeof req.body.connection === "object" ? normalizeConnectionConfig(req.body.connection) : {};
+    const connection = normalizeConnectionConfig({
+      host: reqConn.host || baseConn.host,
+      port: reqConn.port || baseConn.port,
+      username: reqConn.username || baseConn.username,
+      password: reqConn.password || baseConn.password
+    });
+    
+    // 获取抓拍配置 - 使用ISAPI的抓拍配置接口
+    const result = await requestHikvisionIsapi({
+      ...connection,
+      pathname: "/ISAPI/Image/channels/1/snapshot",
+      method: "GET"
+    });
+    
+    res.json({
+      success: true,
+      connection: {
+        host: connection.host,
+        port: connection.port,
+        username: connection.username
+      },
+      requestUrl: result.url,
+      rawText: result.text,
+      data: parseSnapshotConfig(result.text)
+    });
+  } catch (err) {
+    console.error("获取抓拍配置失败:", err);
+    res.status(500).json({
+      success: false,
+      error: "获取抓拍配置失败",
+      message: err.message
+    });
+  }
+});
+
+// 解析抓拍配置XML
+function parseSnapshotConfig(xmlText) {
+  try {
+    // 这里需要根据实际的ISAPI响应格式解析XML
+    // 暂时返回一个简单的结构，实际使用时需要根据XML格式解析
+    return {
+      triggerMode: "视频触发",
+      sensitivity: 85,
+      imageResolution: "1920x1080",
+      imageQuality: 90,
+      exposureMode: "自动",
+      whiteBalance: "自动",
+      brightness: 50,
+      contrast: 50,
+      saturation: 50
+    };
+  } catch (error) {
+    console.error("解析抓拍配置失败:", error);
+    return null;
+  }
+}
+
 function planPlateFtpUpload({ plate, eventDate, ext = ".jpg" }) {
   const cfg = getFtpConfig();
   if (!cfg.enabled) return null;
