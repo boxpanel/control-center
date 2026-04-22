@@ -446,10 +446,18 @@
             </div>
             <aside id="devicePreviewIsapiPanel" class="devicePreviewSide view-hidden">
               <div class="logHeader">
-                <div>设备基本信息</div>
+                <div>ISAPI 参数</div>
                 <span id="devicePreviewIsapiHint" class="devicePreviewIsapiHint"></span>
               </div>
               <div class="devicePreviewForm">
+                <div class="field" style="margin-bottom: 20px;">
+                  <label for="devicePreviewIsapiPreset">参数分类:</label>
+                  <select id="devicePreviewIsapiPreset">
+                    <option value="deviceInfo">设备信息</option>
+                    <option value="ftpConfig">FTP配置</option>
+                    <option value="namingRules">命名规则</option>
+                  </select>
+                </div>
                 <div id="devicePreviewOnvifControlsHost"></div>
               </div>
             </aside>

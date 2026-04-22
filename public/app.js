@@ -266,6 +266,7 @@ const els = {
   devicePreviewModalCloseBtn: document.getElementById("devicePreviewModalCloseBtn"),
   devicePreviewIsapiPanel: document.getElementById("devicePreviewIsapiPanel"),
   devicePreviewIsapiHint: document.getElementById("devicePreviewIsapiHint"),
+  devicePreviewIsapiPreset: document.getElementById("devicePreviewIsapiPreset"),
   devicePreviewModalStopBtn: document.getElementById("devicePreviewModalStopBtn"),
   previewVideo: document.getElementById("previewVideo"),
   previewSnapshotBtn: document.getElementById("previewSnapshotBtn"),
