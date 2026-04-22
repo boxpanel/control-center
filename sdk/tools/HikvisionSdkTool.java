@@ -70,6 +70,32 @@ public class HikvisionSdkTool {
         int NET_DVR_GetLastError();
     }
     
+    // 命令常量定义（根据海康威视SDK文档）
+    public static final int NET_DVR_GET_CURTRIGGERMODE = 3130;      // 获取当前触发模式
+    public static final int NET_ITC_GET_TRIGGERCFG = 3003;          // 获取触发参数（SDK 3.1+）
+    public static final int NET_ITC_GET_TRIGGER_DEFAULTCFG = 3013;  // 获取触发模式推荐参数（SDK 3.1+）
+    
+    // 触发模式类型常量（位掩码）
+    public static final int ITC_POST_IOSPEED_TYPE = 0x1;            // IO测速（卡口）
+    public static final int ITC_POST_SINGLEIO_TYPE = 0x2;           // 单IO触发（卡口）
+    public static final int ITC_POST_RS485_TYPE = 0x4;              // RS485触发（卡口）
+    public static final int ITC_POST_RS485_RADAR_TYPE = 0x8;        // RS485雷达触发（卡口）
+    public static final int ITC_POST_VIRTUALCOIL_TYPE = 0x10;       // 虚拟线圈触发（卡口）
+    public static final int ITC_POST_HVT_TYPE_V50 = 0x20;           // 海康视频触发V50
+    public static final int ITC_POST_MPR_TYPE = 0x40;               // 帧识别触发（卡口）
+    public static final int ITC_POST_PRS_TYPE = 0x80;               // 视频检测触发（卡口）
+    public static final int ITC_EPOLICE_IO_TRAFFICLIGHTS_TYPE = 0x100;  // IO红绿灯（电警）
+    public static final int ITC_EPOLICE_RS485_TYPE = 0x200;         // RS485红绿灯（电警）
+    public static final int ITC_POST_HVT_TYPE = 0x400;              // 海康视频触发（卡口）
+    public static final int ITC_PE_RS485_TYPE = 0x10000;            // RS485触发（电警）
+    public static final int ITC_VIDEO_EPOLICE_TYPE = 0x20000;       // 视频电警触发（电警）
+    public static final int ITC_VIA_VIRTUALCOIL_TYPE = 0x40000;     // VIA虚拟线圈触发
+    public static final int ITC_POST_IMT_TYPE = 0x80000;            // 智慧交通管理触发
+    public static final int IPC_POST_HVT_TYPE = 0x100000;           // IPC支持的HVT
+    public static final int ITC_POST_MOBILE_TYPE = 0x200000;        // 移动交通执法模式
+    public static final int ITC_REDLIGHT_PEDESTRIAN_TYPE = 0x400000; // 行人闯红灯触发
+    public static final int ITC_NOCOMITY_PEDESTRIAN_TYPE = 0x800000; // 不礼让行人触发
+    
     // 设备信息结构体
     public static class NET_DVR_DEVICEINFO_V30 extends Structure {
         public byte[] sSerialNumber = new byte[48];      // 序列号
@@ -102,6 +128,18 @@ public class HikvisionSdkTool {
         @Override
         protected List<String> getFieldOrder() {
             return Arrays.asList("dwSize", "byMode", "byRes");
+        }
+    }
+    
+    // 当前触发模式结构体（NET_DVR_CURTRIGGERMODE）
+    public static class NET_DVR_CURTRIGGERMODE extends Structure {
+        public int dwSize;                               // 结构体大小
+        public int dwTriggerType;                        // 触发类型，详见ITC_TRIGGERMODE_TYPE
+        public byte[] byRes = new byte[24];              // 保留
+        
+        @Override
+        protected List<String> getFieldOrder() {
+            return Arrays.asList("dwSize", "dwTriggerType", "byRes");
         }
     }
     
@@ -318,6 +356,139 @@ public class HikvisionSdkTool {
             
         } catch (Throwable e) {
             return String.format("{\"error\": \"SDK操作异常\", \"message\": \"%s\"}", e.getMessage());
+        } finally {
+            // 注销登录
+            if (userId >= 0 && sdk != null) {
+                sdk.NET_DVR_Logout_V30(userId);
+            }
+        }
+    }
+    
+    /**
+     * 获取设备当前触发模式
+     */
+    public static String getCurrentTriggerMode(String ip, int port, String username, String password) {
+        if (!sdkInitialized || sdk == null) {
+            return "{\"error\": \"SDK未初始化\", \"sdkAvailable\": false, \"mock\": false}";
+        }
+        
+        int userId = -1;
+        try {
+            // 登录设备
+            NET_DVR_DEVICEINFO_V30 deviceInfo = new NET_DVR_DEVICEINFO_V30();
+            userId = sdk.NET_DVR_Login_V30(ip, (short)port, username, password, deviceInfo);
+            
+            if (userId < 0) {
+                int errorCode = sdk.NET_DVR_GetLastError();
+                return String.format("{\"error\": \"设备登录失败\", \"code\": %d, \"sdkAvailable\": true, \"mock\": false}", errorCode);
+            }
+            
+            // 获取当前触发模式
+            NET_DVR_CURTRIGGERMODE curTriggerMode = new NET_DVR_CURTRIGGERMODE();
+            curTriggerMode.dwSize = curTriggerMode.size();
+            
+            IntByReference bytesReturned = new IntByReference();
+            boolean success = sdk.NET_DVR_GetDVRConfig(
+                userId,
+                NET_DVR_GET_CURTRIGGERMODE, // 命令：3130
+                0xFFFFFFFF,                 // 通道号（无效时置为0xFFFFFFFF）
+                curTriggerMode.getPointer(),
+                curTriggerMode.size(),
+                bytesReturned
+            );
+            
+            if (!success) {
+                int errorCode = sdk.NET_DVR_GetLastError();
+                return String.format("{\"error\": \"获取当前触发模式失败\", \"code\": %d, \"sdkAvailable\": true, \"mock\": false}", errorCode);
+            }
+            
+            // 读取结构体数据
+            curTriggerMode.read();
+            
+            // 解析触发类型位掩码
+            int triggerType = curTriggerMode.dwTriggerType;
+            StringBuilder triggerTypes = new StringBuilder();
+            
+            if ((triggerType & ITC_POST_IOSPEED_TYPE) != 0) {
+                triggerTypes.append("IO测速,");
+            }
+            if ((triggerType & ITC_POST_SINGLEIO_TYPE) != 0) {
+                triggerTypes.append("单IO触发,");
+            }
+            if ((triggerType & ITC_POST_RS485_TYPE) != 0) {
+                triggerTypes.append("RS485触发,");
+            }
+            if ((triggerType & ITC_POST_RS485_RADAR_TYPE) != 0) {
+                triggerTypes.append("RS485雷达触发,");
+            }
+            if ((triggerType & ITC_POST_VIRTUALCOIL_TYPE) != 0) {
+                triggerTypes.append("虚拟线圈触发,");
+            }
+            if ((triggerType & ITC_POST_HVT_TYPE_V50) != 0) {
+                triggerTypes.append("海康视频触发V50,");
+            }
+            if ((triggerType & ITC_POST_MPR_TYPE) != 0) {
+                triggerTypes.append("帧识别触发,");
+            }
+            if ((triggerType & ITC_POST_PRS_TYPE) != 0) {
+                triggerTypes.append("视频检测触发,");
+            }
+            if ((triggerType & ITC_EPOLICE_IO_TRAFFICLIGHTS_TYPE) != 0) {
+                triggerTypes.append("IO红绿灯,");
+            }
+            if ((triggerType & ITC_EPOLICE_RS485_TYPE) != 0) {
+                triggerTypes.append("RS485红绿灯,");
+            }
+            if ((triggerType & ITC_POST_HVT_TYPE) != 0) {
+                triggerTypes.append("海康视频触发,");
+            }
+            if ((triggerType & ITC_PE_RS485_TYPE) != 0) {
+                triggerTypes.append("RS485触发(电警),");
+            }
+            if ((triggerType & ITC_VIDEO_EPOLICE_TYPE) != 0) {
+                triggerTypes.append("视频电警触发,");
+            }
+            if ((triggerType & ITC_VIA_VIRTUALCOIL_TYPE) != 0) {
+                triggerTypes.append("VIA虚拟线圈触发,");
+            }
+            if ((triggerType & ITC_POST_IMT_TYPE) != 0) {
+                triggerTypes.append("智慧交通管理触发,");
+            }
+            if ((triggerType & IPC_POST_HVT_TYPE) != 0) {
+                triggerTypes.append("IPC支持的HVT,");
+            }
+            if ((triggerType & ITC_POST_MOBILE_TYPE) != 0) {
+                triggerTypes.append("移动交通执法模式,");
+            }
+            if ((triggerType & ITC_REDLIGHT_PEDESTRIAN_TYPE) != 0) {
+                triggerTypes.append("行人闯红灯触发,");
+            }
+            if ((triggerType & ITC_NOCOMITY_PEDESTRIAN_TYPE) != 0) {
+                triggerTypes.append("不礼让行人触发,");
+            }
+            
+            // 移除最后一个逗号
+            String triggerTypeStr = triggerTypes.toString();
+            if (triggerTypeStr.endsWith(",")) {
+                triggerTypeStr = triggerTypeStr.substring(0, triggerTypeStr.length() - 1);
+            }
+            
+            // 如果没有匹配的触发类型，显示原始值
+            if (triggerTypeStr.isEmpty()) {
+                triggerTypeStr = "未知触发类型(0x" + Integer.toHexString(triggerType) + ")";
+            }
+            
+            // 构建JSON响应
+            return String.format(
+                "{\"success\": true, \"sdkAvailable\": true, \"mock\": false, " +
+                "\"triggerType\": %d, \"triggerTypeHex\": \"0x%s\", \"triggerTypeDescription\": \"%s\"}",
+                triggerType,
+                Integer.toHexString(triggerType),
+                triggerTypeStr
+            );
+            
+        } catch (Throwable e) {
+            return String.format("{\"error\": \"SDK操作异常\", \"message\": \"%s\", \"sdkAvailable\": true, \"mock\": false}", e.getMessage());
         } finally {
             // 注销登录
             if (userId >= 0 && sdk != null) {
@@ -732,6 +903,7 @@ public class HikvisionSdkTool {
             System.err.println("可用命令:");
             System.err.println("  getTriggerConfig <IP> <端口> <用户名> <密码> - 获取触发配置");
             System.err.println("  getEnhancedTriggerConfig <IP> <端口> <用户名> <密码> - 获取增强版触发配置");
+            System.err.println("  getCurrentTriggerMode <IP> <端口> <用户名> <密码> - 获取当前触发模式");
             System.err.println("  getFtpConfig <IP> <端口> <用户名> <密码> - 获取FTP配置");
             System.err.println("  getPictureNamingRule <IP> <端口> <用户名> <密码> - 获取图片命名规则");
             System.err.println("示例: java HikvisionSdkTool getTriggerConfig 192.168.1.64 8000 admin admin123");
@@ -775,6 +947,19 @@ public class HikvisionSdkTool {
                 String password = args[4];
                 System.err.println("正在获取设备增强版触发模式配置...");
                 result = getEnhancedTriggerConfig(ip, port, username, password);
+                
+            } else if (command.equals("getCurrentTriggerMode")) {
+                if (args.length < 5) {
+                    System.err.println("错误: getCurrentTriggerMode需要4个参数: <IP> <端口> <用户名> <密码>");
+                    System.out.println("{\"error\": \"参数不足\", \"sdkAvailable\": true, \"mock\": false}");
+                    return;
+                }
+                String ip = args[1];
+                int port = Integer.parseInt(args[2]);
+                String username = args[3];
+                String password = args[4];
+                System.err.println("正在获取设备当前触发模式...");
+                result = getCurrentTriggerMode(ip, port, username, password);
                 
             } else if (command.equals("getFtpConfig")) {
                 if (args.length < 5) {

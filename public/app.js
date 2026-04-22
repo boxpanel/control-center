@@ -305,7 +305,8 @@ const DEVICE_PREVIEW_ISAPI_PRESETS = {
   deviceInfo: { label: "设备信息", schema: "deviceInfo" },
   ftpConfig: { label: "FTP配置", schema: "ftpConfig" },
   namingRules: { label: "命名规则", schema: "namingRules" },
-  triggerConfig: { label: "触发模式参数", schema: "triggerConfig" }
+  triggerConfig: { label: "触发模式参数", schema: "triggerConfig" },
+  currentTriggerMode: { label: "当前触发模式", schema: "currentTriggerMode" }
 };
 const DEVICE_PREVIEW_ONVIF_PRESETS = {
   deviceInfo: { label: "设备信息", method: "GET", contentType: "application/json; charset=utf-8", path: "getDeviceInformation", body: "" }
@@ -535,6 +536,24 @@ const DEVICE_PREVIEW_ISAPI_SCHEMAS = {
         holdTime: data.holdTime !== undefined ? `${data.holdTime}ms` : "",
         multiTriggerLogic: multiTriggerLogicMap[data.multiTriggerLogic] !== undefined ? multiTriggerLogicMap[data.multiTriggerLogic] : data.multiTriggerLogic,
         triggerPriority: priorityMap[data.triggerPriority] !== undefined ? priorityMap[data.triggerPriority] : data.triggerPriority
+      };
+    }
+  },
+
+  // 当前触发模式schema
+  currentTriggerMode: {
+    readOnly: true,
+    method: "SDK",
+    fields: [
+      { key: "triggerType", label: "触发类型(数值)", type: "text", readOnly: true },
+      { key: "triggerTypeHex", label: "触发类型(十六进制)", type: "text", readOnly: true },
+      { key: "triggerTypeDescription", label: "触发类型描述", type: "text", readOnly: true }
+    ],
+    mapLoadResult(data = {}, device = null) {
+      return {
+        triggerType: data.triggerType !== undefined ? data.triggerType : "",
+        triggerTypeHex: data.triggerTypeHex !== undefined ? data.triggerTypeHex : "",
+        triggerTypeDescription: data.triggerTypeDescription !== undefined ? data.triggerTypeDescription : ""
       };
     }
   }
@@ -6201,6 +6220,22 @@ async function runDevicePreviewSdkRequest(schemaKey, device) {
         values = schema.mapLoadResult(triggerData, device);
       } else {
         throw new Error(response?.error || "触发模式参数获取失败");
+      }
+    } else if (schemaKey === "currentTriggerMode") {
+      // 获取当前触发模式
+      response = await fetchJson("/api/sdk/current-trigger-mode", {
+        ip: String(device.host || "").trim(),
+        port: Number(device.port || 80) || 80,
+        username: String(device.username || "").trim(),
+        password: String(device.password || "")
+      });
+      
+      // 解析当前触发模式数据
+      if (response && response.success) {
+        const triggerData = response;
+        values = schema.mapLoadResult(triggerData, device);
+      } else {
+        throw new Error(response?.error || "当前触发模式获取失败");
       }
     } else {
       throw new Error(`不支持的SDK schema类型：${schemaKey}`);

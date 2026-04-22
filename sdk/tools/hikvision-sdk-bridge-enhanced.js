@@ -497,6 +497,72 @@ class HikvisionSdkBridgeEnhanced {
     }
     
     /**
+     * 获取设备当前触发模式
+     */
+    async getCurrentTriggerMode(deviceInfo) {
+        if (!this.initialized) {
+            await this.initialize();
+        }
+
+        if (!this.sdkAvailable) {
+            // SDK不可用，直接返回错误
+            return {
+                success: false,
+                error: 'SDK不可用，无法获取真实数据',
+                sdkAvailable: false,
+                mock: false,
+                message: 'SDK初始化失败，请检查SDK环境'
+            };
+        }
+
+        try {
+            const { ip, port = 8000, username = 'admin', password = 'admin123' } = deviceInfo;
+            
+            const classpath = this.buildClasspath();
+            
+            const result = await this.execCommand(
+                `java -cp ${classpath} HikvisionSdkTool getCurrentTriggerMode "${ip}" ${port} "${username}" "${password}"`
+            );
+
+            if (result.success) {
+                try {
+                    const data = JSON.parse(result.stdout);
+                    return {
+                        ...data,
+                        sdkType: this.linuxSdkAvailable ? 'linux' : 'java',
+                        platform: this.platform,
+                        mock: false
+                    };
+                } catch (e) {
+                    return {
+                        success: false,
+                        error: `解析SDK响应失败: ${e.message}`,
+                        rawResponse: result.stdout,
+                        sdkAvailable: true,
+                        mock: false
+                    };
+                }
+            } else {
+                console.error('[SDK Bridge] SDK调用失败:', result.stderr);
+                return {
+                    success: false,
+                    error: result.stderr || 'SDK调用失败',
+                    sdkAvailable: true,
+                    mock: false
+                };
+            }
+        } catch (error) {
+            console.error('[SDK Bridge] 获取当前触发模式异常:', error.message);
+            return {
+                success: false,
+                error: `获取当前触发模式异常: ${error.message}`,
+                sdkAvailable: this.sdkAvailable,
+                mock: false
+            };
+        }
+    }
+    
+    /**
      * 获取设备FTP配置
      */
     async getFtpConfig(deviceInfo) {

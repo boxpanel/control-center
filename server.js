@@ -6162,6 +6162,51 @@ app.post("/api/sdk/enhanced-trigger-config", async (req, res) => {
 });
 
 /**
+ * 获取设备当前触发模式 (通过SDK)
+ */
+app.post("/api/sdk/current-trigger-mode", async (req, res) => {
+  try {
+    const { ip, port = 8000, username = "admin", password = "admin123" } = req.body;
+    
+    if (!ip) {
+      return res.status(400).json({ error: "缺少设备IP地址" });
+    }
+    
+    if (!hikvisionSdkBridge) {
+      return res.status(503).json({ 
+        success: false,
+        error: "SDK功能不可用",
+        message: "SDK桥接器未加载或初始化失败",
+        sdkAvailable: false,
+        mock: false
+      });
+    }
+    
+    console.log(`[SDK API] 获取设备当前触发模式: ${ip}:${port}`);
+    
+    // 调用SDK桥接器的getCurrentTriggerMode方法
+    const result = await hikvisionSdkBridge.getCurrentTriggerMode({
+      ip, port, username, password
+    });
+    
+    res.json({
+      success: true,
+      sdkAvailable: hikvisionSdkBridge.sdkAvailable,
+      ...result
+    });
+  } catch (error) {
+    console.error("[SDK API] 获取当前触发模式失败:", error.message);
+    res.status(500).json({ 
+      success: false,
+      error: "获取当前触发模式失败",
+      message: error.message,
+      sdkAvailable: hikvisionSdkBridge ? hikvisionSdkBridge.sdkAvailable : false,
+      mock: false
+    });
+  }
+});
+
+/**
  * 获取设备图片命名规则 (通过SDK)
  */
 app.post("/api/sdk/naming-rules", async (req, res) => {
