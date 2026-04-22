@@ -297,6 +297,38 @@ ensure_base_packages() {
   fi
 }
 
+ensure_jna() {
+  step "Installing JNA library for Java SDK"
+  if command -v java >/dev/null 2>&1; then
+    # 通过apt安装JNA
+    if ! dpkg -s libjna-java >/dev/null 2>&1; then
+      install_apt_packages libjna-java
+    fi
+    # 查找JNA jar包路径并复制到SDK目录
+    local jna_jar
+    jna_jar="$(dpkg -L libjna-java 2>/dev/null | grep '\.jar$' | head -1 || true)"
+    if [[ -n "$jna_jar" ]]; then
+      local sdk_tools_dir="$ROOT_DIR/sdk/tools"
+      mkdir -p "$sdk_tools_dir"
+      cp "$jna_jar" "$sdk_tools_dir/"
+      printf "  ✓ JNA库已安装: %s\n" "$jna_jar"
+    else
+      # 如果apt包没有jar文件，从Maven下载
+      printf "  ⚠ 正在从Maven下载JNA库...\n"
+      local jna_url="https://repo1.maven.org/maven2/net/java/dev/jna/jna/5.14.0/jna-5.14.0.jar"
+      local sdk_tools_dir="$ROOT_DIR/sdk/tools"
+      mkdir -p "$sdk_tools_dir"
+      curl -fsSL "$jna_url" -o "$sdk_tools_dir/jna.jar" || {
+        printf "  ✗ JNA库下载失败，请手动安装\n"
+        return 1
+      }
+      printf "  ✓ JNA库已下载到: %s/sdk/tools/jna.jar\n" "$ROOT_DIR"
+    fi
+  else
+    printf "  ⚠ Java未安装，跳过JNA安装\n"
+  fi
+}
+
 ensure_nodejs() {
   local need_install=0
   if ! command -v node >/dev/null 2>&1 || ! command -v npm >/dev/null 2>&1; then
@@ -553,6 +585,8 @@ if [[ -f package-lock.json ]]; then
 else
   npm install --omit=dev
 fi
+
+ensure_jna
 
 if [[ "$ENABLE_SERVICE" -eq 1 ]]; then
   write_systemd_service

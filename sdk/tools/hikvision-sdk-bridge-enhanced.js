@@ -137,15 +137,20 @@ class HikvisionSdkBridgeEnhanced {
             console.log('[SDK Bridge] Java已安装');
             
             // 检查JNA库
-            try {
-                const jnaCheck = await this.execCommand('java -cp .:jna.jar com.sun.jna.Native');
-                if (jnaCheck.stdout.includes('JNA native library')) {
-                    console.log('[SDK Bridge] JNA库可用');
-                    this.javaAvailable = true;
-                    return true;
+            const jnaJarPath = join(__dirname, 'jna.jar');
+            if (existsSync(jnaJarPath)) {
+                try {
+                    const jnaCheck = await this.execCommand(`java -cp "${jnaJarPath}" com.sun.jna.Native`);
+                    if (jnaCheck.success || jnaCheck.stdout.includes('JNA native library')) {
+                        console.log('[SDK Bridge] JNA库可用');
+                        this.javaAvailable = true;
+                        return true;
+                    }
+                } catch (e) {
+                    console.log('[SDK Bridge] JNA库检查失败:', e.message);
                 }
-            } catch (e) {
-                console.log('[SDK Bridge] JNA库检查失败，可能需要安装JNA');
+            } else {
+                console.log('[SDK Bridge] JNA库未安装（jna.jar不存在）');
             }
             
             this.javaAvailable = true; // 即使没有JNA也标记为可用
@@ -180,9 +185,14 @@ class HikvisionSdkBridgeEnhanced {
             if (this.linuxSdkAvailable) {
                 classpath += `:"${this.linuxLibsDir}/*"`;
             }
+            // 添加JNA库
+            const jnaJarPath = join(__dirname, 'jna.jar');
+            if (existsSync(jnaJarPath)) {
+                classpath += `:"${jnaJarPath}"`;
+            }
             
             const result = await this.execCommand(
-                `javac -cp ${classpath} -d "${__dirname}" "${this.javaToolPath}"`
+                `javac -encoding utf-8 -cp ${classpath} -d "${__dirname}" "${this.javaToolPath}"`
             );
             
             if (result.success) {
@@ -191,10 +201,10 @@ class HikvisionSdkBridgeEnhanced {
             } else {
                 console.error('[SDK Bridge] ✗ Java工具编译失败:', result.stderr);
                 
-                // 尝试简化编译
+                // 尝试简化编译（带编码参数）
                 console.log('[SDK Bridge] 尝试简化编译...');
                 const simpleResult = await this.execCommand(
-                    `javac -d "${__dirname}" "${this.javaToolPath}"`
+                    `javac -encoding utf-8 -d "${__dirname}" "${this.javaToolPath}"`
                 );
                 
                 if (simpleResult.success) {
@@ -250,10 +260,8 @@ class HikvisionSdkBridgeEnhanced {
      */
     execCommand(command) {
         return new Promise((resolve) => {
-            // 在Windows上，使用shell模式执行命令以正确处理带空格的路径
-            const useShell = this.platform === 'win32';
             const process = spawn(command, {
-                shell: useShell,
+                shell: true,
                 stdio: 'pipe'
             });
 

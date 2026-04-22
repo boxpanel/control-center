@@ -6,6 +6,7 @@
 import { spawn } from 'child_process';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
+import { existsSync } from 'fs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -30,10 +31,20 @@ class HikvisionSdkBridge {
             }
 
             try {
-                const jnaCheck = await this.execCommand('java -cp .;* com.sun.jna.Native');
-                this.sdkAvailable = true;
-                console.log('[SDK Bridge] SDK环境检查通过');
-                return true;
+                const jnaJarPath = join(__dirname, 'jna.jar');
+                if (existsSync(jnaJarPath)) {
+                    const jnaCheck = await this.execCommand(`java -cp "${jnaJarPath}" com.sun.jna.Native`);
+                    if (jnaCheck.success || jnaCheck.stdout.includes('JNA native library')) {
+                        console.log('[SDK Bridge] JNA库可用');
+                        this.sdkAvailable = true;
+                        console.log('[SDK Bridge] SDK环境检查通过');
+                        return true;
+                    }
+                } else {
+                    console.log('[SDK Bridge] JNA库未安装（jna.jar不存在）');
+                }
+                this.sdkAvailable = false;
+                return false;
             } catch (e) {
                 console.log('[SDK Bridge] JNA库不可用，SDK功能受限');
                 this.sdkAvailable = false;
@@ -123,8 +134,10 @@ class HikvisionSdkBridge {
      */
     execCommand(command) {
         return new Promise((resolve) => {
-            const [cmd, ...args] = command.split(' ');
-            const process = spawn(cmd, args);
+            const process = spawn(command, {
+                shell: true,
+                stdio: 'pipe'
+            });
 
             let stdout = '';
             let stderr = '';
