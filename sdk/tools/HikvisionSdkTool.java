@@ -15,7 +15,7 @@ public class HikvisionSdkTool {
     
     // SDK库接口定义
     public interface HCNetSDK extends Library {
-        HCNetSDK INSTANCE = Native.load("libhcnetsdk", HCNetSDK.class);
+        HCNetSDK INSTANCE = Native.load("hcnetsdk", HCNetSDK.class);
         
         // 初始化SDK
         boolean NET_DVR_Init();
