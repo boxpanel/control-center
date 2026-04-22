@@ -304,7 +304,8 @@ const devicePreviewModalState = {
 const DEVICE_PREVIEW_ISAPI_PRESETS = {
   deviceInfo: { label: "设备信息", schema: "deviceInfo" },
   ftpConfig: { label: "FTP配置", schema: "ftpConfig" },
-  namingRules: { label: "命名规则", schema: "namingRules" }
+  namingRules: { label: "命名规则", schema: "namingRules" },
+  triggerConfig: { label: "触发模式参数", schema: "triggerConfig" }
 };
 const DEVICE_PREVIEW_ONVIF_PRESETS = {
   deviceInfo: { label: "设备信息", method: "GET", contentType: "application/json; charset=utf-8", path: "getDeviceInformation", body: "" }
@@ -481,6 +482,59 @@ const DEVICE_PREVIEW_ISAPI_SCHEMAS = {
         eventTypeFormat: eventTypeFormat,
         fileExtension: fileExtension,
         example: example
+      };
+    }
+  },
+
+  // 触发模式参数schema
+  triggerConfig: {
+    readOnly: true,
+    method: "SDK",
+    fields: [
+      { key: "triggerMode", label: "触发模式", type: "text", readOnly: true },
+      { key: "coilSensitivity", label: "线圈灵敏度", type: "text", readOnly: true },
+      { key: "radarSensitivity", label: "雷达灵敏度", type: "text", readOnly: true },
+      { key: "videoSensitivity", label: "视频灵敏度", type: "text", readOnly: true },
+      { key: "rs485Sensitivity", label: "RS485灵敏度", type: "text", readOnly: true },
+      { key: "minVehicleWidth", label: "最小车辆宽度(像素)", type: "text", readOnly: true },
+      { key: "minVehicleHeight", label: "最小车辆高度(像素)", type: "text", readOnly: true },
+      { key: "maxVehicleWidth", label: "最大车辆宽度(像素)", type: "text", readOnly: true },
+      { key: "maxVehicleHeight", label: "最大车辆高度(像素)", type: "text", readOnly: true },
+      { key: "triggerDelay", label: "触发延时(毫秒)", type: "text", readOnly: true },
+      { key: "debounceTime", label: "防抖动时间(毫秒)", type: "text", readOnly: true },
+      { key: "triggerDirection", label: "触发方向", type: "text", readOnly: true },
+      { key: "minSpeed", label: "最小触发速度(km/h)", type: "text", readOnly: true },
+      { key: "maxSpeed", label: "最大触发速度(km/h)", type: "text", readOnly: true },
+      { key: "outputDelay", label: "触发输出延时(毫秒)", type: "text", readOnly: true },
+      { key: "holdTime", label: "触发保持时间(毫秒)", type: "text", readOnly: true },
+      { key: "multiTriggerLogic", label: "多触发逻辑", type: "text", readOnly: true },
+      { key: "triggerPriority", label: "触发优先级", type: "text", readOnly: true }
+    ],
+    mapLoadResult(data = {}, device = null) {
+      const triggerModeMap = { 0: "关闭", 1: "线圈", 2: "雷达", 3: "视频", 4: "混合", 5: "IO" };
+      const directionMap = { 0: "正向", 1: "反向", 2: "双向" };
+      const multiTriggerLogicMap = { 0: "AND(与)", 1: "OR(或)" };
+      const priorityMap = { 0: "低", 1: "中", 2: "高" };
+
+      return {
+        triggerMode: triggerModeMap[data.triggerMode] !== undefined ? triggerModeMap[data.triggerMode] : data.triggerMode,
+        coilSensitivity: data.coilSensitivity !== undefined ? `${data.coilSensitivity}%` : "",
+        radarSensitivity: data.radarSensitivity !== undefined ? `${data.radarSensitivity}%` : "",
+        videoSensitivity: data.videoSensitivity !== undefined ? `${data.videoSensitivity}%` : "",
+        rs485Sensitivity: data.rs485Sensitivity !== undefined ? `${data.rs485Sensitivity}%` : "",
+        minVehicleWidth: data.minVehicleWidth !== undefined ? `${data.minVehicleWidth}px` : "",
+        minVehicleHeight: data.minVehicleHeight !== undefined ? `${data.minVehicleHeight}px` : "",
+        maxVehicleWidth: data.maxVehicleWidth !== undefined ? `${data.maxVehicleWidth}px` : "",
+        maxVehicleHeight: data.maxVehicleHeight !== undefined ? `${data.maxVehicleHeight}px` : "",
+        triggerDelay: data.triggerDelay !== undefined ? `${data.triggerDelay}ms` : "",
+        debounceTime: data.debounceTime !== undefined ? `${data.debounceTime}ms` : "",
+        triggerDirection: directionMap[data.triggerDirection] !== undefined ? directionMap[data.triggerDirection] : data.triggerDirection,
+        minSpeed: data.minSpeed !== undefined ? `${data.minSpeed}km/h` : "",
+        maxSpeed: data.maxSpeed !== undefined ? `${data.maxSpeed}km/h` : "",
+        outputDelay: data.outputDelay !== undefined ? `${data.outputDelay}ms` : "",
+        holdTime: data.holdTime !== undefined ? `${data.holdTime}ms` : "",
+        multiTriggerLogic: multiTriggerLogicMap[data.multiTriggerLogic] !== undefined ? multiTriggerLogicMap[data.multiTriggerLogic] : data.multiTriggerLogic,
+        triggerPriority: priorityMap[data.triggerPriority] !== undefined ? priorityMap[data.triggerPriority] : data.triggerPriority
       };
     }
   }
@@ -6111,6 +6165,8 @@ async function runDevicePreviewSdkRequest(schemaKey, device) {
         const ftpData = response;
         // 使用schema的mapLoadResult方法处理数据
         values = schema.mapLoadResult(ftpData, device);
+      } else {
+        throw new Error(response?.error || "FTP配置获取失败");
       }
     } else if (schemaKey === "namingRules") {
       // 获取命名规则
@@ -6127,6 +6183,24 @@ async function runDevicePreviewSdkRequest(schemaKey, device) {
         const namingData = response;
         // 使用schema的mapLoadResult方法处理数据
         values = schema.mapLoadResult(namingData, device);
+      } else {
+        throw new Error(response?.error || "命名规则获取失败");
+      }
+    } else if (schemaKey === "triggerConfig") {
+      // 获取触发模式参数
+      response = await fetchJson("/api/sdk/enhanced-trigger-config", {
+        ip: String(device.host || "").trim(),
+        port: Number(device.port || 80) || 80,
+        username: String(device.username || "").trim(),
+        password: String(device.password || "")
+      });
+      
+      // 解析触发模式参数数据
+      if (response && response.success) {
+        const triggerData = response;
+        values = schema.mapLoadResult(triggerData, device);
+      } else {
+        throw new Error(response?.error || "触发模式参数获取失败");
       }
     } else {
       throw new Error(`不支持的SDK schema类型：${schemaKey}`);
