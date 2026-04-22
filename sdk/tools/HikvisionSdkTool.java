@@ -637,24 +637,27 @@ public class HikvisionSdkTool {
     
     /**
      * 主方法 - 用于测试
+     * 注意：日志信息输出到stderr，JSON结果输出到stdout
+     * 这样Node.js桥接器可以直接解析stdout获取JSON
      */
     public static void main(String[] args) {
         if (args.length < 1) {
-            System.out.println("用法: java HikvisionSdkTool <命令> [参数...]");
-            System.out.println("可用命令:");
-            System.out.println("  getTriggerConfig <IP> <端口> <用户名> <密码> - 获取触发配置");
-            System.out.println("  getEnhancedTriggerConfig <IP> <端口> <用户名> <密码> - 获取增强版触发配置");
-            System.out.println("  getFtpConfig <IP> <端口> <用户名> <密码> - 获取FTP配置");
-            System.out.println("  getPictureNamingRule <IP> <端口> <用户名> <密码> - 获取图片命名规则");
-            System.out.println("示例: java HikvisionSdkTool getTriggerConfig 192.168.1.64 8000 admin admin123");
+            System.err.println("用法: java HikvisionSdkTool <命令> [参数...]");
+            System.err.println("可用命令:");
+            System.err.println("  getTriggerConfig <IP> <端口> <用户名> <密码> - 获取触发配置");
+            System.err.println("  getEnhancedTriggerConfig <IP> <端口> <用户名> <密码> - 获取增强版触发配置");
+            System.err.println("  getFtpConfig <IP> <端口> <用户名> <密码> - 获取FTP配置");
+            System.err.println("  getPictureNamingRule <IP> <端口> <用户名> <密码> - 获取图片命名规则");
+            System.err.println("示例: java HikvisionSdkTool getTriggerConfig 192.168.1.64 8000 admin admin123");
             return;
         }
         
         String command = args[0];
         
-        System.out.println("正在初始化SDK...");
+        System.err.println("正在初始化SDK...");
         if (!safeInit()) {
-            System.out.println("SDK初始化失败");
+            System.err.println("SDK初始化失败");
+            System.out.println("{\"error\": \"SDK初始化失败\", \"sdkAvailable\": false, \"mock\": false}");
             return;
         }
         
@@ -663,61 +666,66 @@ public class HikvisionSdkTool {
             
             if (command.equals("getTriggerConfig")) {
                 if (args.length < 5) {
-                    System.out.println("错误: getTriggerConfig需要4个参数: <IP> <端口> <用户名> <密码>");
+                    System.err.println("错误: getTriggerConfig需要4个参数: <IP> <端口> <用户名> <密码>");
+                    System.out.println("{\"error\": \"参数不足\", \"sdkAvailable\": true, \"mock\": false}");
                     return;
                 }
                 String ip = args[1];
                 int port = Integer.parseInt(args[2]);
                 String username = args[3];
                 String password = args[4];
-                System.out.println("正在获取设备触发模式配置...");
+                System.err.println("正在获取设备触发模式配置...");
                 result = getTriggerConfig(ip, port, username, password);
                 
             } else if (command.equals("getEnhancedTriggerConfig")) {
                 if (args.length < 5) {
-                    System.out.println("错误: getEnhancedTriggerConfig需要4个参数: <IP> <端口> <用户名> <密码>");
+                    System.err.println("错误: getEnhancedTriggerConfig需要4个参数: <IP> <端口> <用户名> <密码>");
+                    System.out.println("{\"error\": \"参数不足\", \"sdkAvailable\": true, \"mock\": false}");
                     return;
                 }
                 String ip = args[1];
                 int port = Integer.parseInt(args[2]);
                 String username = args[3];
                 String password = args[4];
-                System.out.println("正在获取设备增强版触发模式配置...");
+                System.err.println("正在获取设备增强版触发模式配置...");
                 result = getEnhancedTriggerConfig(ip, port, username, password);
                 
             } else if (command.equals("getFtpConfig")) {
                 if (args.length < 5) {
-                    System.out.println("错误: getFtpConfig需要4个参数: <IP> <端口> <用户名> <密码>");
+                    System.err.println("错误: getFtpConfig需要4个参数: <IP> <端口> <用户名> <密码>");
+                    System.out.println("{\"error\": \"参数不足\", \"sdkAvailable\": true, \"mock\": false}");
                     return;
                 }
                 String ip = args[1];
                 int port = Integer.parseInt(args[2]);
                 String username = args[3];
                 String password = args[4];
-                System.out.println("正在获取设备FTP配置...");
+                System.err.println("正在获取设备FTP配置...");
                 result = getFtpConfig(ip, port, username, password);
                 
             } else if (command.equals("getPictureNamingRule")) {
                 if (args.length < 5) {
-                    System.out.println("错误: getPictureNamingRule需要4个参数: <IP> <端口> <用户名> <密码>");
+                    System.err.println("错误: getPictureNamingRule需要4个参数: <IP> <端口> <用户名> <密码>");
+                    System.out.println("{\"error\": \"参数不足\", \"sdkAvailable\": true, \"mock\": false}");
                     return;
                 }
                 String ip = args[1];
                 int port = Integer.parseInt(args[2]);
                 String username = args[3];
                 String password = args[4];
-                System.out.println("正在获取设备图片命名规则...");
+                System.err.println("正在获取设备图片命名规则...");
                 result = getPictureNamingRule(ip, port, username, password);
                 
             } else {
-                System.out.println("错误: 未知命令: " + command);
+                System.err.println("错误: 未知命令: " + command);
+                System.out.println("{\"error\": \"未知命令: " + command + "\", \"sdkAvailable\": true, \"mock\": false}");
                 return;
             }
             
-            System.out.println("结果: " + result);
+            System.out.println(result);
         } finally {
             safeCleanup();
-            System.out.println("SDK已清理");
+            System.err.println("SDK已清理");
         }
     }
 }
