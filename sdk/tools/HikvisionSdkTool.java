@@ -586,6 +586,52 @@ public class HikvisionSdkTool {
     }
     
     /**
+     * 获取设备基本信息
+     */
+    public static String getDeviceInfo(String ip, int port, String username, String password) {
+        if (!sdkInitialized || sdk == null) {
+            return "{\"error\": \"SDK未初始化\"}";
+        }
+        
+        int userId = -1;
+        try {
+            // 登录设备
+            NET_DVR_DEVICEINFO_V30 deviceInfo = new NET_DVR_DEVICEINFO_V30();
+            userId = sdk.NET_DVR_Login_V30(ip, (short)port, username, password, deviceInfo);
+            
+            if (userId < 0) {
+                int errorCode = sdk.NET_DVR_GetLastError();
+                return String.format("{\"error\": \"设备登录失败\", \"code\": %d, \"sdkAvailable\": true, \"mock\": false}", errorCode);
+            }
+            
+            String serialNumber = new String(deviceInfo.sSerialNumber).trim();
+            
+            return String.format(
+                "{\"success\": true, \"sdkAvailable\": true, \"mock\": false, " +
+                "\"serialNumber\": \"%s\", \"deviceType\": %d, \"channelNum\": %d, " +
+                "\"ipChannelNum\": %d, \"startChannel\": %d, \"alarmInPorts\": %d, " +
+                "\"alarmOutPorts\": %d, \"diskNum\": %d, \"audioChanNum\": %d}",
+                serialNumber,
+                deviceInfo.byDVRType & 0xFF,
+                deviceInfo.byChanNum & 0xFF,
+                deviceInfo.byIPChanNum & 0xFF,
+                deviceInfo.byStartChan & 0xFF,
+                deviceInfo.byAlarmInPortNum & 0xFF,
+                deviceInfo.byAlarmOutPortNum & 0xFF,
+                deviceInfo.byDiskNum & 0xFF,
+                deviceInfo.byAudioChanNum & 0xFF
+            );
+            
+        } catch (Throwable e) {
+            return String.format("{\"error\": \"SDK操作异常\", \"message\": \"%s\", \"sdkAvailable\": true, \"mock\": false}", e.getMessage());
+        } finally {
+            if (userId >= 0 && sdk != null) {
+                sdk.NET_DVR_Logout_V30(userId);
+            }
+        }
+    }
+    
+    /**
      * 构建命名规则示例 - 增强版，支持更多命名元素
      */
     private static String buildNamingExample(String prefix, String dateFormat, String timeFormat,
@@ -755,6 +801,19 @@ public class HikvisionSdkTool {
                 String password = args[4];
                 System.err.println("正在获取设备图片命名规则...");
                 result = getPictureNamingRule(ip, port, username, password);
+                
+            } else if (command.equals("getDeviceInfo")) {
+                if (args.length < 5) {
+                    System.err.println("错误: getDeviceInfo需要4个参数: <IP> <端口> <用户名> <密码>");
+                    System.out.println("{\"error\": \"参数不足\", \"sdkAvailable\": true, \"mock\": false}");
+                    return;
+                }
+                String ip = args[1];
+                int port = Integer.parseInt(args[2]);
+                String username = args[3];
+                String password = args[4];
+                System.err.println("正在获取设备信息...");
+                result = getDeviceInfo(ip, port, username, password);
                 
             } else {
                 System.err.println("错误: 未知命令: " + command);
