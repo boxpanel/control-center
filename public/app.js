@@ -837,7 +837,9 @@ const DEVICE_PREVIEW_ISAPI_SCHEMAS = {
   // 触发模式参数schema
   triggerConfig: {
     readOnly: true,
-    method: "SDK",
+    method: "GET",
+    contentType: "application/xml; charset=utf-8",
+    path: "/ISAPI/Event/triggers",
     fields: [
       { key: "triggerMode", label: "触发模式", type: "text", readOnly: true },
       { key: "coilSensitivity", label: "线圈灵敏度", type: "text", readOnly: true },
@@ -858,10 +860,35 @@ const DEVICE_PREVIEW_ISAPI_SCHEMAS = {
       { key: "multiTriggerLogic", label: "多触发逻辑", type: "text", readOnly: true },
       { key: "triggerPriority", label: "触发优先级", type: "text", readOnly: true }
     ],
-    mapLoadResult(data = {}, device = null) {
-      const triggerModeMap = { 0: "关闭", 1: "线圈", 2: "雷达", 3: "视频", 4: "混合", 5: "IO" };
-      const directionMap = { 0: "正向", 1: "反向", 2: "双向" };
-      const multiTriggerLogicMap = { 0: "AND(与)", 1: "OR(或)" };
+    mapLoadResult(xmlText = "", device = null) {
+      // 解析ISAPI XML响应
+      const extract = (tag) => {
+        const match = xmlText.match(new RegExp(`<${tag}>([\\s\\S]*?)</${tag}>`, "i"));
+        return match ? match[1].trim() : "";
+      };
+      
+      // 这里需要根据实际的ISAPI响应格式解析
+      // 暂时返回一个简单的结构
+      return {
+        triggerMode: extract("triggerMode") || "未知",
+        coilSensitivity: extract("coilSensitivity") || "",
+        radarSensitivity: extract("radarSensitivity") || "",
+        videoSensitivity: extract("videoSensitivity") || "",
+        rs485Sensitivity: extract("rs485Sensitivity") || "",
+        minVehicleWidth: extract("minVehicleWidth") || "",
+        minVehicleHeight: extract("minVehicleHeight") || "",
+        maxVehicleWidth: extract("maxVehicleWidth") || "",
+        maxVehicleHeight: extract("maxVehicleHeight") || "",
+        triggerDelay: extract("triggerDelay") || "",
+        debounceTime: extract("debounceTime") || "",
+        triggerDirection: extract("triggerDirection") || "",
+        minSpeed: extract("minSpeed") || "",
+        maxSpeed: extract("maxSpeed") || "",
+        outputDelay: extract("outputDelay") || "",
+        holdTime: extract("holdTime") || "",
+        multiTriggerLogic: extract("multiTriggerLogic") || "",
+        triggerPriority: extract("triggerPriority") || ""
+      };
       const priorityMap = { 0: "低", 1: "中", 2: "高" };
 
       return {
@@ -890,17 +917,31 @@ const DEVICE_PREVIEW_ISAPI_SCHEMAS = {
   // 当前触发模式schema
   currentTriggerMode: {
     readOnly: true,
-    method: "SDK",
+    method: "GET",
+    contentType: "application/xml; charset=utf-8",
+    path: "/ISAPI/Event/triggers/status",
     fields: [
       { key: "triggerType", label: "触发类型(数值)", type: "text", readOnly: true },
       { key: "triggerTypeHex", label: "触发类型(十六进制)", type: "text", readOnly: true },
       { key: "triggerTypeDescription", label: "触发类型描述", type: "text", readOnly: true }
     ],
-    mapLoadResult(data = {}, device = null) {
+    mapLoadResult(xmlText = "", device = null) {
+      // 解析ISAPI XML响应
+      const extract = (tag) => {
+        const match = xmlText.match(new RegExp(`<${tag}>([\\s\\S]*?)</${tag}>`, "i"));
+        return match ? match[1].trim() : "";
+      };
+      
+      const triggerType = extract("triggerType") || extract("currentTriggerMode");
+      const triggerTypeNum = parseInt(triggerType) || 0;
+      
+      const triggerModeMap = { 0: "关闭", 1: "线圈", 2: "雷达", 3: "视频", 4: "混合", 5: "IO" };
+      const description = triggerModeMap[triggerTypeNum] || "未知";
+      
       return {
-        triggerType: data.triggerType !== undefined ? data.triggerType : "",
-        triggerTypeHex: data.triggerTypeHex !== undefined ? data.triggerTypeHex : "",
-        triggerTypeDescription: data.triggerTypeDescription !== undefined ? data.triggerTypeDescription : ""
+        triggerType: triggerType,
+        triggerTypeHex: triggerTypeNum.toString(16).toUpperCase(),
+        triggerTypeDescription: description
       };
     }
   }
@@ -6363,13 +6404,9 @@ function resetDevicePreviewIsapiPanel(device) {
   const isSdkMethod = schema && schema.method === "SDK";
   
   if (els.devicePreviewIsapiHint) {
-    if (isSdkMethod) {
-      els.devicePreviewIsapiHint.textContent = `已连接：${device?.host || ""}:${device?.port || 80} | ${getDeviceProtocolLabel(protocol)} (通过SDK获取)`;
-    } else {
-      els.devicePreviewIsapiHint.textContent = supported
-        ? `已连接：${device?.host || ""}:${device?.port || 80} | ${getDeviceProtocolLabel(protocol)}`
-        : "当前协议暂不支持参数读取与保存";
-    }
+    els.devicePreviewIsapiHint.textContent = supported
+      ? `已连接：${device?.host || ""}:${device?.port || 80} | ${getDeviceProtocolLabel(protocol)}`
+      : "当前协议暂不支持参数读取与保存";
   }
   
   if (els.devicePreviewIsapiResponse) {
@@ -6457,11 +6494,11 @@ async function runDevicePreviewIsapiRequest(methodOverride = "") {
   }
 }
 
-// 通过SDK获取设备数据
-async function runDevicePreviewSdkRequest(schemaKey, device) {
+// 通过ISAPI获取特定schema的设备数据
+async function runDevicePreviewIsapiSchemaRequest(schemaKey, device) {
   try {
     if (els.devicePreviewIsapiHint) {
-      els.devicePreviewIsapiHint.textContent = "正在通过SDK获取设备数据...";
+      els.devicePreviewIsapiHint.textContent = "正在通过ISAPI获取设备数据...";
     }
     
     const schema = DEVICE_PREVIEW_ISAPI_SCHEMAS[schemaKey];

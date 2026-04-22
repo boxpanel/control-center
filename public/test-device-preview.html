@@ -494,14 +494,9 @@
             renderControls(preset.schema);
             
             // 更新提示
-            if (schema.method === 'SDK') {
-                hintEl.textContent = `正在通过SDK获取${preset.label}...`;
-                hintEl.className = 'status info';
-                dataSourceEl.textContent = 'SDK API';
-            } else {
-                hintEl.textContent = `正在通过HTTP获取${preset.label}...`;
-                hintEl.className = 'status info';
-                dataSourceEl.textContent = 'HTTP API';
+            hintEl.textContent = `正在通过ISAPI获取${preset.label}...`;
+            hintEl.className = 'status info';
+            dataSourceEl.textContent = 'ISAPI API';
             }
             
             try {
