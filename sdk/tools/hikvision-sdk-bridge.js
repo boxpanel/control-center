@@ -23,16 +23,13 @@ class HikvisionSdkBridge {
      */
     async checkSdkAvailability() {
         try {
-            // 检查Java是否安装
             const javaCheck = await this.execCommand('java -version');
             if (!javaCheck.success) {
                 console.log('[SDK Bridge] Java未安装，SDK功能不可用');
                 return false;
             }
 
-            // 检查JNA库是否可用
             try {
-                // 尝试加载JNA类
                 const jnaCheck = await this.execCommand('java -cp .;* com.sun.jna.Native');
                 this.sdkAvailable = true;
                 console.log('[SDK Bridge] SDK环境检查通过');
@@ -60,13 +57,12 @@ class HikvisionSdkBridge {
         try {
             const available = await this.checkSdkAvailability();
             if (!available) {
-                console.log('[SDK Bridge] SDK不可用，使用模拟模式');
+                console.log('[SDK Bridge] SDK不可用');
                 this.sdkAvailable = false;
                 this.initialized = true;
                 return false;
             }
 
-            // 编译Java工具
             await this.compileJavaTool();
             
             this.sdkAvailable = true;
@@ -170,8 +166,13 @@ class HikvisionSdkBridge {
         }
 
         if (!this.sdkAvailable) {
-            // 返回模拟数据
-            return this.getMockTriggerConfig(deviceInfo);
+            return {
+                success: false,
+                error: 'SDK不可用，无法获取真实数据',
+                sdkAvailable: false,
+                mock: false,
+                message: 'SDK初始化失败，请检查SDK环境'
+            };
         }
 
         try {
@@ -186,36 +187,31 @@ class HikvisionSdkBridge {
                     return JSON.parse(result.stdout);
                 } catch (e) {
                     return {
+                        success: false,
                         error: '解析SDK响应失败',
                         rawResponse: result.stdout,
-                        mock: true
+                        sdkAvailable: true,
+                        mock: false
                     };
                 }
             } else {
                 console.error('[SDK Bridge] SDK调用失败:', result.stderr);
-                return this.getMockTriggerConfig(deviceInfo);
+                return {
+                    success: false,
+                    error: result.stderr || 'SDK调用失败',
+                    sdkAvailable: true,
+                    mock: false
+                };
             }
         } catch (error) {
             console.error('[SDK Bridge] 获取触发配置异常:', error.message);
-            return this.getMockTriggerConfig(deviceInfo);
+            return {
+                success: false,
+                error: `获取触发配置异常: ${error.message}`,
+                sdkAvailable: this.sdkAvailable,
+                mock: false
+            };
         }
-    }
-
-    /**
-     * 获取模拟的触发模式配置
-     */
-    getMockTriggerConfig(deviceInfo) {
-        // 返回模拟数据，用于开发和测试
-        return {
-            success: true,
-            triggerMode: 1,
-            coilSensitivity: 75,
-            radarSensitivity: 60,
-            videoSensitivity: 80,
-            rs485Sensitivity: 70,
-            mock: true,
-            message: '使用模拟数据（SDK不可用）'
-        };
     }
 
     /**
@@ -227,30 +223,21 @@ class HikvisionSdkBridge {
         }
 
         if (!this.sdkAvailable) {
-            return this.getMockDeviceInfo(deviceInfo);
+            return {
+                success: false,
+                error: 'SDK不可用，无法获取真实数据',
+                sdkAvailable: false,
+                mock: false,
+                message: 'SDK初始化失败，请检查SDK环境'
+            };
         }
 
-        // 这里可以添加实际的SDK设备信息获取逻辑
-        // 目前返回模拟数据
-        return this.getMockDeviceInfo(deviceInfo);
-    }
-
-    /**
-     * 获取模拟的设备信息
-     */
-    getMockDeviceInfo(deviceInfo) {
-        const { ip, name = '未知设备' } = deviceInfo;
-        
         return {
-            success: true,
-            deviceName: name,
-            ipAddress: ip,
-            model: 'iDS-2CD9371-KS',
-            serialNumber: `SN-${Date.now().toString(16).toUpperCase()}`,
-            firmwareVersion: 'V5.7.0',
-            manufacturer: 'Hikvision',
-            mock: true,
-            message: '使用模拟设备信息'
+            success: false,
+            error: '设备信息获取功能尚未实现',
+            sdkAvailable: true,
+            mock: false,
+            message: '请使用其他SDK功能'
         };
     }
 
@@ -265,14 +252,12 @@ class HikvisionSdkBridge {
         const result = await this.getTriggerConfig(deviceInfo);
         return {
             sdkAvailable: this.sdkAvailable,
-            connectionTest: result.success || result.mock,
+            connectionTest: result.success,
             result
         };
     }
 }
 
-// 创建单例实例
 const sdkBridge = new HikvisionSdkBridge();
 
-// 导出单例
 export default sdkBridge;

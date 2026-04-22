@@ -233,7 +233,7 @@ class HikvisionSdkBridgeEnhanced {
                     await this.compileJavaTools();
                 }
             } else {
-                console.log('[SDK Bridge] SDK环境检查失败，将使用模拟模式');
+                console.log('[SDK Bridge] SDK环境检查失败');
             }
             
             return this.sdkAvailable;
@@ -299,7 +299,7 @@ class HikvisionSdkBridgeEnhanced {
         try {
             const available = await this.checkSdkAvailability();
             if (!available) {
-                console.log('[SDK Bridge] SDK不可用，使用模拟模式');
+                console.log('[SDK Bridge] SDK不可用');
                 this.sdkAvailable = false;
                 this.initialized = true;
                 return false;
@@ -325,17 +325,25 @@ class HikvisionSdkBridgeEnhanced {
         }
 
         if (!this.sdkAvailable) {
-            // 返回模拟数据
-            return this.getMockTriggerConfig(deviceInfo);
+            // SDK不可用，直接返回错误
+            return {
+                success: false,
+                error: 'SDK不可用，无法获取真实数据',
+                sdkAvailable: false,
+                mock: false,
+                message: 'SDK初始化失败，请检查SDK环境'
+            };
         }
 
         try {
             const { ip, port = 8000, username = 'admin', password = 'admin123' } = deviceInfo;
             
             // 构建Java命令
+            // 在Windows上使用分号作为classpath分隔符，Linux上使用冒号
+            const pathSeparator = this.platform === 'win32' ? ';' : ':';
             let classpath = `"${__dirname}"`;
             if (this.linuxSdkAvailable) {
-                classpath += `:"${this.linuxLibsDir}/*"`;
+                classpath += `${pathSeparator}"${this.linuxLibsDir}/*"`;
             }
             
             const result = await this.execCommand(
@@ -348,23 +356,35 @@ class HikvisionSdkBridgeEnhanced {
                     return {
                         ...data,
                         sdkType: this.linuxSdkAvailable ? 'linux' : 'java',
-                        platform: this.platform
+                        platform: this.platform,
+                        mock: false
                     };
                 } catch (e) {
                     return {
-                        error: '解析SDK响应失败',
+                        success: false,
+                        error: `解析SDK响应失败: ${e.message}`,
                         rawResponse: result.stdout,
-                        mock: true,
-                        ...this.getMockTriggerConfig(deviceInfo)
+                        sdkAvailable: true,
+                        mock: false
                     };
                 }
             } else {
                 console.error('[SDK Bridge] SDK调用失败:', result.stderr);
-                return this.getMockTriggerConfig(deviceInfo);
+                return {
+                    success: false,
+                    error: result.stderr || 'SDK调用失败',
+                    sdkAvailable: true,
+                    mock: false
+                };
             }
         } catch (error) {
             console.error('[SDK Bridge] 获取触发配置异常:', error.message);
-            return this.getMockTriggerConfig(deviceInfo);
+            return {
+                success: false,
+                error: `获取触发配置异常: ${error.message}`,
+                sdkAvailable: this.sdkAvailable,
+                mock: false
+            };
         }
     }
     
@@ -377,8 +397,14 @@ class HikvisionSdkBridgeEnhanced {
         }
 
         if (!this.sdkAvailable) {
-            // 返回模拟数据
-            return this.getMockEnhancedTriggerConfig(deviceInfo);
+            // SDK不可用，直接返回错误
+            return {
+                success: false,
+                error: 'SDK不可用，无法获取真实数据',
+                sdkAvailable: false,
+                mock: false,
+                message: 'SDK初始化失败，请检查SDK环境'
+            };
         }
 
         try {
@@ -402,23 +428,35 @@ class HikvisionSdkBridgeEnhanced {
                     return {
                         ...data,
                         sdkType: this.linuxSdkAvailable ? 'linux' : 'java',
-                        platform: this.platform
+                        platform: this.platform,
+                        mock: false
                     };
                 } catch (e) {
                     return {
-                        error: '解析SDK响应失败',
+                        success: false,
+                        error: `解析SDK响应失败: ${e.message}`,
                         rawResponse: result.stdout,
-                        mock: true,
-                        ...this.getMockEnhancedTriggerConfig(deviceInfo)
+                        sdkAvailable: true,
+                        mock: false
                     };
                 }
             } else {
                 console.error('[SDK Bridge] SDK调用失败:', result.stderr);
-                return this.getMockEnhancedTriggerConfig(deviceInfo);
+                return {
+                    success: false,
+                    error: result.stderr || 'SDK调用失败',
+                    sdkAvailable: true,
+                    mock: false
+                };
             }
         } catch (error) {
             console.error('[SDK Bridge] 获取增强版触发配置异常:', error.message);
-            return this.getMockEnhancedTriggerConfig(deviceInfo);
+            return {
+                success: false,
+                error: `获取增强版触发配置异常: ${error.message}`,
+                sdkAvailable: this.sdkAvailable,
+                mock: false
+            };
         }
     }
     
@@ -431,22 +469,13 @@ class HikvisionSdkBridgeEnhanced {
         }
 
         if (!this.sdkAvailable) {
-            // 返回模拟数据
+            // SDK不可用，直接返回错误
             return {
-                success: true,
+                success: false,
+                error: 'SDK不可用，无法获取真实数据',
                 sdkAvailable: false,
-                mock: true,
-                ftpEnabled: true,
-                ftpServer: "192.168.1.100",
-                ftpPort: 21,
-                ftpUsername: "ftpuser",
-                ftpPassword: "ftppassword",
-                ftpDirectory: "/upload/images",
-                ftpUploadMode: 0,
-                ftpUploadInterval: 5,
-                ftpImageQuality: 0,
-                ftpImageResolution: 0,
-                message: "模拟数据 - SDK不可用"
+                mock: false,
+                message: 'SDK初始化失败，请检查SDK环境'
             };
         }
 
@@ -506,7 +535,7 @@ class HikvisionSdkBridgeEnhanced {
                 success: false,
                 error: error.message,
                 sdkAvailable: this.sdkAvailable,
-                mock: !this.sdkAvailable
+                mock: false
             };
         }
     }
@@ -520,20 +549,13 @@ class HikvisionSdkBridgeEnhanced {
         }
 
         if (!this.sdkAvailable) {
-            // 返回模拟数据
+            // SDK不可用，直接返回错误
             return {
-                success: true,
+                success: false,
+                error: 'SDK不可用，无法获取真实数据',
                 sdkAvailable: false,
-                mock: true,
-                namingRuleEnabled: true,
-                prefix: "CAM",
-                dateFormat: "YYYYMMDD",
-                timeFormat: "HHmmss",
-                includeChannelNumber: true,
-                includeSequenceNumber: true,
-                fileExtension: ".jpg",
-                example: "CAM_20240101_120000_CH01_001.jpg",
-                message: "模拟数据 - SDK不可用"
+                mock: false,
+                message: 'SDK初始化失败，请检查SDK环境'
             };
         }
 
@@ -593,58 +615,12 @@ class HikvisionSdkBridgeEnhanced {
                 success: false,
                 error: error.message,
                 sdkAvailable: this.sdkAvailable,
-                mock: !this.sdkAvailable
+                mock: false
             };
         }
     }
 
-    /**
-     * 获取模拟的触发模式配置
-     */
-    getMockTriggerConfig(deviceInfo) {
-        // 返回模拟数据，用于开发和测试
-        return {
-            success: true,
-            triggerMode: 1,
-            coilSensitivity: 75,
-            radarSensitivity: 60,
-            videoSensitivity: 80,
-            rs485Sensitivity: 70,
-            mock: true,
-            message: '使用模拟数据（SDK不可用）',
-            platform: this.platform,
-            sdkAvailable: this.sdkAvailable
-        };
-    }
-    
-    getMockEnhancedTriggerConfig(deviceInfo) {
-        // 返回增强版模拟数据，用于开发和测试
-        return {
-            success: true,
-            triggerMode: 1,
-            coilSensitivity: 75,
-            radarSensitivity: 60,
-            videoSensitivity: 80,
-            rs485Sensitivity: 70,
-            minVehicleWidth: 100,
-            minVehicleHeight: 100,
-            maxVehicleWidth: 800,
-            maxVehicleHeight: 600,
-            triggerDelay: 100,
-            debounceTime: 50,
-            triggerDirection: 2,
-            minSpeed: 20,
-            maxSpeed: 120,
-            outputDelay: 200,
-            holdTime: 1000,
-            multiTriggerLogic: 0,
-            triggerPriority: 1,
-            mock: true,
-            message: '使用增强版模拟数据（SDK不可用）',
-            platform: this.platform,
-            sdkAvailable: this.sdkAvailable
-        };
-    }
+
 
     /**
      * 获取设备基本信息
@@ -655,32 +631,24 @@ class HikvisionSdkBridgeEnhanced {
         }
 
         if (!this.sdkAvailable) {
-            return this.getMockDeviceInfo(deviceInfo);
+            // SDK不可用，直接返回错误
+            return {
+                success: false,
+                error: 'SDK不可用，无法获取真实数据',
+                sdkAvailable: false,
+                mock: false,
+                message: 'SDK初始化失败，请检查SDK环境'
+            };
         }
 
         // 这里可以添加实际的SDK设备信息获取逻辑
-        // 目前返回模拟数据
-        return this.getMockDeviceInfo(deviceInfo);
-    }
-
-    /**
-     * 获取模拟的设备信息
-     */
-    getMockDeviceInfo(deviceInfo) {
-        const { ip, name = '未知设备' } = deviceInfo;
-        
+        // 目前暂时返回错误，表示功能未实现
         return {
-            success: true,
-            deviceName: name,
-            ipAddress: ip,
-            model: 'iDS-2CD9371-KS',
-            serialNumber: `SN-${Date.now().toString(16).toUpperCase()}`,
-            firmwareVersion: 'V5.7.0',
-            manufacturer: 'Hikvision',
-            mock: true,
-            message: '使用模拟设备信息',
-            platform: this.platform,
-            sdkAvailable: this.sdkAvailable
+            success: false,
+            error: '设备信息获取功能尚未实现',
+            sdkAvailable: true,
+            mock: false,
+            message: '请使用其他SDK功能'
         };
     }
 
@@ -718,7 +686,7 @@ class HikvisionSdkBridgeEnhanced {
             linuxLibsDir: this.linuxSdkAvailable ? this.linuxLibsDir : null,
             message: this.sdkAvailable ? 
                 `SDK功能可用 (${this.linuxSdkAvailable ? 'Linux SDK' : 'Java'})` : 
-                'SDK功能不可用，使用模拟模式'
+                'SDK功能不可用'
         };
     }
 }

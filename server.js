@@ -5953,17 +5953,11 @@ app.post("/api/sdk/trigger-config", async (req, res) => {
     
     if (!hikvisionSdkBridge) {
       return res.status(503).json({ 
+        success: false,
         error: "SDK功能不可用",
         message: "SDK桥接器未加载或初始化失败",
-        mock: true,
-        data: {
-          triggerMode: 1,
-          coilSensitivity: 75,
-          radarSensitivity: 60,
-          videoSensitivity: 80,
-          rs485Sensitivity: 70,
-          mock: true
-        }
+        sdkAvailable: false,
+        mock: false
       });
     }
     
@@ -5981,17 +5975,11 @@ app.post("/api/sdk/trigger-config", async (req, res) => {
   } catch (error) {
     console.error("[SDK API] 获取触发配置失败:", error);
     res.status(500).json({ 
+      success: false,
       error: "获取触发配置失败",
       message: error.message,
-      mock: true,
-      data: {
-        triggerMode: 1,
-        coilSensitivity: 75,
-        radarSensitivity: 60,
-        videoSensitivity: 80,
-        rs485Sensitivity: 70,
-        mock: true
-      }
+      sdkAvailable: hikvisionSdkBridge ? hikvisionSdkBridge.sdkAvailable : false,
+      mock: false
     });
   }
 });
@@ -6009,18 +5997,11 @@ app.post("/api/sdk/device-info", async (req, res) => {
     
     if (!hikvisionSdkBridge) {
       return res.status(503).json({ 
+        success: false,
         error: "SDK功能不可用",
         message: "SDK桥接器未加载或初始化失败",
-        mock: true,
-        data: {
-          deviceName: name || "未知设备",
-          ipAddress: ip,
-          model: "iDS-2CD9371-KS",
-          serialNumber: `SN-${Date.now().toString(16).toUpperCase()}`,
-          firmwareVersion: "V5.7.0",
-          manufacturer: "Hikvision",
-          mock: true
-        }
+        sdkAvailable: false,
+        mock: false
       });
     }
     
@@ -6038,18 +6019,11 @@ app.post("/api/sdk/device-info", async (req, res) => {
   } catch (error) {
     console.error("[SDK API] 获取设备信息失败:", error);
     res.status(500).json({ 
+      success: false,
       error: "获取设备信息失败",
       message: error.message,
-      mock: true,
-      data: {
-        deviceName: req.body.name || "未知设备",
-        ipAddress: req.body.ip,
-        model: "iDS-2CD9371-KS",
-        serialNumber: `SN-${Date.now().toString(16).toUpperCase()}`,
-        firmwareVersion: "V5.7.0",
-        manufacturer: "Hikvision",
-        mock: true
-      }
+      sdkAvailable: hikvisionSdkBridge ? hikvisionSdkBridge.sdkAvailable : false,
+      mock: false
     });
   }
 });
@@ -6070,7 +6044,7 @@ app.post("/api/sdk/test-connection", async (req, res) => {
         success: false,
         sdkAvailable: false,
         message: "SDK桥接器未加载",
-        mock: true
+        mock: false
       });
     }
     
@@ -6107,20 +6081,11 @@ app.post("/api/sdk/ftp-config", async (req, res) => {
     
     if (!hikvisionSdkBridge) {
       return res.status(503).json({ 
+        success: false,
         error: "SDK功能不可用",
         message: "SDK桥接器未加载或初始化失败",
-        mock: true,
-        data: {
-          ftpEnabled: true,
-          ftpServer: "192.168.1.100",
-          ftpPort: 21,
-          ftpUsername: "ftpuser",
-          ftpPassword: "******",
-          ftpDirectory: "/upload/images",
-          ftpUploadMode: "主动模式",
-          ftpUploadInterval: 5,
-          mock: true
-        }
+        sdkAvailable: false,
+        mock: false
       });
     }
     
@@ -6140,20 +6105,11 @@ app.post("/api/sdk/ftp-config", async (req, res) => {
   } catch (error) {
     console.error("[SDK API] 获取FTP配置失败:", error);
     res.status(500).json({ 
+      success: false,
       error: "获取FTP配置失败",
       message: error.message,
-      mock: true,
-      data: {
-        ftpEnabled: true,
-        ftpServer: "192.168.1.100",
-        ftpPort: 21,
-        ftpUsername: "ftpuser",
-        ftpPassword: "******",
-        ftpDirectory: "/upload/images",
-        ftpUploadMode: "主动模式",
-        ftpUploadInterval: 5,
-        mock: true
-      }
+      sdkAvailable: hikvisionSdkBridge ? hikvisionSdkBridge.sdkAvailable : false,
+      mock: false
     });
   }
 });
@@ -6171,30 +6127,11 @@ app.post("/api/sdk/enhanced-trigger-config", async (req, res) => {
     
     if (!hikvisionSdkBridge) {
       return res.status(503).json({ 
+        success: false,
         error: "SDK功能不可用",
         message: "SDK桥接器未加载或初始化失败",
-        mock: true,
-        data: {
-          triggerMode: 1,
-          coilSensitivity: 75,
-          radarSensitivity: 60,
-          videoSensitivity: 80,
-          rs485Sensitivity: 70,
-          minVehicleWidth: 100,
-          minVehicleHeight: 100,
-          maxVehicleWidth: 800,
-          maxVehicleHeight: 600,
-          triggerDelay: 100,
-          debounceTime: 50,
-          triggerDirection: 2,
-          minSpeed: 20,
-          maxSpeed: 120,
-          outputDelay: 200,
-          holdTime: 1000,
-          multiTriggerLogic: 0,
-          triggerPriority: 1,
-          mock: true
-        }
+        sdkAvailable: false,
+        mock: false
       });
     }
     
@@ -6213,10 +6150,11 @@ app.post("/api/sdk/enhanced-trigger-config", async (req, res) => {
   } catch (error) {
     console.error("[SDK API] 获取增强版触发配置失败:", error.message);
     res.status(500).json({ 
+      success: false,
       error: "获取增强版触发配置失败",
       message: error.message,
-      mock: true,
-      sdkAvailable: hikvisionSdkBridge ? hikvisionSdkBridge.sdkAvailable : false
+      sdkAvailable: hikvisionSdkBridge ? hikvisionSdkBridge.sdkAvailable : false,
+      mock: false
     });
   }
 });
@@ -6234,58 +6172,35 @@ app.post("/api/sdk/naming-rules", async (req, res) => {
     
     if (!hikvisionSdkBridge) {
       return res.status(503).json({ 
+        success: false,
         error: "SDK功能不可用",
         message: "SDK桥接器未加载或初始化失败",
-        mock: true,
-        data: {
-          namingRule: "[摄像头名称]_[车牌号码]_[时间戳].jpg",
-          timeFormat: "YYYYMMDD_HHmmss",
-          includeCameraName: true,
-          includePlateNumber: true,
-          includeTimestamp: true,
-          fileExtension: ".jpg",
-          maxFileNameLength: 255,
-          mock: true
-        }
+        sdkAvailable: false,
+        mock: false
       });
     }
     
     console.log(`[SDK API] 获取设备命名规则: ${ip}:${port}`);
     
-    // 这里应该调用SDK桥接器的getNamingRules方法
-    // 目前先返回模拟数据
-    const result = {
+    // 调用SDK桥接器的getPictureNamingRule方法
+    const result = await hikvisionSdkBridge.getPictureNamingRule({
+      ip, port, username, password
+    });
+    
+    res.json({
       success: true,
       sdkAvailable: hikvisionSdkBridge.sdkAvailable,
-      namingRule: "[摄像头名称]_[车牌号码]_[时间戳].jpg",
-      timeFormat: "YYYYMMDD_HHmmss",
-      includeCameraName: true,
-      includePlateNumber: true,
-      includeTimestamp: true,
-      fileExtension: ".jpg",
-      maxFileNameLength: 255,
-      mock: !hikvisionSdkBridge.sdkAvailable,
-      message: hikvisionSdkBridge.sdkAvailable ? "命名规则获取成功" : "使用模拟命名规则数据"
-    };
-    
-    res.json(result);
+      ...result
+    });
     
   } catch (error) {
     console.error("[SDK API] 获取命名规则失败:", error);
     res.status(500).json({ 
+      success: false,
       error: "获取命名规则失败",
       message: error.message,
-      mock: true,
-      data: {
-        namingRule: "[摄像头名称]_[车牌号码]_[时间戳].jpg",
-        timeFormat: "YYYYMMDD_HHmmss",
-        includeCameraName: true,
-        includePlateNumber: true,
-        includeTimestamp: true,
-        fileExtension: ".jpg",
-        maxFileNameLength: 255,
-        mock: true
-      }
+      sdkAvailable: hikvisionSdkBridge ? hikvisionSdkBridge.sdkAvailable : false,
+      mock: false
     });
   }
 });
@@ -6309,7 +6224,7 @@ app.get("/api/sdk/status", async (req, res) => {
     res.json({
       sdkAvailable: hikvisionSdkBridge.sdkAvailable,
       initialized: hikvisionSdkBridge.initialized,
-      message: hikvisionSdkBridge.sdkAvailable ? "SDK功能可用" : "SDK功能不可用，使用模拟模式"
+      message: hikvisionSdkBridge.sdkAvailable ? "SDK功能可用" : "SDK功能不可用"
     });
     
   } catch (error) {

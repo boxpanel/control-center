@@ -380,7 +380,7 @@ public class HikvisionSdkTool {
      */
     public static String getFtpConfig(String ip, int port, String username, String password) {
         if (!sdkInitialized || sdk == null) {
-            return "{\"error\": \"SDK未初始化\", \"sdkAvailable\": false, \"mock\": true}";
+            return "{\"error\": \"SDK未初始化\", \"sdkAvailable\": false, \"mock\": false}";
         }
         
         int userId = -1;
@@ -456,7 +456,7 @@ public class HikvisionSdkTool {
      */
     public static String getPictureNamingRule(String ip, int port, String username, String password) {
         if (!sdkInitialized || sdk == null) {
-            return "{\"error\": \"SDK未初始化\", \"sdkAvailable\": false, \"mock\": true}";
+            return "{\"error\": \"SDK未初始化\", \"sdkAvailable\": false, \"mock\": false}";
         }
         
         int userId = -1;
@@ -634,7 +634,6 @@ public class HikvisionSdkTool {
         
         return example.toString();
     }
-}
     
     /**
      * 主方法 - 用于测试
