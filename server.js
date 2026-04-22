@@ -5403,6 +5403,46 @@ function formatTimestampForFile(date) {
   return `${y}${m}${day}_${hh}${mm}${ss}_${ms}`;
 }
 
+app.post("/api/isapi/current-trigger-mode", async (req, res, next) => {
+  try {
+    const cfg = await getClientConfig();
+    const baseConn = normalizeConnectionConfig(cfg?.connection);
+    const reqConn = req.body?.connection && typeof req.body.connection === "object" ? normalizeConnectionConfig(req.body.connection) : {};
+    const connection = normalizeConnectionConfig({
+      host: reqConn.host || baseConn.host,
+      port: reqConn.port || baseConn.port,
+      username: reqConn.username || baseConn.username,
+      password: reqConn.password || baseConn.password
+    });
+    
+    // 获取当前触发模式 - 使用ISAPI的事件触发状态接口
+    const result = await requestHikvisionIsapi({
+      ...connection,
+      pathname: "/ISAPI/Event/triggers/status",
+      method: "GET"
+    });
+    
+    res.json({
+      ok: true,
+      connection: {
+        host: connection.host,
+        port: connection.port,
+        username: connection.username
+      },
+      requestUrl: result.url,
+      rawText: result.text,
+      currentTriggerMode: result.text
+    });
+  } catch (err) {
+    console.error("获取当前触发模式失败:", err);
+    res.status(500).json({
+      ok: false,
+      error: "获取当前触发模式失败",
+      message: err.message
+    });
+  }
+});
+
 app.post("/api/isapi/snapshot-config", async (req, res, next) => {
   try {
     const cfg = await getClientConfig();

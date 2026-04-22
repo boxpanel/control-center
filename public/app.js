@@ -6619,17 +6619,19 @@ async function runDevicePreviewIsapiSchemaRequest(schemaKey, device) {
         throw new Error(response?.error || "报警输入触发配置获取失败");
       }
     } else if (schemaKey === "currentTriggerMode") {
-      // 获取当前触发模式
-      response = await fetchJson("/api/sdk/current-trigger-mode", {
-        ip: String(device.host || "").trim(),
-        port: Number(device.port || 80) || 80,
-        username: String(device.username || "").trim(),
-        password: String(device.password || "")
+      // 获取当前触发模式 - 使用ISAPI方式
+      response = await fetchJson("/api/isapi/current-trigger-mode", {
+        connection: {
+          host: String(device.host || "").trim(),
+          port: Number(device.port || 80) || 80,
+          username: String(device.username || "").trim(),
+          password: String(device.password || "")
+        }
       });
       
       // 解析当前触发模式数据
-      if (response && response.success) {
-        const triggerData = response;
+      if (response && response.ok) {
+        const triggerData = response.currentTriggerMode || response.rawText || "";
         values = schema.mapLoadResult(triggerData, device);
       } else {
         throw new Error(response?.error || "当前触发模式获取失败");
