@@ -6126,24 +6126,16 @@ app.post("/api/sdk/ftp-config", async (req, res) => {
     
     console.log(`[SDK API] 获取设备FTP配置: ${ip}:${port}`);
     
-    // 这里应该调用SDK桥接器的getFtpConfig方法
-    // 目前先返回模拟数据
-    const result = {
+    // 调用SDK桥接器的getFtpConfig方法
+    const result = await hikvisionSdkBridge.getFtpConfig({
+      ip, port, username, password
+    });
+    
+    res.json({
       success: true,
       sdkAvailable: hikvisionSdkBridge.sdkAvailable,
-      ftpEnabled: true,
-      ftpServer: "192.168.1.100",
-      ftpPort: 21,
-      ftpUsername: "ftpuser",
-      ftpPassword: "******",
-      ftpDirectory: "/upload/images",
-      ftpUploadMode: "主动模式",
-      ftpUploadInterval: 5,
-      mock: !hikvisionSdkBridge.sdkAvailable,
-      message: hikvisionSdkBridge.sdkAvailable ? "FTP配置获取成功" : "使用模拟FTP配置数据"
-    };
-    
-    res.json(result);
+      ...result
+    });
     
   } catch (error) {
     console.error("[SDK API] 获取FTP配置失败:", error);
@@ -6162,6 +6154,69 @@ app.post("/api/sdk/ftp-config", async (req, res) => {
         ftpUploadInterval: 5,
         mock: true
       }
+    });
+  }
+});
+
+/**
+ * 获取设备增强版触发模式配置 (通过SDK)
+ */
+app.post("/api/sdk/enhanced-trigger-config", async (req, res) => {
+  try {
+    const { ip, port = 8000, username = "admin", password = "admin123" } = req.body;
+    
+    if (!ip) {
+      return res.status(400).json({ error: "缺少设备IP地址" });
+    }
+    
+    if (!hikvisionSdkBridge) {
+      return res.status(503).json({ 
+        error: "SDK功能不可用",
+        message: "SDK桥接器未加载或初始化失败",
+        mock: true,
+        data: {
+          triggerMode: 1,
+          coilSensitivity: 75,
+          radarSensitivity: 60,
+          videoSensitivity: 80,
+          rs485Sensitivity: 70,
+          minVehicleWidth: 100,
+          minVehicleHeight: 100,
+          maxVehicleWidth: 800,
+          maxVehicleHeight: 600,
+          triggerDelay: 100,
+          debounceTime: 50,
+          triggerDirection: 2,
+          minSpeed: 20,
+          maxSpeed: 120,
+          outputDelay: 200,
+          holdTime: 1000,
+          multiTriggerLogic: 0,
+          triggerPriority: 1,
+          mock: true
+        }
+      });
+    }
+    
+    console.log(`[SDK API] 获取设备增强版触发配置: ${ip}:${port}`);
+    
+    // 调用SDK桥接器的getEnhancedTriggerConfig方法
+    const result = await hikvisionSdkBridge.getEnhancedTriggerConfig({
+      ip, port, username, password
+    });
+    
+    res.json({
+      success: true,
+      sdkAvailable: hikvisionSdkBridge.sdkAvailable,
+      ...result
+    });
+  } catch (error) {
+    console.error("[SDK API] 获取增强版触发配置失败:", error.message);
+    res.status(500).json({ 
+      error: "获取增强版触发配置失败",
+      message: error.message,
+      mock: true,
+      sdkAvailable: hikvisionSdkBridge ? hikvisionSdkBridge.sdkAvailable : false
     });
   }
 });

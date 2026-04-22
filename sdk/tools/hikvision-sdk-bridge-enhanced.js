@@ -250,8 +250,12 @@ class HikvisionSdkBridgeEnhanced {
      */
     execCommand(command) {
         return new Promise((resolve) => {
-            const [cmd, ...args] = command.split(' ');
-            const process = spawn(cmd, args);
+            // 在Windows上，使用shell模式执行命令以正确处理带空格的路径
+            const useShell = this.platform === 'win32';
+            const process = spawn(command, {
+                shell: useShell,
+                stdio: 'pipe'
+            });
 
             let stdout = '';
             let stderr = '';
@@ -335,7 +339,7 @@ class HikvisionSdkBridgeEnhanced {
             }
             
             const result = await this.execCommand(
-                `java -cp ${classpath} HikvisionSdkTool ${ip} ${port} ${username} ${password}`
+                `java -cp ${classpath} HikvisionSdkTool getTriggerConfig "${ip}" ${port} "${username}" "${password}"`
             );
 
             if (result.success) {
@@ -361,6 +365,60 @@ class HikvisionSdkBridgeEnhanced {
         } catch (error) {
             console.error('[SDK Bridge] 获取触发配置异常:', error.message);
             return this.getMockTriggerConfig(deviceInfo);
+        }
+    }
+    
+    /**
+     * 获取设备增强版触发模式配置
+     */
+    async getEnhancedTriggerConfig(deviceInfo) {
+        if (!this.initialized) {
+            await this.initialize();
+        }
+
+        if (!this.sdkAvailable) {
+            // 返回模拟数据
+            return this.getMockEnhancedTriggerConfig(deviceInfo);
+        }
+
+        try {
+            const { ip, port = 8000, username = 'admin', password = 'admin123' } = deviceInfo;
+            
+            // 构建Java命令
+            // 在Windows上使用分号作为classpath分隔符，Linux上使用冒号
+            const pathSeparator = this.platform === 'win32' ? ';' : ':';
+            let classpath = `"${__dirname}"`;
+            if (this.linuxSdkAvailable) {
+                classpath += `${pathSeparator}"${this.linuxLibsDir}/*"`;
+            }
+            
+            const result = await this.execCommand(
+                `java -cp ${classpath} HikvisionSdkTool getEnhancedTriggerConfig "${ip}" ${port} "${username}" "${password}"`
+            );
+
+            if (result.success) {
+                try {
+                    const data = JSON.parse(result.stdout);
+                    return {
+                        ...data,
+                        sdkType: this.linuxSdkAvailable ? 'linux' : 'java',
+                        platform: this.platform
+                    };
+                } catch (e) {
+                    return {
+                        error: '解析SDK响应失败',
+                        rawResponse: result.stdout,
+                        mock: true,
+                        ...this.getMockEnhancedTriggerConfig(deviceInfo)
+                    };
+                }
+            } else {
+                console.error('[SDK Bridge] SDK调用失败:', result.stderr);
+                return this.getMockEnhancedTriggerConfig(deviceInfo);
+            }
+        } catch (error) {
+            console.error('[SDK Bridge] 获取增强版触发配置异常:', error.message);
+            return this.getMockEnhancedTriggerConfig(deviceInfo);
         }
     }
     
@@ -402,13 +460,15 @@ class HikvisionSdkBridgeEnhanced {
             }
             
             // 构建Java命令
+            // 在Windows上使用分号作为classpath分隔符，Linux上使用冒号
+            const pathSeparator = this.platform === 'win32' ? ';' : ':';
             let classpath = `"${__dirname}"`;
             if (this.linuxSdkAvailable) {
-                classpath += `:"${this.linuxLibsDir}/*"`;
+                classpath += `${pathSeparator}"${this.linuxLibsDir}/*"`;
             }
             
             const result = await this.execCommand(
-                `java -cp ${classpath} HikvisionSdkTool getFtpConfig ${ip} ${port} ${username} ${password}`
+                `java -cp ${classpath} HikvisionSdkTool getFtpConfig "${ip}" ${port} "${username}" "${password}"`
             );
 
             if (result.success) {
@@ -487,13 +547,15 @@ class HikvisionSdkBridgeEnhanced {
             }
             
             // 构建Java命令
+            // 在Windows上使用分号作为classpath分隔符，Linux上使用冒号
+            const pathSeparator = this.platform === 'win32' ? ';' : ':';
             let classpath = `"${__dirname}"`;
             if (this.linuxSdkAvailable) {
-                classpath += `:"${this.linuxLibsDir}/*"`;
+                classpath += `${pathSeparator}"${this.linuxLibsDir}/*"`;
             }
             
             const result = await this.execCommand(
-                `java -cp ${classpath} HikvisionSdkTool getPictureNamingRule ${ip} ${port} ${username} ${password}`
+                `java -cp ${classpath} HikvisionSdkTool getPictureNamingRule "${ip}" ${port} "${username}" "${password}"`
             );
 
             if (result.success) {
@@ -550,6 +612,35 @@ class HikvisionSdkBridgeEnhanced {
             rs485Sensitivity: 70,
             mock: true,
             message: '使用模拟数据（SDK不可用）',
+            platform: this.platform,
+            sdkAvailable: this.sdkAvailable
+        };
+    }
+    
+    getMockEnhancedTriggerConfig(deviceInfo) {
+        // 返回增强版模拟数据，用于开发和测试
+        return {
+            success: true,
+            triggerMode: 1,
+            coilSensitivity: 75,
+            radarSensitivity: 60,
+            videoSensitivity: 80,
+            rs485Sensitivity: 70,
+            minVehicleWidth: 100,
+            minVehicleHeight: 100,
+            maxVehicleWidth: 800,
+            maxVehicleHeight: 600,
+            triggerDelay: 100,
+            debounceTime: 50,
+            triggerDirection: 2,
+            minSpeed: 20,
+            maxSpeed: 120,
+            outputDelay: 200,
+            holdTime: 1000,
+            multiTriggerLogic: 0,
+            triggerPriority: 1,
+            mock: true,
+            message: '使用增强版模拟数据（SDK不可用）',
             platform: this.platform,
             sdkAvailable: this.sdkAvailable
         };
