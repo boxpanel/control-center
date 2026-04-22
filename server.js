@@ -555,7 +555,9 @@ async function requireAuth(req, res, next) {
   if (urlPath.startsWith("/api/plates/image/")) return next();
   
   // 允许公开访问SDK API（用于设备参数获取）
-  if (urlPath.startsWith("/api/sdk/")) return next();
+  if (urlPath.startsWith("/api/sdk/")) {
+    return next();
+  }
 
   const cookies = parseCookies(req.headers.cookie);
   const token = cookies.cc_token || "";
