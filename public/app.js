@@ -3651,31 +3651,113 @@ function extractCameraNamingElements(response) {
   }
 }
 
+// 根据设备信息从网络设备列表中查找设备配置
+ function findDeviceConfig(deviceInfo) {
+   if (!deviceInfo) return null;
+   
+   const { host: targetHost, port: targetPort } = deviceInfo;
+   if (!targetHost) return null;
+   
+   // 在managedDeviceState.items中查找匹配的设备
+   const device = managedDeviceState.items.find(item => {
+     if (!item || !item.host) return false;
+     
+     // 提取item的IP和端口
+     const itemHost = item.host;
+     const itemPort = item.port || 80;
+     
+     // 情况1：直接比较完整的主机字符串（可能包含端口）
+     if (itemHost === targetHost) {
+       // 如果端口也匹配或未指定端口，则认为是匹配的
+       if (!targetPort || itemPort === targetPort) {
+         return true;
+       }
+     }
+     
+     // 情况2：如果item.host包含端口号，只比较IP部分
+     const itemIp = itemHost.split(':')[0];
+     const targetIp = targetHost.split(':')[0];
+     
+     if (itemIp === targetIp) {
+       // IP匹配，检查端口
+       if (!targetPort || itemPort === targetPort) {
+         return true;
+       }
+     }
+     
+     return false;
+   });
+   
+   return device || null;
+ }
+
 // 加载完整的ISAPI FTP配置信息
 async function loadIsapiFtpConfigForRecord(record) {
   try {
     // 尝试从记录中提取设备信息
     // 这里需要根据实际的数据结构进行调整
     
-    // 首先尝试从parsedMeta中提取设备信息
+    // 首先尝试从parsedMeta中提取设备IP
+    const deviceIp = record.parsedMeta?.deviceIp;
+    
+    // 默认设备信息（作为后备）
     let deviceInfo = {
-      host: record.parsedMeta?.deviceIp || "192.168.11.253",
+      host: deviceIp || "192.168.11.253",
       port: 80, // 默认HTTP端口
       username: "admin", // 默认用户名
-      password: "admin123" // 默认密码
+      password: "qwer1234" // 默认密码（根据curl测试）
     };
     
-    // 如果记录中有设备连接信息，优先使用
-    if (record.deviceConnection) {
-      deviceInfo = {
-        host: record.deviceConnection.host || deviceInfo.host,
-        port: record.deviceConnection.port || deviceInfo.port,
-        username: record.deviceConnection.username || deviceInfo.username,
-        password: record.deviceConnection.password || deviceInfo.password
-      };
+    // 优先从网络设备列表中查找设备配置
+    // 首先尝试使用parsedMeta中的设备IP查找
+    if (deviceIp) {
+      const searchInfo = { host: deviceIp, port: 80 }; // 默认端口80
+      const managedDevice = findDeviceConfig(searchInfo);
+      
+      if (managedDevice) {
+        console.log("从网络设备列表中找到设备配置（通过parsedMeta.deviceIp）:", {
+          host: managedDevice.host,
+          port: managedDevice.port,
+          username: managedDevice.username ? "***" : "未设置"
+        });
+        
+        deviceInfo = {
+          host: managedDevice.host || deviceInfo.host,
+          port: managedDevice.port || deviceInfo.port,
+          username: managedDevice.username || deviceInfo.username,
+          password: managedDevice.password || deviceInfo.password
+        };
+      } else {
+        console.log("未在网络设备列表中找到设备（通过parsedMeta.deviceIp）:", deviceIp);
+      }
     }
     
-    console.log("尝试获取ISAPI FTP配置，设备信息:", {
+    // 如果record.deviceConnection有信息，也尝试用它查找
+    if (record.deviceConnection && record.deviceConnection.host) {
+      const searchInfo = {
+        host: record.deviceConnection.host,
+        port: record.deviceConnection.port || 80
+      };
+      const managedDevice = findDeviceConfig(searchInfo);
+      
+      if (managedDevice) {
+        console.log("从网络设备列表中找到设备配置（通过deviceConnection）:", {
+          host: managedDevice.host,
+          port: managedDevice.port,
+          username: managedDevice.username ? "***" : "未设置"
+        });
+        
+        // 使用找到的设备配置，但保留deviceConnection中的用户名密码（如果有）
+        deviceInfo = {
+          host: managedDevice.host || deviceInfo.host,
+          port: managedDevice.port || deviceInfo.port,
+          username: record.deviceConnection.username || managedDevice.username || deviceInfo.username,
+          password: record.deviceConnection.password || managedDevice.password || deviceInfo.password
+        };
+      }
+    }
+     
+     console.log("尝试获取ISAPI FTP配置，设备信息:", {
       host: deviceInfo.host,
       port: deviceInfo.port,
       username: deviceInfo.username ? "***" : "未设置"

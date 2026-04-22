@@ -6235,7 +6235,7 @@ app.use((err, req, res, next) => {
  */
 app.post("/api/sdk/trigger-config", async (req, res) => {
   try {
-    const { ip, port = 8000, username = "admin", password = "admin123" } = req.body;
+    const { ip, port = 8000, username = "admin", password = "qwer1234" } = req.body;
     
     if (!ip) {
       return res.status(400).json({ error: "缺少设备IP地址" });
@@ -6323,7 +6323,7 @@ app.post("/api/sdk/device-info", async (req, res) => {
  */
 app.post("/api/sdk/test-connection", async (req, res) => {
   try {
-    const { ip, port = 8000, username = "admin", password = "admin123" } = req.body;
+    const { ip, port = 8000, username = "admin", password = "qwer1234" } = req.body;
     
     if (!ip) {
       return res.status(400).json({ error: "缺少设备IP地址" });
@@ -6363,7 +6363,7 @@ app.post("/api/sdk/test-connection", async (req, res) => {
  */
 app.post("/api/sdk/ftp-config", async (req, res) => {
   try {
-    const { ip, port = 8000, username = "admin", password = "admin123" } = req.body;
+    const { ip, port = 8000, username = "admin", password = "qwer1234" } = req.body;
     
     if (!ip) {
       return res.status(400).json({ error: "缺少设备IP地址" });
@@ -6409,7 +6409,7 @@ app.post("/api/sdk/ftp-config", async (req, res) => {
  */
 app.post("/api/sdk/enhanced-trigger-config", async (req, res) => {
   try {
-    const { ip, port = 8000, username = "admin", password = "admin123" } = req.body;
+    const { ip, port = 8000, username = "admin", password = "qwer1234" } = req.body;
     
     if (!ip) {
       return res.status(400).json({ error: "缺少设备IP地址" });
@@ -6454,7 +6454,7 @@ app.post("/api/sdk/enhanced-trigger-config", async (req, res) => {
  */
 app.post("/api/sdk/current-trigger-mode", async (req, res) => {
   try {
-    const { ip, port = 8000, username = "admin", password = "admin123" } = req.body;
+    const { ip, port = 8000, username = "admin", password = "qwer1234" } = req.body;
     
     if (!ip) {
       return res.status(400).json({ error: "缺少设备IP地址" });
@@ -6499,7 +6499,7 @@ app.post("/api/sdk/current-trigger-mode", async (req, res) => {
  */
 app.post("/api/sdk/naming-rules", async (req, res) => {
   try {
-    const { ip, port = 8000, username = "admin", password = "admin123" } = req.body;
+    const { ip, port = 8000, username = "admin", password = "qwer1234" } = req.body;
     
     if (!ip) {
       return res.status(400).json({ error: "缺少设备IP地址" });
