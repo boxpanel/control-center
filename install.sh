@@ -297,37 +297,7 @@ ensure_base_packages() {
   fi
 }
 
-ensure_jna() {
-  step "Installing JNA library for Java SDK"
-  if command -v java >/dev/null 2>&1; then
-    # 通过apt安装JNA
-    if ! dpkg -s libjna-java >/dev/null 2>&1; then
-      install_apt_packages libjna-java
-    fi
-    # 查找JNA jar包路径并复制到SDK目录
-    local jna_jar
-    jna_jar="$(dpkg -L libjna-java 2>/dev/null | grep '\.jar$' | head -1 || true)"
-    if [[ -n "$jna_jar" ]]; then
-      local sdk_tools_dir="$ROOT_DIR/sdk/tools"
-      mkdir -p "$sdk_tools_dir"
-      cp "$jna_jar" "$sdk_tools_dir/"
-      printf "  ✓ JNA库已安装: %s\n" "$jna_jar"
-    else
-      # 如果apt包没有jar文件，从Maven下载
-      printf "  ⚠ 正在从Maven下载JNA库...\n"
-      local jna_url="https://repo1.maven.org/maven2/net/java/dev/jna/jna/5.14.0/jna-5.14.0.jar"
-      local sdk_tools_dir="$ROOT_DIR/sdk/tools"
-      mkdir -p "$sdk_tools_dir"
-      curl -fsSL "$jna_url" -o "$sdk_tools_dir/jna.jar" || {
-        printf "  ✗ JNA库下载失败，请手动安装\n"
-        return 1
-      }
-      printf "  ✓ JNA库已下载到: %s/sdk/tools/jna.jar\n" "$ROOT_DIR"
-    fi
-  else
-    printf "  ⚠ Java未安装，跳过JNA安装\n"
-  fi
-}
+
 
 ensure_nodejs() {
   local need_install=0
@@ -579,33 +549,7 @@ mkdir -p data uploads uploads/ftp uploads/plates streams
 sanitize_legacy_serial_config
 write_install_auth_config
 
-step "Setting up Hikvision SDK libraries"
-if [[ -d "$ROOT_DIR/sdk/linux/libs" ]]; then
-  printf "  Found SDK libraries in repository\n"
-  # 设置库文件权限
-  chmod -R 755 "$ROOT_DIR/sdk/linux/libs" 2>/dev/null || true
-  # 创建必要的符号链接
-  if [[ -f "$ROOT_DIR/sdk/linux/libs/libcrypto.so.3" && ! -f "$ROOT_DIR/sdk/linux/libs/libcrypto.so" ]]; then
-    ln -sf libcrypto.so.3 "$ROOT_DIR/sdk/linux/libs/libcrypto.so"
-    printf "  Created symlink: libcrypto.so.3 -> libcrypto.so\n"
-  fi
-  if [[ -f "$ROOT_DIR/sdk/linux/libs/libssl.so.3" && ! -f "$ROOT_DIR/sdk/linux/libs/libssl.so" ]]; then
-    ln -sf libssl.so.3 "$ROOT_DIR/sdk/linux/libs/libssl.so"
-    printf "  Created symlink: libssl.so.3 -> libssl.so\n"
-  fi
-  if [[ -f "$ROOT_DIR/sdk/linux/libs/libz.so" && ! -f "$ROOT_DIR/sdk/linux/libs/libz.so.1" ]]; then
-    ln -sf libz.so "$ROOT_DIR/sdk/linux/libs/libz.so.1"
-    printf "  Created symlink: libz.so -> libz.so.1\n"
-  fi
-  # 将SDK库路径添加到ldconfig
-  printf "  Registering SDK library path...\n"
-  echo "$ROOT_DIR/sdk/linux/libs" | run_root tee /etc/ld.so.conf.d/hikvision-sdk.conf >/dev/null 2>&1 || true
-  run_root ldconfig 2>/dev/null || true
-  printf "  ✓ SDK libraries configured\n"
-else
-  printf "  ⚠ SDK libraries not found in repository\n"
-  printf "  Please copy the SDK libraries to %s/sdk/linux/libs/\n" "$ROOT_DIR"
-fi
+
 
 step "Installing dependencies"
 if [[ -f package-lock.json ]]; then
@@ -613,8 +557,6 @@ if [[ -f package-lock.json ]]; then
 else
   npm install --omit=dev
 fi
-
-ensure_jna
 
 if [[ "$ENABLE_SERVICE" -eq 1 ]]; then
   write_systemd_service
