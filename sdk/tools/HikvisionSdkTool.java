@@ -35,11 +35,23 @@ public class HikvisionSdkTool {
         // 注销登录
         boolean NET_DVR_Logout_V30(int lUserID);
         
-        // 获取设备配置
+        // 获取设备配置（无输入缓冲区）
         boolean NET_DVR_GetDVRConfig(
             int lUserID,
             int dwCommand,
             int lChannel,
+            Pointer lpOutBuffer,
+            int dwOutBufferSize,
+            IntByReference lpBytesReturned
+        );
+        
+        // 获取设备配置（有输入缓冲区）
+        boolean NET_DVR_GetDVRConfig(
+            int lUserID,
+            int dwCommand,
+            int lChannel,
+            Pointer lpInBuffer,
+            int dwInBufferSize,
             Pointer lpOutBuffer,
             int dwOutBufferSize,
             IntByReference lpBytesReturned
@@ -78,6 +90,18 @@ public class HikvisionSdkTool {
                 "byDiskNum", "byDVRType", "byChanNum", "byStartChan",
                 "byAudioChanNum", "byIPChanNum", "byReserve"
             );
+        }
+    }
+    
+    // ITC触发条件结构体（用于NET_DVR_GetDVRConfig的输入参数）
+    public static class NET_DVR_TRIGGER_COND extends Structure {
+        public int dwSize;
+        public byte byMode;          // 触发模式：0-全部，1-线圈，2-雷达，3-视频
+        public byte[] byRes = new byte[3];
+        
+        @Override
+        protected List<String> getFieldOrder() {
+            return Arrays.asList("dwSize", "byMode", "byRes");
         }
     }
     
@@ -255,11 +279,19 @@ public class HikvisionSdkTool {
             NET_ITC_TRIGGERCFG triggerCfg = new NET_ITC_TRIGGERCFG();
             triggerCfg.dwSize = triggerCfg.size();
             
+            // ITC设备需要传入触发条件作为输入参数
+            NET_DVR_TRIGGER_COND triggerCond = new NET_DVR_TRIGGER_COND();
+            triggerCond.dwSize = triggerCond.size();
+            triggerCond.byMode = (byte)0; // 获取所有触发模式
+            triggerCond.write();
+            
             IntByReference bytesReturned = new IntByReference();
             boolean success = sdk.NET_DVR_GetDVRConfig(
                 userId,
-                0x0000, // 触发模式配置命令码
-                0,
+                0x9000, // NET_DVR_GET_ITC_TRIGGERCFG
+                1,     // 通道号从1开始
+                triggerCond.getPointer(),
+                triggerCond.size(),
                 triggerCfg.getPointer(),
                 triggerCfg.size(),
                 bytesReturned
@@ -317,11 +349,19 @@ public class HikvisionSdkTool {
             NET_ITC_TRIGGERCFG_ENHANCED triggerCfg = new NET_ITC_TRIGGERCFG_ENHANCED();
             triggerCfg.dwSize = triggerCfg.size();
             
+            // ITC设备需要传入触发条件作为输入参数
+            NET_DVR_TRIGGER_COND triggerCond = new NET_DVR_TRIGGER_COND();
+            triggerCond.dwSize = triggerCond.size();
+            triggerCond.byMode = (byte)0; // 获取所有触发模式
+            triggerCond.write();
+            
             IntByReference bytesReturned = new IntByReference();
             boolean success = sdk.NET_DVR_GetDVRConfig(
                 userId,
-                0x0000, // 触发模式配置命令码
-                0,
+                0x9000, // NET_DVR_GET_ITC_TRIGGERCFG
+                1,     // 通道号从1开始
+                triggerCond.getPointer(),
+                triggerCond.size(),
                 triggerCfg.getPointer(),
                 triggerCfg.size(),
                 bytesReturned
