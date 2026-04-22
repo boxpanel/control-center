@@ -6,7 +6,7 @@
 import { spawn } from 'child_process';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
-import { existsSync } from 'fs';
+import { existsSync, statSync } from 'fs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -73,7 +73,7 @@ class HikvisionSdkBridgeEnhanced {
             // 检查头文件
             const hcnetSdkHeader = join(this.linuxIncludeDir, 'HCNetSDK.h');
             if (existsSync(hcnetSdkHeader)) {
-                console.log(`  ✓ HCNetSDK.h (${Math.round(fs.statSync(hcnetSdkHeader).size / 1024)} KB)`);
+                console.log(`  ✓ HCNetSDK.h (${Math.round(statSync(hcnetSdkHeader).size / 1024)} KB)`);
             } else {
                 console.log('  ✗ 缺少HCNetSDK.h头文件');
                 return false;
@@ -228,28 +228,34 @@ class HikvisionSdkBridgeEnhanced {
         try {
             // 检查Linux SDK
             const linuxSdkAvailable = await this.checkLinuxSdkAvailability();
+            console.log(`[SDK Bridge] Linux SDK检查结果: ${linuxSdkAvailable}`);
             
             // 检查Java环境
             const javaAvailable = await this.checkJavaEnvironment();
+            console.log(`[SDK Bridge] Java环境检查结果: ${javaAvailable}`);
             
             // SDK可用条件：Linux SDK可用 或 Java可用
             this.sdkAvailable = linuxSdkAvailable || javaAvailable;
+            console.log(`[SDK Bridge] SDK可用: ${this.sdkAvailable} (Linux SDK: ${linuxSdkAvailable}, Java: ${javaAvailable})`);
             
             if (this.sdkAvailable) {
                 console.log('[SDK Bridge] SDK环境检查通过');
                 
                 // 如果Java可用，编译Java工具
                 if (javaAvailable) {
-                    await this.compileJavaTools();
+                    const compiled = await this.compileJavaTools();
+                    console.log(`[SDK Bridge] Java工具编译结果: ${compiled}`);
                 }
             } else {
                 console.log('[SDK Bridge] SDK环境检查失败');
+                console.log(`[SDK Bridge] 失败原因: Linux SDK=${linuxSdkAvailable}, Java=${javaAvailable}`);
             }
             
             return this.sdkAvailable;
             
         } catch (error) {
             console.error('[SDK Bridge] SDK环境检查失败:', error.message);
+            console.error('[SDK Bridge] 错误堆栈:', error.stack);
             this.sdkAvailable = false;
             return false;
         }

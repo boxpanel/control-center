@@ -579,6 +579,34 @@ mkdir -p data uploads uploads/ftp uploads/plates streams
 sanitize_legacy_serial_config
 write_install_auth_config
 
+step "Setting up Hikvision SDK libraries"
+if [[ -d "$ROOT_DIR/sdk/linux/libs" ]]; then
+  printf "  Found SDK libraries in repository\n"
+  # 设置库文件权限
+  chmod -R 755 "$ROOT_DIR/sdk/linux/libs" 2>/dev/null || true
+  # 创建必要的符号链接
+  if [[ -f "$ROOT_DIR/sdk/linux/libs/libcrypto.so.3" && ! -f "$ROOT_DIR/sdk/linux/libs/libcrypto.so" ]]; then
+    ln -sf libcrypto.so.3 "$ROOT_DIR/sdk/linux/libs/libcrypto.so"
+    printf "  Created symlink: libcrypto.so.3 -> libcrypto.so\n"
+  fi
+  if [[ -f "$ROOT_DIR/sdk/linux/libs/libssl.so.3" && ! -f "$ROOT_DIR/sdk/linux/libs/libssl.so" ]]; then
+    ln -sf libssl.so.3 "$ROOT_DIR/sdk/linux/libs/libssl.so"
+    printf "  Created symlink: libssl.so.3 -> libssl.so\n"
+  fi
+  if [[ -f "$ROOT_DIR/sdk/linux/libs/libz.so" && ! -f "$ROOT_DIR/sdk/linux/libs/libz.so.1" ]]; then
+    ln -sf libz.so "$ROOT_DIR/sdk/linux/libs/libz.so.1"
+    printf "  Created symlink: libz.so -> libz.so.1\n"
+  fi
+  # 将SDK库路径添加到ldconfig
+  printf "  Registering SDK library path...\n"
+  echo "$ROOT_DIR/sdk/linux/libs" | run_root tee /etc/ld.so.conf.d/hikvision-sdk.conf >/dev/null 2>&1 || true
+  run_root ldconfig 2>/dev/null || true
+  printf "  ✓ SDK libraries configured\n"
+else
+  printf "  ⚠ SDK libraries not found in repository\n"
+  printf "  Please copy the SDK libraries to %s/sdk/linux/libs/\n" "$ROOT_DIR"
+fi
+
 step "Installing dependencies"
 if [[ -f package-lock.json ]]; then
   npm ci --omit=dev
