@@ -5006,6 +5006,147 @@ app.post("/api/device/ftp-config", async (req, res, next) => {
   }
 });
 
+// ISAPI触发模式相关API
+app.post("/api/isapi/trigger-config", async (req, res, next) => {
+  try {
+    const cfg = await getClientConfig();
+    const baseConn = normalizeConnectionConfig(cfg?.connection);
+    const reqConn = req.body?.connection && typeof req.body.connection === "object" ? normalizeConnectionConfig(req.body.connection) : {};
+    const connection = normalizeConnectionConfig({
+      host: reqConn.host || baseConn.host,
+      port: reqConn.port || baseConn.port,
+      username: reqConn.username || baseConn.username,
+      password: reqConn.password || baseConn.password
+    });
+    
+    // 获取事件触发配置
+    const result = await requestHikvisionIsapi({
+      ...connection,
+      pathname: "/ISAPI/Event/triggers",
+      method: "GET"
+    });
+    
+    res.json({
+      ok: true,
+      connection: {
+        host: connection.host,
+        port: connection.port,
+        username: connection.username
+      },
+      requestUrl: result.url,
+      rawText: result.text,
+      triggerConfig: result.text // 返回原始XML文本，由前端解析
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+app.post("/api/isapi/smart-trigger-config", async (req, res, next) => {
+  try {
+    const cfg = await getClientConfig();
+    const baseConn = normalizeConnectionConfig(cfg?.connection);
+    const reqConn = req.body?.connection && typeof req.body.connection === "object" ? normalizeConnectionConfig(req.body.connection) : {};
+    const connection = normalizeConnectionConfig({
+      host: reqConn.host || baseConn.host,
+      port: reqConn.port || baseConn.port,
+      username: reqConn.username || baseConn.username,
+      password: reqConn.password || baseConn.password
+    });
+    
+    // 获取智能事件触发配置
+    const result = await requestHikvisionIsapi({
+      ...connection,
+      pathname: "/ISAPI/Smart/Event/triggers",
+      method: "GET"
+    });
+    
+    res.json({
+      ok: true,
+      connection: {
+        host: connection.host,
+        port: connection.port,
+        username: connection.username
+      },
+      requestUrl: result.url,
+      rawText: result.text,
+      smartTriggerConfig: result.text
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+app.post("/api/isapi/video-trigger-config", async (req, res, next) => {
+  try {
+    const cfg = await getClientConfig();
+    const baseConn = normalizeConnectionConfig(cfg?.connection);
+    const reqConn = req.body?.connection && typeof req.body.connection === "object" ? normalizeConnectionConfig(req.body.connection) : {};
+    const connection = normalizeConnectionConfig({
+      host: reqConn.host || baseConn.host,
+      port: reqConn.port || baseConn.port,
+      username: reqConn.username || baseConn.username,
+      password: reqConn.password || baseConn.password
+    });
+    
+    // 获取视频输入触发配置（通道1）
+    const result = await requestHikvisionIsapi({
+      ...connection,
+      pathname: "/ISAPI/System/Video/inputs/channels/1/triggers",
+      method: "GET"
+    });
+    
+    res.json({
+      ok: true,
+      connection: {
+        host: connection.host,
+        port: connection.port,
+        username: connection.username
+      },
+      requestUrl: result.url,
+      rawText: result.text,
+      videoTriggerConfig: result.text
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+app.post("/api/isapi/io-trigger-config", async (req, res, next) => {
+  try {
+    const cfg = await getClientConfig();
+    const baseConn = normalizeConnectionConfig(cfg?.connection);
+    const reqConn = req.body?.connection && typeof req.body.connection === "object" ? normalizeConnectionConfig(req.body.connection) : {};
+    const connection = normalizeConnectionConfig({
+      host: reqConn.host || baseConn.host,
+      port: reqConn.port || baseConn.port,
+      username: reqConn.username || baseConn.username,
+      password: reqConn.password || baseConn.password
+    });
+    
+    // 获取报警输入触发配置
+    const result = await requestHikvisionIsapi({
+      ...connection,
+      pathname: "/ISAPI/System/IO/inputs",
+      method: "GET"
+    });
+    
+    res.json({
+      ok: true,
+      connection: {
+        host: connection.host,
+        port: connection.port,
+        username: connection.username
+      },
+      requestUrl: result.url,
+      rawText: result.text,
+      ioTriggerConfig: result.text
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
 app.post("/api/onvif/request", async (req, res, next) => {
   try {
     const connection = normalizeConnectionConfig(req.body?.connection || {});

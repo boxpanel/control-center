@@ -305,8 +305,10 @@ const DEVICE_PREVIEW_ISAPI_PRESETS = {
   deviceInfo: { label: "设备信息", schema: "deviceInfo" },
   ftpConfig: { label: "FTP配置", schema: "ftpConfig" },
   namingRules: { label: "命名规则", schema: "namingRules" },
-  triggerConfig: { label: "触发模式参数", schema: "triggerConfig" },
-  currentTriggerMode: { label: "当前触发模式", schema: "currentTriggerMode" }
+  triggerConfig: { label: "事件触发配置", schema: "triggerConfig" },
+  smartTriggerConfig: { label: "智能事件触发配置", schema: "smartTriggerConfig" },
+  videoTriggerConfig: { label: "视频输入触发配置", schema: "videoTriggerConfig" },
+  ioTriggerConfig: { label: "报警输入触发配置", schema: "ioTriggerConfig" }
 };
 const DEVICE_PREVIEW_ONVIF_PRESETS = {
   deviceInfo: { label: "设备信息", method: "GET", contentType: "application/json; charset=utf-8", path: "getDeviceInformation", body: "" }
@@ -381,6 +383,267 @@ const DEVICE_PREVIEW_ISAPI_SCHEMAS = {
         ipAddress: ipAddress,
         macAddress: extract("macAddress") || extract("MAC") || ""
       };
+    }
+  },
+  
+  // 触发模式配置schema
+  triggerConfig: {
+    readOnly: true,
+    method: "ISAPI",
+    contentType: "application/xml; charset=utf-8",
+    path: "/ISAPI/Event/triggers",
+    fields: [
+      { key: "triggerEnabled", label: "触发启用状态", type: "text", readOnly: true },
+      { key: "triggerType", label: "触发类型", type: "text", readOnly: true },
+      { key: "triggerSource", label: "触发源", type: "text", readOnly: true },
+      { key: "triggerCondition", label: "触发条件", type: "text", readOnly: true },
+      { key: "triggerSensitivity", label: "触发灵敏度", type: "text", readOnly: true },
+      { key: "triggerDelay", label: "触发延时(ms)", type: "text", readOnly: true },
+      { key: "triggerDuration", label: "触发持续时间(ms)", type: "text", readOnly: true },
+      { key: "triggerThreshold", label: "触发阈值", type: "text", readOnly: true },
+      { key: "triggerDirection", label: "触发方向", type: "text", readOnly: true },
+      { key: "triggerArea", label: "触发区域", type: "text", readOnly: true },
+      { key: "triggerSchedule", label: "触发时间表", type: "text", readOnly: true },
+      { key: "triggerAction", label: "触发动作", type: "text", readOnly: true }
+    ],
+    mapLoadResult(xmlText = "", device = null) {
+      // 从XML中提取触发配置信息
+      const extract = (tag) => {
+        const match = xmlText.match(new RegExp(`<${tag}>([\\s\\S]*?)</${tag}>`, "i"));
+        return match ? match[1].trim() : "";
+      };
+      
+      const extractAll = (tag) => {
+        const regex = new RegExp(`<${tag}>([\\s\\S]*?)</${tag}>`, "gi");
+        const matches = [];
+        let match;
+        while ((match = regex.exec(xmlText)) !== null) {
+          matches.push(match[1].trim());
+        }
+        return matches;
+      };
+      
+      // 解析触发配置
+      const enabled = extract("enabled") || extract("Enabled") || "unknown";
+      const triggerType = extract("triggerType") || extract("TriggerType") || extract("type") || "unknown";
+      const source = extract("source") || extract("Source") || extract("triggerSource") || "unknown";
+      const condition = extract("condition") || extract("Condition") || "unknown";
+      const sensitivity = extract("sensitivity") || extract("Sensitivity") || extract("TriggerSensitivity") || "unknown";
+      const delay = extract("delay") || extract("Delay") || extract("triggerDelay") || "unknown";
+      const duration = extract("duration") || extract("Duration") || extract("triggerDuration") || "unknown";
+      const threshold = extract("threshold") || extract("Threshold") || extract("triggerThreshold") || "unknown";
+      const direction = extract("direction") || extract("Direction") || extract("triggerDirection") || "unknown";
+      const area = extract("area") || extract("Area") || extract("triggerArea") || "unknown";
+      const schedule = extract("schedule") || extract("Schedule") || extract("triggerSchedule") || "unknown";
+      const action = extract("action") || extract("Action") || extract("triggerAction") || "unknown";
+      
+      return {
+        triggerEnabled: enabled === "true" ? "已启用" : enabled === "false" ? "已禁用" : enabled,
+        triggerType: triggerType,
+        triggerSource: source,
+        triggerCondition: condition,
+        triggerSensitivity: sensitivity,
+        triggerDelay: delay,
+        triggerDuration: duration,
+        triggerThreshold: threshold,
+        triggerDirection: direction,
+        triggerArea: area,
+        triggerSchedule: schedule,
+        triggerAction: action
+      };
+    }
+  },
+  
+  // 智能事件触发配置schema
+  smartTriggerConfig: {
+    readOnly: true,
+    method: "ISAPI",
+    contentType: "application/xml; charset=utf-8",
+    path: "/ISAPI/Smart/Event/triggers",
+    fields: [
+      { key: "smartEventType", label: "智能事件类型", type: "text", readOnly: true },
+      { key: "smartEventEnabled", label: "智能事件启用状态", type: "text", readOnly: true },
+      { key: "smartEventSensitivity", label: "智能事件灵敏度", type: "text", readOnly: true },
+      { key: "smartEventThreshold", label: "智能事件阈值", type: "text", readOnly: true },
+      { key: "smartEventRegion", label: "智能事件区域", type: "text", readOnly: true },
+      { key: "smartEventSchedule", label: "智能事件时间表", type: "text", readOnly: true },
+      { key: "smartEventAction", label: "智能事件动作", type: "text", readOnly: true },
+      { key: "smartEventDetectionType", label: "检测类型", type: "text", readOnly: true },
+      { key: "smartEventObjectType", label: "对象类型", type: "text", readOnly: true },
+      { key: "smartEventObjectSize", label: "对象尺寸", type: "text", readOnly: true },
+      { key: "smartEventObjectSpeed", label: "对象速度", type: "text", readOnly: true },
+      { key: "smartEventObjectDirection", label: "对象方向", type: "text", readOnly: true }
+    ],
+    mapLoadResult(xmlText = "", device = null) {
+      // 从XML中提取智能事件触发配置
+      const extract = (tag) => {
+        const match = xmlText.match(new RegExp(`<${tag}>([\\s\\S]*?)</${tag}>`, "i"));
+        return match ? match[1].trim() : "";
+      };
+      
+      const eventType = extract("eventType") || extract("EventType") || extract("smartEventType") || "unknown";
+      const enabled = extract("enabled") || extract("Enabled") || "unknown";
+      const sensitivity = extract("sensitivity") || extract("Sensitivity") || extract("smartEventSensitivity") || "unknown";
+      const threshold = extract("threshold") || extract("Threshold") || extract("smartEventThreshold") || "unknown";
+      const region = extract("region") || extract("Region") || extract("smartEventRegion") || "unknown";
+      const schedule = extract("schedule") || extract("Schedule") || extract("smartEventSchedule") || "unknown";
+      const action = extract("action") || extract("Action") || extract("smartEventAction") || "unknown";
+      const detectionType = extract("detectionType") || extract("DetectionType") || extract("smartEventDetectionType") || "unknown";
+      const objectType = extract("objectType") || extract("ObjectType") || extract("smartEventObjectType") || "unknown";
+      const objectSize = extract("objectSize") || extract("ObjectSize") || extract("smartEventObjectSize") || "unknown";
+      const objectSpeed = extract("objectSpeed") || extract("ObjectSpeed") || extract("smartEventObjectSpeed") || "unknown";
+      const objectDirection = extract("objectDirection") || extract("ObjectDirection") || extract("smartEventObjectDirection") || "unknown";
+      
+      return {
+        smartEventType: eventType,
+        smartEventEnabled: enabled === "true" ? "已启用" : enabled === "false" ? "已禁用" : enabled,
+        smartEventSensitivity: sensitivity,
+        smartEventThreshold: threshold,
+        smartEventRegion: region,
+        smartEventSchedule: schedule,
+        smartEventAction: action,
+        smartEventDetectionType: detectionType,
+        smartEventObjectType: objectType,
+        smartEventObjectSize: objectSize,
+        smartEventObjectSpeed: objectSpeed,
+        smartEventObjectDirection: objectDirection
+      };
+    }
+  },
+  
+  // 视频输入触发配置schema
+  videoTriggerConfig: {
+    readOnly: true,
+    method: "ISAPI",
+    contentType: "application/xml; charset=utf-8",
+    path: "/ISAPI/System/Video/inputs/channels/1/triggers",
+    fields: [
+      { key: "videoTriggerEnabled", label: "视频触发启用状态", type: "text", readOnly: true },
+      { key: "videoTriggerType", label: "视频触发类型", type: "text", readOnly: true },
+      { key: "videoTriggerSensitivity", label: "视频触发灵敏度", type: "text", readOnly: true },
+      { key: "videoTriggerThreshold", label: "视频触发阈值", type: "text", readOnly: true },
+      { key: "videoTriggerArea", label: "视频触发区域", type: "text", readOnly: true },
+      { key: "videoTriggerDelay", label: "视频触发延时(ms)", type: "text", readOnly: true },
+      { key: "videoTriggerDuration", label: "视频触发持续时间(ms)", type: "text", readOnly: true },
+      { key: "videoTriggerDirection", label: "视频触发方向", type: "text", readOnly: true },
+      { key: "videoTriggerObjectType", label: "视频触发对象类型", type: "text", readOnly: true },
+      { key: "videoTriggerObjectSize", label: "视频触发对象尺寸", type: "text", readOnly: true },
+      { key: "videoTriggerObjectSpeed", label: "视频触发对象速度", type: "text", readOnly: true }
+    ],
+    mapLoadResult(xmlText = "", device = null) {
+      // 从XML中提取视频输入触发配置
+      const extract = (tag) => {
+        const match = xmlText.match(new RegExp(`<${tag}>([\\s\\S]*?)</${tag}>`, "i"));
+        return match ? match[1].trim() : "";
+      };
+      
+      const enabled = extract("enabled") || extract("Enabled") || extract("videoTriggerEnabled") || "unknown";
+      const triggerType = extract("triggerType") || extract("TriggerType") || extract("videoTriggerType") || "unknown";
+      const sensitivity = extract("sensitivity") || extract("Sensitivity") || extract("videoTriggerSensitivity") || "unknown";
+      const threshold = extract("threshold") || extract("Threshold") || extract("videoTriggerThreshold") || "unknown";
+      const area = extract("area") || extract("Area") || extract("videoTriggerArea") || "unknown";
+      const delay = extract("delay") || extract("Delay") || extract("videoTriggerDelay") || "unknown";
+      const duration = extract("duration") || extract("Duration") || extract("videoTriggerDuration") || "unknown";
+      const direction = extract("direction") || extract("Direction") || extract("videoTriggerDirection") || "unknown";
+      const objectType = extract("objectType") || extract("ObjectType") || extract("videoTriggerObjectType") || "unknown";
+      const objectSize = extract("objectSize") || extract("ObjectSize") || extract("videoTriggerObjectSize") || "unknown";
+      const objectSpeed = extract("objectSpeed") || extract("ObjectSpeed") || extract("videoTriggerObjectSpeed") || "unknown";
+      
+      return {
+        videoTriggerEnabled: enabled === "true" ? "已启用" : enabled === "false" ? "已禁用" : enabled,
+        videoTriggerType: triggerType,
+        videoTriggerSensitivity: sensitivity,
+        videoTriggerThreshold: threshold,
+        videoTriggerArea: area,
+        videoTriggerDelay: delay,
+        videoTriggerDuration: duration,
+        videoTriggerDirection: direction,
+        videoTriggerObjectType: objectType,
+        videoTriggerObjectSize: objectSize,
+        videoTriggerObjectSpeed: objectSpeed
+      };
+    }
+  },
+  
+  // 报警输入触发配置schema
+  ioTriggerConfig: {
+    readOnly: true,
+    method: "ISAPI",
+    contentType: "application/xml; charset=utf-8",
+    path: "/ISAPI/System/IO/inputs",
+    fields: [
+      { key: "ioInputNumber", label: "IO输入编号", type: "text", readOnly: true },
+      { key: "ioInputEnabled", label: "IO输入启用状态", type: "text", readOnly: true },
+      { key: "ioInputType", label: "IO输入类型", type: "text", readOnly: true },
+      { key: "ioInputTriggerMode", label: "IO输入触发模式", type: "text", readOnly: true },
+      { key: "ioInputTriggerCondition", label: "IO输入触发条件", type: "text", readOnly: true },
+      { key: "ioInputTriggerDelay", label: "IO输入触发延时(ms)", type: "text", readOnly: true },
+      { key: "ioInputTriggerDuration", label: "IO输入触发持续时间(ms)", type: "text", readOnly: true },
+      { key: "ioInputTriggerAction", label: "IO输入触发动作", type: "text", readOnly: true },
+      { key: "ioInputTriggerSchedule", label: "IO输入触发时间表", type: "text", readOnly: true },
+      { key: "ioInputTriggerPriority", label: "IO输入触发优先级", type: "text", readOnly: true }
+    ],
+    mapLoadResult(xmlText = "", device = null) {
+      // 从XML中提取报警输入触发配置
+      const extract = (tag) => {
+        const match = xmlText.match(new RegExp(`<${tag}>([\\s\\S]*?)</${tag}>`, "i"));
+        return match ? match[1].trim() : "";
+      };
+      
+      const extractAll = (tag) => {
+        const regex = new RegExp(`<${tag}>([\\s\\S]*?)</${tag}>`, "gi");
+        const matches = [];
+        let match;
+        while ((match = regex.exec(xmlText)) !== null) {
+          matches.push(match[1].trim());
+        }
+        return matches;
+      };
+      
+      // 获取第一个IO输入配置
+      const inputs = extractAll("Input");
+      let ioConfig = {
+        ioInputNumber: "1",
+        ioInputEnabled: "unknown",
+        ioInputType: "unknown",
+        ioInputTriggerMode: "unknown",
+        ioInputTriggerCondition: "unknown",
+        ioInputTriggerDelay: "unknown",
+        ioInputTriggerDuration: "unknown",
+        ioInputTriggerAction: "unknown",
+        ioInputTriggerSchedule: "unknown",
+        ioInputTriggerPriority: "unknown"
+      };
+      
+      if (inputs.length > 0) {
+        const firstInput = inputs[0];
+        // 从输入XML中提取具体字段
+        const inputIdMatch = firstInput.match(/<id>([\s\S]*?)<\/id>/i);
+        const enabledMatch = firstInput.match(/<enabled>([\s\S]*?)<\/enabled>/i);
+        const typeMatch = firstInput.match(/<type>([\s\S]*?)<\/type>/i);
+        const triggerModeMatch = firstInput.match(/<triggerMode>([\s\S]*?)<\/triggerMode>/i);
+        const conditionMatch = firstInput.match(/<condition>([\s\S]*?)<\/condition>/i);
+        const delayMatch = firstInput.match(/<delay>([\s\S]*?)<\/delay>/i);
+        const durationMatch = firstInput.match(/<duration>([\s\S]*?)<\/duration>/i);
+        const actionMatch = firstInput.match(/<action>([\s\S]*?)<\/action>/i);
+        const scheduleMatch = firstInput.match(/<schedule>([\s\S]*?)<\/schedule>/i);
+        const priorityMatch = firstInput.match(/<priority>([\s\S]*?)<\/priority>/i);
+        
+        ioConfig = {
+          ioInputNumber: inputIdMatch ? inputIdMatch[1].trim() : "1",
+          ioInputEnabled: enabledMatch ? (enabledMatch[1].trim() === "true" ? "已启用" : "已禁用") : "unknown",
+          ioInputType: typeMatch ? typeMatch[1].trim() : "unknown",
+          ioInputTriggerMode: triggerModeMatch ? triggerModeMatch[1].trim() : "unknown",
+          ioInputTriggerCondition: conditionMatch ? conditionMatch[1].trim() : "unknown",
+          ioInputTriggerDelay: delayMatch ? delayMatch[1].trim() : "unknown",
+          ioInputTriggerDuration: durationMatch ? durationMatch[1].trim() : "unknown",
+          ioInputTriggerAction: actionMatch ? actionMatch[1].trim() : "unknown",
+          ioInputTriggerSchedule: scheduleMatch ? scheduleMatch[1].trim() : "unknown",
+          ioInputTriggerPriority: priorityMatch ? priorityMatch[1].trim() : "unknown"
+        };
+      }
+      
+      return ioConfig;
     }
   },
   
@@ -6206,20 +6469,76 @@ async function runDevicePreviewSdkRequest(schemaKey, device) {
         throw new Error(response?.error || "命名规则获取失败");
       }
     } else if (schemaKey === "triggerConfig") {
-      // 获取触发模式参数
-      response = await fetchJson("/api/sdk/enhanced-trigger-config", {
-        ip: String(device.host || "").trim(),
-        port: Number(device.port || 80) || 80,
-        username: String(device.username || "").trim(),
-        password: String(device.password || "")
+      // 获取事件触发配置（ISAPI方式）
+      response = await fetchJson("/api/isapi/trigger-config", {
+        connection: {
+          host: String(device.host || "").trim(),
+          port: Number(device.port || 80) || 80,
+          username: String(device.username || "").trim(),
+          password: String(device.password || "")
+        }
       });
       
-      // 解析触发模式参数数据
-      if (response && response.success) {
-        const triggerData = response;
+      // 解析事件触发配置数据
+      if (response && response.ok) {
+        const triggerData = response.triggerConfig || response.rawText || "";
         values = schema.mapLoadResult(triggerData, device);
       } else {
-        throw new Error(response?.error || "触发模式参数获取失败");
+        throw new Error(response?.error || "事件触发配置获取失败");
+      }
+    } else if (schemaKey === "smartTriggerConfig") {
+      // 获取智能事件触发配置（ISAPI方式）
+      response = await fetchJson("/api/isapi/smart-trigger-config", {
+        connection: {
+          host: String(device.host || "").trim(),
+          port: Number(device.port || 80) || 80,
+          username: String(device.username || "").trim(),
+          password: String(device.password || "")
+        }
+      });
+      
+      // 解析智能事件触发配置数据
+      if (response && response.ok) {
+        const smartTriggerData = response.smartTriggerConfig || response.rawText || "";
+        values = schema.mapLoadResult(smartTriggerData, device);
+      } else {
+        throw new Error(response?.error || "智能事件触发配置获取失败");
+      }
+    } else if (schemaKey === "videoTriggerConfig") {
+      // 获取视频输入触发配置（ISAPI方式）
+      response = await fetchJson("/api/isapi/video-trigger-config", {
+        connection: {
+          host: String(device.host || "").trim(),
+          port: Number(device.port || 80) || 80,
+          username: String(device.username || "").trim(),
+          password: String(device.password || "")
+        }
+      });
+      
+      // 解析视频输入触发配置数据
+      if (response && response.ok) {
+        const videoTriggerData = response.videoTriggerConfig || response.rawText || "";
+        values = schema.mapLoadResult(videoTriggerData, device);
+      } else {
+        throw new Error(response?.error || "视频输入触发配置获取失败");
+      }
+    } else if (schemaKey === "ioTriggerConfig") {
+      // 获取报警输入触发配置（ISAPI方式）
+      response = await fetchJson("/api/isapi/io-trigger-config", {
+        connection: {
+          host: String(device.host || "").trim(),
+          port: Number(device.port || 80) || 80,
+          username: String(device.username || "").trim(),
+          password: String(device.password || "")
+        }
+      });
+      
+      // 解析报警输入触发配置数据
+      if (response && response.ok) {
+        const ioTriggerData = response.ioTriggerConfig || response.rawText || "";
+        values = schema.mapLoadResult(ioTriggerData, device);
+      } else {
+        throw new Error(response?.error || "报警输入触发配置获取失败");
       }
     } else if (schemaKey === "currentTriggerMode") {
       // 获取当前触发模式
