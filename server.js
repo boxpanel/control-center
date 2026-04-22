@@ -6197,9 +6197,34 @@ app.get("/api/stream/status/:streamId", async (req, res, next) => {
 });
 
 app.use((err, req, res, next) => {
-  const statusCode = err?.statusCode && Number.isFinite(err.statusCode) ? err.statusCode : 500;
+  // 检查是否为ISAPI相关错误
+  const isIsapiError = err.message && (
+    err.message.includes("ISAPI") || 
+    err.message.includes("摄像头") ||
+    err.message.includes("设备连接")
+  );
+  
+  // 确定状态码
+  let statusCode = 500;
+  if (err?.statusCode && Number.isFinite(err.statusCode)) {
+    statusCode = err.statusCode;
+  } else if (isIsapiError) {
+    // ISAPI相关错误使用400状态码
+    statusCode = 400;
+  }
+  
+  // 确定错误消息
+  let errorMessage = "Internal error";
+  if (statusCode !== 500) {
+    errorMessage = String(err.message || "Bad request");
+  } else if (isIsapiError) {
+    // 即使是500错误，如果是ISAPI相关，也显示具体消息
+    errorMessage = String(err.message || "ISAPI请求失败");
+  }
+  
+  console.error(`全局错误处理: ${statusCode} - ${errorMessage}`);
   res.status(statusCode).json({
-    error: statusCode === 500 ? "Internal error" : String(err.message || "Bad request")
+    error: errorMessage
   });
 });
 
