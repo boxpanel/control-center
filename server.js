@@ -3621,22 +3621,40 @@ async function requestHikvisionIsapi({ host, port, username, password, pathname 
     headers["Content-Type"] = String(contentType || "").trim() || "application/xml; charset=utf-8";
   }
 
-  const digestClient = new DigestClient(conn.username, conn.password);
-  let res = await digestClient.fetch(url, requestOptions);
-  if (res.status === 401 || res.status === 403) {
-    const basicClient = new DigestClient(conn.username, conn.password, { basic: true });
-    res = await basicClient.fetch(url, requestOptions);
+  try {
+    const digestClient = new DigestClient(conn.username, conn.password);
+    let res = await digestClient.fetch(url, requestOptions);
+    if (res.status === 401 || res.status === 403) {
+      const basicClient = new DigestClient(conn.username, conn.password, { basic: true });
+      res = await basicClient.fetch(url, requestOptions);
+    }
+    const text = await res.text();
+    if (!res.ok) {
+      throw new Error(`ISAPI 请求失败：HTTP ${res.status}${text ? ` - ${text.slice(0, 180)}` : ""}`);
+    }
+    return {
+      url,
+      status: res.status,
+      contentType: String(res.headers.get("content-type") || ""),
+      text
+    };
+  } catch (err) {
+    // 包装错误，添加更多上下文信息
+    const error = new Error(`ISAPI请求失败: ${err.message}`);
+    error.originalError = err;
+    throw error;
   }
-  const text = await res.text();
-  if (!res.ok) {
-    throw new Error(`ISAPI 请求失败：HTTP ${res.status}${text ? ` - ${text.slice(0, 180)}` : ""}`);
-  }
-  return {
-    url,
-    status: res.status,
-    contentType: String(res.headers.get("content-type") || ""),
-    text
-  };
+}
+
+// ISAPI错误处理中间件
+function handleIsapiError(err, apiName = "ISAPI请求") {
+  console.error(`${apiName}失败:`, err.message);
+  const errorMessage = err.message.includes("ISAPI 请求失败") || err.message.includes("ISAPI请求失败")
+    ? err.message 
+    : `${apiName}失败: ${err.message}`;
+  const error = new Error(errorMessage);
+  error.statusCode = 400; // 使用400而不是500，这样不会显示"Internal error"
+  return error;
 }
 
 function toUInt16OrUndefined(v) {
@@ -4385,7 +4403,14 @@ app.get("/api/serial/status", async (req, res, next) => {
     const config = await getClientConfig();
     res.json({ ok: true, backend: getBackendSerialStatus(config?.serial) });
   } catch (err) {
-    next(err);
+    console.error("ISAPI请求失败:", err.message);
+    // 提供更详细的错误信息
+    const errorMessage = err.message.includes("ISAPI 请求失败") 
+      ? err.message 
+      : `ISAPI请求失败: ${err.message}`;
+    const error = new Error(errorMessage);
+    error.statusCode = 400; // 使用400而不是500，这样不会显示"Internal error"
+    next(error);
   }
 });
 
@@ -4411,7 +4436,7 @@ app.post("/api/serial/connect", async (req, res, next) => {
     await ensureBackendSerial(config?.serial);
     res.json({ ok: true, backend: getBackendSerialStatus(config?.serial) });
   } catch (err) {
-    next(err);
+    next(handleIsapiError(err, "ISAPI通用请求"));
   }
 });
 
@@ -4421,7 +4446,7 @@ app.post("/api/serial/disconnect", async (req, res, next) => {
     const config = await getClientConfig();
     res.json({ ok: true, backend: getBackendSerialStatus(config?.serial) });
   } catch (err) {
-    next(err);
+    next(handleIsapiError(err, "获取设备信息"));
   }
 });
 
@@ -4846,7 +4871,7 @@ app.post("/api/device/test-connection", async (req, res, next) => {
       rawText: result.rawText
     });
   } catch (err) {
-    next(err);
+    next(handleIsapiError(err, "获取设备信息"));
   }
 });
 
@@ -5434,12 +5459,7 @@ app.post("/api/isapi/current-trigger-mode", async (req, res, next) => {
       currentTriggerMode: result.text
     });
   } catch (err) {
-    console.error("获取当前触发模式失败:", err);
-    res.status(500).json({
-      ok: false,
-      error: "获取当前触发模式失败",
-      message: err.message
-    });
+    next(handleIsapiError(err, "获取当前触发模式"));
   }
 });
 
