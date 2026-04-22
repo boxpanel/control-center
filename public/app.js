@@ -6397,11 +6397,10 @@ function resetDevicePreviewIsapiPanel(device) {
   setDevicePreviewIsapiInputsDisabled(!supported);
   applyDevicePreviewIsapiPreset("deviceInfo");
   
-  // 检查是否为SDK预设
+  // 检查预设类型
   const presetKey = String(els.devicePreviewIsapiPreset?.value || "deviceInfo").trim() || "deviceInfo";
   const preset = DEVICE_PREVIEW_ISAPI_PRESETS[presetKey] || DEVICE_PREVIEW_ISAPI_PRESETS.deviceInfo;
   const schema = DEVICE_PREVIEW_ISAPI_SCHEMAS[preset.schema] || DEVICE_PREVIEW_ISAPI_SCHEMAS.deviceInfo;
-  const isSdkMethod = schema && schema.method === "SDK";
   
   if (els.devicePreviewIsapiHint) {
     els.devicePreviewIsapiHint.textContent = supported
@@ -6509,7 +6508,7 @@ async function runDevicePreviewIsapiSchemaRequest(schemaKey, device) {
     let response;
     let values = {};
     
-    // 根据schema类型调用不同的SDK API
+    // 根据schema类型调用不同的ISAPI API
     if (schemaKey === "ftpConfig") {
       // 获取FTP配置（ISAPI方式）
       response = await fetchJson("/api/device/ftp-config", {
@@ -6637,7 +6636,7 @@ async function runDevicePreviewIsapiSchemaRequest(schemaKey, device) {
         throw new Error(response?.error || "当前触发模式获取失败");
       }
     } else {
-      throw new Error(`不支持的SDK schema类型：${schemaKey}`);
+      throw new Error(`不支持的ISAPI schema类型：${schemaKey}`);
     }
     
     // 填充控件
