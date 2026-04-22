@@ -426,45 +426,60 @@ const DEVICE_PREVIEW_ISAPI_SCHEMAS = {
     }
   },
   
-  // 命名规则schema
+  // 命名规则schema - 增强版，支持更多命名元素
   namingRules: {
     readOnly: true,
     method: "SDK", // 使用SDK而不是HTTP
     fields: [
-      { key: "namingRule", label: "命名规则", type: "text", readOnly: true },
+      { key: "namingRuleEnabled", label: "命名规则启用状态", type: "text", readOnly: true },
+      { key: "prefix", label: "文件名前缀", type: "text", readOnly: true },
+      { key: "dateFormat", label: "日期格式", type: "text", readOnly: true },
       { key: "timeFormat", label: "时间格式", type: "text", readOnly: true },
+      { key: "includeChannelNumber", label: "包含通道号", type: "text", readOnly: true },
+      { key: "includeSequenceNumber", label: "包含序列号", type: "text", readOnly: true },
       { key: "includeCameraName", label: "包含摄像头名称", type: "text", readOnly: true },
       { key: "includePlateNumber", label: "包含车牌号码", type: "text", readOnly: true },
       { key: "includeTimestamp", label: "包含时间戳", type: "text", readOnly: true },
+      { key: "includeEventType", label: "包含事件类型", type: "text", readOnly: true },
+      { key: "cameraNameFormat", label: "摄像头名称格式", type: "text", readOnly: true },
+      { key: "plateNumberFormat", label: "车牌号码格式", type: "text", readOnly: true },
+      { key: "eventTypeFormat", label: "事件类型格式", type: "text", readOnly: true },
       { key: "fileExtension", label: "文件扩展名", type: "text", readOnly: true },
-      { key: "maxFileNameLength", label: "最大文件名长度", type: "text", readOnly: true },
-      { key: "prefix", label: "前缀", type: "text", readOnly: true },
-      { key: "suffix", label: "后缀", type: "text", readOnly: true },
-      { key: "example", label: "示例", type: "text", readOnly: true }
+      { key: "example", label: "示例文件名", type: "text", readOnly: true }
     ],
     mapLoadResult(data = {}, device = null) {
       // 适配SDK返回的数据格式
-      const namingRule = data.namingRule || data.rule || "[摄像头名称]_[车牌号码]_[时间戳].jpg";
-      const timeFormat = data.timeFormat || data.dateTimeFormat || "YYYYMMDD_HHmmss";
+      const namingRuleEnabled = data.namingRuleEnabled !== undefined ? data.namingRuleEnabled : true;
+      const prefix = data.prefix || "";
+      const dateFormat = data.dateFormat || "YYYYMMDD";
+      const timeFormat = data.timeFormat || "HHmmss";
+      const includeChannelNumber = data.includeChannelNumber !== undefined ? data.includeChannelNumber : true;
+      const includeSequenceNumber = data.includeSequenceNumber !== undefined ? data.includeSequenceNumber : true;
       const includeCameraName = data.includeCameraName !== undefined ? data.includeCameraName : true;
       const includePlateNumber = data.includePlateNumber !== undefined ? data.includePlateNumber : true;
       const includeTimestamp = data.includeTimestamp !== undefined ? data.includeTimestamp : true;
-      const fileExtension = data.fileExtension || data.extension || ".jpg";
-      const maxFileNameLength = data.maxFileNameLength || data.maxLength || 255;
-      const prefix = data.prefix || "";
-      const suffix = data.suffix || "";
-      const example = data.example || `${prefix}${namingRule}${suffix}`;
+      const includeEventType = data.includeEventType !== undefined ? data.includeEventType : true;
+      const cameraNameFormat = data.cameraNameFormat || "摄像头名称";
+      const plateNumberFormat = data.plateNumberFormat || "车牌号码";
+      const eventTypeFormat = data.eventTypeFormat || "事件类型";
+      const fileExtension = data.fileExtension || ".jpg";
+      const example = data.example || "CAM_20240101_120000_摄像头01_京A12345_车辆检测_CH01_001.jpg";
       
       return {
-        namingRule: namingRule,
+        namingRuleEnabled: namingRuleEnabled ? "已启用" : "已禁用",
+        prefix: prefix,
+        dateFormat: dateFormat,
         timeFormat: timeFormat,
+        includeChannelNumber: includeChannelNumber ? "是" : "否",
+        includeSequenceNumber: includeSequenceNumber ? "是" : "否",
         includeCameraName: includeCameraName ? "是" : "否",
         includePlateNumber: includePlateNumber ? "是" : "否",
         includeTimestamp: includeTimestamp ? "是" : "否",
+        includeEventType: includeEventType ? "是" : "否",
+        cameraNameFormat: cameraNameFormat,
+        plateNumberFormat: plateNumberFormat,
+        eventTypeFormat: eventTypeFormat,
         fileExtension: fileExtension,
-        maxFileNameLength: maxFileNameLength,
-        prefix: prefix,
-        suffix: suffix,
         example: example
       };
     }
@@ -6092,7 +6107,8 @@ async function runDevicePreviewSdkRequest(schemaKey, device) {
       
       // 解析FTP配置数据
       if (response && response.success) {
-        const ftpData = response.data || {};
+        // API返回的数据是直接放在响应对象中的，而不是在data属性中
+        const ftpData = response;
         // 使用schema的mapLoadResult方法处理数据
         values = schema.mapLoadResult(ftpData, device);
       }
@@ -6107,7 +6123,8 @@ async function runDevicePreviewSdkRequest(schemaKey, device) {
       
       // 解析命名规则数据
       if (response && response.success) {
-        const namingData = response.data || {};
+        // API返回的数据是直接放在响应对象中的，而不是在data属性中
+        const namingData = response;
         // 使用schema的mapLoadResult方法处理数据
         values = schema.mapLoadResult(namingData, device);
       }

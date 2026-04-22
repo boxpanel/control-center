@@ -45,6 +45,15 @@ public class HikvisionSdkTool {
             IntByReference lpBytesReturned
         );
         
+        // 设置设备配置
+        boolean NET_DVR_SetDVRConfig(
+            int lUserID,
+            int dwCommand,
+            int lChannel,
+            Pointer lpInBuffer,
+            int dwInBufferSize
+        );
+        
         // 获取错误码
         int NET_DVR_GetLastError();
     }
@@ -88,6 +97,66 @@ public class HikvisionSdkTool {
                 "dwSize", "dwTriggerMode", "dwCoilSensitivity",
                 "dwRadarSensitivity", "dwVideoSensitivity", "dwRS485Sensitivity",
                 "dwReserved"
+            );
+        }
+    }
+    
+    // FTP配置结构体
+    public static class NET_DVR_FTPCFG extends Structure {
+        public int dwSize;                               // 结构体大小
+        public byte byEnable;                            // FTP使能：0-不启用，1-启用
+        public byte[] byReserve1 = new byte[3];          // 保留
+        public byte[] sServerIP = new byte[64];          // FTP服务器IP地址
+        public short wPort;                              // FTP服务器端口
+        public byte[] byReserve2 = new byte[2];          // 保留
+        public byte[] sUserName = new byte[64];          // FTP用户名
+        public byte[] sPassword = new byte[64];          // FTP密码
+        public byte[] sDirectory = new byte[128];        // FTP目录
+        public byte byUploadMode;                        // 上传模式：0-主动模式，1-被动模式
+        public byte byUploadInterval;                    // 上传间隔（分钟）
+        public byte byImageQuality;                      // 图片质量：0-最好，1-较好，2-一般，3-较差
+        public byte byImageResolution;                   // 图片分辨率：0-最高，1-较高，2-标准，3-较低
+        public byte[] byReserve3 = new byte[64];         // 保留
+        
+        @Override
+        protected List<String> getFieldOrder() {
+            return Arrays.asList(
+                "dwSize", "byEnable", "byReserve1", "sServerIP", "wPort",
+                "byReserve2", "sUserName", "sPassword", "sDirectory",
+                "byUploadMode", "byUploadInterval", "byImageQuality",
+                "byImageResolution", "byReserve3"
+            );
+        }
+    }
+    
+    // 图片命名规则结构体 - 增强版，包含更多命名元素
+    public static class NET_DVR_PICNAMINGRULE extends Structure {
+        public int dwSize;                               // 结构体大小
+        public byte byEnable;                            // 命名规则使能：0-不启用，1-启用
+        public byte[] byReserve1 = new byte[3];          // 保留
+        public byte[] sPrefix = new byte[32];            // 文件名前缀
+        public byte[] sDateFormat = new byte[32];        // 日期格式
+        public byte[] sTimeFormat = new byte[32];        // 时间格式
+        public byte byChannelNumber;                     // 是否包含通道号：0-不包含，1-包含
+        public byte bySequenceNumber;                    // 是否包含序列号：0-不包含，1-包含
+        public byte[] sFileExtension = new byte[16];     // 文件扩展名
+        public byte byIncludeCameraName;                 // 是否包含摄像头名称：0-不包含，1-包含
+        public byte byIncludePlateNumber;                // 是否包含车牌号码：0-不包含，1-包含
+        public byte byIncludeTimestamp;                  // 是否包含时间戳：0-不包含，1-包含
+        public byte byIncludeEventType;                  // 是否包含事件类型：0-不包含，1-包含
+        public byte[] sCameraNameFormat = new byte[32];  // 摄像头名称格式
+        public byte[] sPlateNumberFormat = new byte[32]; // 车牌号码格式
+        public byte[] sEventTypeFormat = new byte[32];   // 事件类型格式
+        public byte[] byReserve2 = new byte[32];         // 保留
+        
+        @Override
+        protected List<String> getFieldOrder() {
+            return Arrays.asList(
+                "dwSize", "byEnable", "byReserve1", "sPrefix", "sDateFormat",
+                "sTimeFormat", "byChannelNumber", "bySequenceNumber",
+                "sFileExtension", "byIncludeCameraName", "byIncludePlateNumber",
+                "byIncludeTimestamp", "byIncludeEventType", "sCameraNameFormat",
+                "sPlateNumberFormat", "sEventTypeFormat", "byReserve2"
             );
         }
     }
@@ -188,6 +257,267 @@ public class HikvisionSdkTool {
             }
         }
     }
+    
+    /**
+     * 获取设备FTP配置
+     */
+    public static String getFtpConfig(String ip, int port, String username, String password) {
+        if (!sdkInitialized || sdk == null) {
+            return "{\"error\": \"SDK未初始化\", \"sdkAvailable\": false, \"mock\": true}";
+        }
+        
+        int userId = -1;
+        try {
+            // 登录设备
+            NET_DVR_DEVICEINFO_V30 deviceInfo = new NET_DVR_DEVICEINFO_V30();
+            userId = sdk.NET_DVR_Login_V30(ip, (short)port, username, password, deviceInfo);
+            
+            if (userId < 0) {
+                int errorCode = sdk.NET_DVR_GetLastError();
+                return String.format("{\"error\": \"设备登录失败\", \"code\": %d, \"sdkAvailable\": true, \"mock\": false}", errorCode);
+            }
+            
+            // 获取FTP配置
+            NET_DVR_FTPCFG ftpCfg = new NET_DVR_FTPCFG();
+            ftpCfg.dwSize = ftpCfg.size();
+            
+            IntByReference bytesReturned = new IntByReference();
+            boolean success = sdk.NET_DVR_GetDVRConfig(
+                userId,
+                0x0001, // FTP配置命令码（需要根据实际SDK文档调整）
+                0,
+                ftpCfg.getPointer(),
+                ftpCfg.size(),
+                bytesReturned
+            );
+            
+            if (!success) {
+                int errorCode = sdk.NET_DVR_GetLastError();
+                return String.format("{\"error\": \"获取FTP配置失败\", \"code\": %d, \"sdkAvailable\": true, \"mock\": false}", errorCode);
+            }
+            
+            // 读取结构体数据
+            ftpCfg.read();
+            
+            // 将字节数组转换为字符串
+            String serverIP = new String(ftpCfg.sServerIP).trim();
+            String ftpUsername = new String(ftpCfg.sUserName).trim();
+            String ftpPassword = new String(ftpCfg.sPassword).trim();
+            String directory = new String(ftpCfg.sDirectory).trim();
+            
+            // 构建JSON响应
+            return String.format(
+                "{\"success\": true, \"sdkAvailable\": true, \"mock\": false, " +
+                "\"ftpEnabled\": %s, \"ftpServer\": \"%s\", \"ftpPort\": %d, " +
+                "\"ftpUsername\": \"%s\", \"ftpPassword\": \"%s\", \"ftpDirectory\": \"%s\", " +
+                "\"ftpUploadMode\": %d, \"ftpUploadInterval\": %d, " +
+                "\"ftpImageQuality\": %d, \"ftpImageResolution\": %d}",
+                ftpCfg.byEnable == 1 ? "true" : "false",
+                serverIP,
+                ftpCfg.wPort,
+                ftpUsername,
+                ftpPassword,
+                directory,
+                ftpCfg.byUploadMode,
+                ftpCfg.byUploadInterval,
+                ftpCfg.byImageQuality,
+                ftpCfg.byImageResolution
+            );
+            
+        } catch (Throwable e) {
+            return String.format("{\"error\": \"SDK操作异常\", \"message\": \"%s\", \"sdkAvailable\": true, \"mock\": false}", e.getMessage());
+        } finally {
+            // 注销登录
+            if (userId >= 0 && sdk != null) {
+                sdk.NET_DVR_Logout_V30(userId);
+            }
+        }
+    }
+    
+    /**
+     * 获取设备图片命名规则
+     */
+    public static String getPictureNamingRule(String ip, int port, String username, String password) {
+        if (!sdkInitialized || sdk == null) {
+            return "{\"error\": \"SDK未初始化\", \"sdkAvailable\": false, \"mock\": true}";
+        }
+        
+        int userId = -1;
+        try {
+            // 登录设备
+            NET_DVR_DEVICEINFO_V30 deviceInfo = new NET_DVR_DEVICEINFO_V30();
+            userId = sdk.NET_DVR_Login_V30(ip, (short)port, username, password, deviceInfo);
+            
+            if (userId < 0) {
+                int errorCode = sdk.NET_DVR_GetLastError();
+                return String.format("{\"error\": \"设备登录失败\", \"code\": %d, \"sdkAvailable\": true, \"mock\": false}", errorCode);
+            }
+            
+            // 获取图片命名规则配置
+            NET_DVR_PICNAMINGRULE namingRule = new NET_DVR_PICNAMINGRULE();
+            namingRule.dwSize = namingRule.size();
+            
+            IntByReference bytesReturned = new IntByReference();
+            boolean success = sdk.NET_DVR_GetDVRConfig(
+                userId,
+                0x0002, // 图片命名规则命令码（需要根据实际SDK文档调整）
+                0,
+                namingRule.getPointer(),
+                namingRule.size(),
+                bytesReturned
+            );
+            
+            if (!success) {
+                int errorCode = sdk.NET_DVR_GetLastError();
+                return String.format("{\"error\": \"获取命名规则失败\", \"code\": %d, \"sdkAvailable\": true, \"mock\": false}", errorCode);
+            }
+            
+            // 读取结构体数据
+            namingRule.read();
+            
+            // 将字节数组转换为字符串
+            String prefix = new String(namingRule.sPrefix).trim();
+            String dateFormat = new String(namingRule.sDateFormat).trim();
+            String timeFormat = new String(namingRule.sTimeFormat).trim();
+            String fileExtension = new String(namingRule.sFileExtension).trim();
+            String cameraNameFormat = new String(namingRule.sCameraNameFormat).trim();
+            String plateNumberFormat = new String(namingRule.sPlateNumberFormat).trim();
+            String eventTypeFormat = new String(namingRule.sEventTypeFormat).trim();
+            
+            // 构建命名规则示例
+            String example = buildNamingExample(prefix, dateFormat, timeFormat, 
+                namingRule.byChannelNumber == 1, namingRule.bySequenceNumber == 1,
+                namingRule.byIncludeCameraName == 1, namingRule.byIncludePlateNumber == 1,
+                namingRule.byIncludeTimestamp == 1, namingRule.byIncludeEventType == 1,
+                cameraNameFormat, plateNumberFormat, eventTypeFormat, fileExtension);
+            
+            // 构建JSON响应
+            return String.format(
+                "{\"success\": true, \"sdkAvailable\": true, \"mock\": false, " +
+                "\"namingRuleEnabled\": %s, \"prefix\": \"%s\", \"dateFormat\": \"%s\", " +
+                "\"timeFormat\": \"%s\", \"includeChannelNumber\": %s, " +
+                "\"includeSequenceNumber\": %s, \"includeCameraName\": %s, " +
+                "\"includePlateNumber\": %s, \"includeTimestamp\": %s, " +
+                "\"includeEventType\": %s, \"cameraNameFormat\": \"%s\", " +
+                "\"plateNumberFormat\": \"%s\", \"eventTypeFormat\": \"%s\", " +
+                "\"fileExtension\": \"%s\", \"example\": \"%s\"}",
+                namingRule.byEnable == 1 ? "true" : "false",
+                prefix,
+                dateFormat,
+                timeFormat,
+                namingRule.byChannelNumber == 1 ? "true" : "false",
+                namingRule.bySequenceNumber == 1 ? "true" : "false",
+                namingRule.byIncludeCameraName == 1 ? "true" : "false",
+                namingRule.byIncludePlateNumber == 1 ? "true" : "false",
+                namingRule.byIncludeTimestamp == 1 ? "true" : "false",
+                namingRule.byIncludeEventType == 1 ? "true" : "false",
+                cameraNameFormat,
+                plateNumberFormat,
+                eventTypeFormat,
+                fileExtension,
+                example
+            );
+            
+        } catch (Throwable e) {
+            return String.format("{\"error\": \"SDK操作异常\", \"message\": \"%s\", \"sdkAvailable\": true, \"mock\": false}", e.getMessage());
+        } finally {
+            // 注销登录
+            if (userId >= 0 && sdk != null) {
+                sdk.NET_DVR_Logout_V30(userId);
+            }
+        }
+    }
+    
+    /**
+     * 构建命名规则示例 - 增强版，支持更多命名元素
+     */
+    private static String buildNamingExample(String prefix, String dateFormat, String timeFormat,
+                                           boolean includeChannel, boolean includeSequence,
+                                           boolean includeCameraName, boolean includePlateNumber,
+                                           boolean includeTimestamp, boolean includeEventType,
+                                           String cameraNameFormat, String plateNumberFormat,
+                                           String eventTypeFormat, String extension) {
+        StringBuilder example = new StringBuilder();
+        
+        // 添加前缀
+        if (!prefix.isEmpty()) {
+            example.append(prefix).append("_");
+        }
+        
+        // 添加日期
+        if (!dateFormat.isEmpty()) {
+            example.append("20240101"); // 示例日期：2024年1月1日
+        }
+        
+        // 添加时间
+        if (!timeFormat.isEmpty()) {
+            if (example.length() > 0 && !example.toString().endsWith("_")) {
+                example.append("_");
+            }
+            example.append("120000"); // 示例时间：12:00:00
+        }
+        
+        // 添加摄像头名称
+        if (includeCameraName && !cameraNameFormat.isEmpty()) {
+            if (example.length() > 0 && !example.toString().endsWith("_")) {
+                example.append("_");
+            }
+            example.append(cameraNameFormat.isEmpty() ? "摄像头01" : cameraNameFormat);
+        }
+        
+        // 添加车牌号码
+        if (includePlateNumber && !plateNumberFormat.isEmpty()) {
+            if (example.length() > 0 && !example.toString().endsWith("_")) {
+                example.append("_");
+            }
+            example.append(plateNumberFormat.isEmpty() ? "京A12345" : plateNumberFormat);
+        }
+        
+        // 添加时间戳（如果未包含日期和时间）
+        if (includeTimestamp && dateFormat.isEmpty() && timeFormat.isEmpty()) {
+            if (example.length() > 0 && !example.toString().endsWith("_")) {
+                example.append("_");
+            }
+            example.append("1704067200"); // 示例时间戳
+        }
+        
+        // 添加事件类型
+        if (includeEventType && !eventTypeFormat.isEmpty()) {
+            if (example.length() > 0 && !example.toString().endsWith("_")) {
+                example.append("_");
+            }
+            example.append(eventTypeFormat.isEmpty() ? "车辆检测" : eventTypeFormat);
+        }
+        
+        // 添加通道号
+        if (includeChannel) {
+            if (example.length() > 0 && !example.toString().endsWith("_")) {
+                example.append("_");
+            }
+            example.append("CH01");
+        }
+        
+        // 添加序列号
+        if (includeSequence) {
+            if (example.length() > 0 && !example.toString().endsWith("_")) {
+                example.append("_");
+            }
+            example.append("001");
+        }
+        
+        // 添加文件扩展名
+        if (!extension.isEmpty()) {
+            if (!extension.startsWith(".")) {
+                example.append(".");
+            }
+            example.append(extension);
+        } else {
+            example.append(".jpg");
+        }
+        
+        return example.toString();
+    }
+}
     
     /**
      * 主方法 - 用于测试

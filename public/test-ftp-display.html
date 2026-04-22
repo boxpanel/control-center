@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FTP配置显示测试</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 30px;
+            border-bottom: 2px solid #4f46e5;
+            padding-bottom: 10px;
+        }
+        .test-section {
+            margin-bottom: 40px;
+            padding: 20px;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            background: #f9fafb;
+        }
+        .test-section h2 {
+            color: #4f46e5;
+            margin-top: 0;
+        }
+        .field {
+            margin-bottom: 20px;
+        }
+        .field label {
+            display: block;
+            margin-bottom: 5px;
+            color: #6b7280;
+            font-weight: 500;
+        }
+        .field input {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            font-size: 14px;
+        }
+        .results {
+            margin-top: 30px;
+            padding: 20px;
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+        }
+        .results h3 {
+            margin-top: 0;
+            color: #334155;
+        }
+        .result-item {
+            margin-bottom: 15px;
+            padding: 10px;
+            background: white;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+        }
+        .result-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 10px;
+        }
+        .result-field {
+            padding: 8px;
+            background: #f8fafc;
+            border-radius: 4px;
+        }
+        .result-field label {
+            display: block;
+            font-size: 12px;
+            color: #64748b;
+            margin-bottom: 2px;
+        }
+        .result-field span {
+            font-size: 14px;
+            color: #334155;
+            font-weight: 500;
+        }
+        .status {
+            padding: 10px;
+            border-radius: 6px;
+            margin-bottom: 15px;
+            font-weight: 500;
+        }
+        .status.info {
+            background: #dbeafe;
+            color: #1e40af;
+            border: 1px solid #bfdbfe;
+        }
+        .status.success {
+            background: #dcfce7;
+            color: #166534;
+            border: 1px solid #bbf7d0;
+        }
+        .status.error {
+            background: #fee2e2;
+            color: #991b1b;
+            border: 1px solid #fecaca;
+        }
+        button {
+            padding: 12px 24px;
+            background: #4f46e5;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        button:hover {
+            background: #4338ca;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>FTP配置显示测试</h1>
+        
+        <div class="test-section">
+            <h2>测试FTP配置显示</h2>
+            <p>这个页面测试FTP配置数据的获取和显示，特别是FTP启用状态的显示。</p>
+            
+            <div class="field">
+                <label for="deviceIp">设备IP地址</label>
+                <input type="text" id="deviceIp" value="192.168.11.253" placeholder="例如：192.168.11.253">
+            </div>
+            
+            <button onclick="testFtpDisplay()">测试FTP配置显示</button>
+        </div>
+        
+        <div id="status" class="status info">
+            准备测试，请点击上面的按钮开始测试。
+        </div>
+        
+        <div class="results">
+            <h3>测试结果</h3>
+            <div id="apiResponse"></div>
+            <div id="mappedData"></div>
+        </div>
+    </div>
+
+    <script>
+        // 模拟app.js中的mapLoadResult方法
+        function mapLoadResult(data = {}, device = null) {
+            // 适配SDK返回的数据格式
+            const enabled = data.enabled !== undefined ? data.enabled : data.ftpEnabled;
+            const server = data.server || data.ftpServer || "";
+            const port = data.port || data.ftpPort || 21;
+            const username = data.username || data.ftpUsername || "";
+            const password = data.password || data.ftpPassword || "";
+            const directory = data.directory || data.ftpDirectory || "";
+            const uploadMode = data.uploadMode || data.ftpUploadMode || "主动模式";
+            const uploadInterval = data.uploadInterval || data.ftpUploadInterval || 5;
+            const imageQuality = data.imageQuality || data.ftpImageQuality || "高";
+            const imageResolution = data.imageResolution || data.ftpImageResolution || "1920x1080";
+            
+            return {
+                ftpEnabled: enabled ? "已启用" : "已禁用",
+                ftpServer: server,
+                ftpPort: port,
+                ftpUsername: username,
+                ftpPassword: password ? "******" : "",
+                ftpDirectory: directory,
+                ftpUploadMode: uploadMode,
+                ftpUploadInterval: uploadInterval,
+                ftpImageQuality: imageQuality,
+                ftpImageResolution: imageResolution
+            };
+        }
+
+        function updateStatus(message, type = 'info') {
+            const statusEl = document.getElementById('status');
+            statusEl.textContent = message;
+            statusEl.className = `status ${type}`;
+        }
+
+        async function testFtpDisplay() {
+            const deviceIp = document.getElementById('deviceIp').value.trim();
+            if (!deviceIp) {
+                updateStatus('请输入设备IP地址', 'error');
+                return;
+            }
+            
+            updateStatus('正在获取FTP配置数据...', 'info');
+            
+            try {
+                // 调用API获取FTP配置
+                const response = await fetch('/api/sdk/ftp-config', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        ip: deviceIp,
+                        port: 80,
+                        username: 'admin',
+                        password: 'admin123'
+                    })
+                });
+                
+                const data = await response.json();
+                
+                // 显示API返回的原始数据
+                const apiResponseEl = document.getElementById('apiResponse');
+                apiResponseEl.innerHTML = `
+                    <div class="result-item">
+                        <h4>API返回的原始数据</h4>
+                        <div class="result-grid">
+                            <div class="result-field">
+                                <label>success</label>
+                                <span>${data.success}</span>
+                            </div>
+                            <div class="result-field">
+                                <label>sdkAvailable</label>
+                                <span>${data.sdkAvailable}</span>
+                            </div>
+                            <div class="result-field">
+                                <label>ftpEnabled (原始值)</label>
+                                <span>${data.ftpEnabled} (类型: ${typeof data.ftpEnabled})</span>
+                            </div>
+                            <div class="result-field">
+                                <label>ftpServer</label>
+                                <span>${data.ftpServer}</span>
+                            </div>
+                            <div class="result-field">
+                                <label>ftpPort</label>
+                                <span>${data.ftpPort}</span>
+                            </div>
+                            <div class="result-field">
+                                <label>mock</label>
+                                <span>${data.mock}</span>
+                            </div>
+                            <div class="result-field">
+                                <label>message</label>
+                                <span>${data.message}</span>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                
+                if (data.success) {
+                    // 使用mapLoadResult方法处理数据
+                    const mappedData = mapLoadResult(data);
+                    
+                    // 显示映射后的数据
+                    const mappedDataEl = document.getElementById('mappedData');
+                    mappedDataEl.innerHTML = `
+                        <div class="result-item">
+                            <h4>映射后的显示数据</h4>
+                            <div class="result-grid">
+                                <div class="result-field">
+                                    <label>FTP启用状态</label>
+                                    <span>${mappedData.ftpEnabled}</span>
+                                </div>
+                                <div class="result-field">
+                                    <label>FTP服务器地址</label>
+                                    <span>${mappedData.ftpServer}</span>
+                                </div>
+                                <div class="result-field">
+                                    <label>FTP端口</label>
+                                    <span>${mappedData.ftpPort}</span>
+                                </div>
+                                <div class="result-field">
+                                    <label>FTP用户名</label>
+                                    <span>${mappedData.ftpUsername}</span>
+                                </div>
+                                <div class="result-field">
+                                    <label>FTP密码</label>
+                                    <span>${mappedData.ftpPassword}</span>
+                                </div>
+                                <div class="result-field">
+                                    <label>FTP目录</label>
+                                    <span>${mappedData.ftpDirectory}</span>
+                                </div>
+                                <div class="result-field">
+                                    <label>上传模式</label>
+                                    <span>${mappedData.ftpUploadMode}</span>
+                                </div>
+                                <div class="result-field">
+                                    <label>上传间隔(秒)</label>
+                                    <span>${mappedData.ftpUploadInterval}</span>
+                                </div>
+                                <div class="result-field">
+                                    <label>图片质量</label>
+                                    <span>${mappedData.ftpImageQuality}</span>
+                                </div>
+                                <div class="result-field">
+                                    <label>图片分辨率</label>
+                                    <span>${mappedData.ftpImageResolution}</span>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                    
+                    // 检查FTP启用状态
+                    const ftpEnabledValue = data.ftpEnabled;
+                    const ftpEnabledDisplay = mappedData.ftpEnabled;
+                    
+                    updateStatus(`测试成功！FTP启用状态: 原始值=${ftpEnabledValue}, 显示值=${ftpEnabledDisplay}`, 'success');
+                    
+                    // 输出调试信息到控制台
+                    console.log('API返回的数据:', data);
+                    console.log('映射后的数据:', mappedData);
+                    console.log('ftpEnabled 原始值:', ftpEnabledValue, '类型:', typeof ftpEnabledValue);
+                    console.log('ftpEnabled 显示值:', ftpEnabledDisplay);
+                    
+                } else {
+                    updateStatus(`API返回失败: ${data.error || data.message}`, 'error');
+                }
+            } catch (error) {
+                updateStatus(`请求失败: ${error.message}`, 'error');
+                console.error('测试失败:', error);
+            }
+        }
+
+        // 页面加载完成后初始化
+        document.addEventListener('DOMContentLoaded', () => {
+            console.log('FTP配置显示测试页面已加载');
+            updateStatus('FTP配置显示测试页面已就绪', 'info');
+        });
+    </script>
+</body>
+</html>

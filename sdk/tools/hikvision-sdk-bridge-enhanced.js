@@ -363,6 +363,178 @@ class HikvisionSdkBridgeEnhanced {
             return this.getMockTriggerConfig(deviceInfo);
         }
     }
+    
+    /**
+     * 获取设备FTP配置
+     */
+    async getFtpConfig(deviceInfo) {
+        if (!this.initialized) {
+            await this.initialize();
+        }
+
+        if (!this.sdkAvailable) {
+            // 返回模拟数据
+            return {
+                success: true,
+                sdkAvailable: false,
+                mock: true,
+                ftpEnabled: true,
+                ftpServer: "192.168.1.100",
+                ftpPort: 21,
+                ftpUsername: "ftpuser",
+                ftpPassword: "ftppassword",
+                ftpDirectory: "/upload/images",
+                ftpUploadMode: 0,
+                ftpUploadInterval: 5,
+                ftpImageQuality: 0,
+                ftpImageResolution: 0,
+                message: "模拟数据 - SDK不可用"
+            };
+        }
+
+        try {
+            const { ip, port = 8000, username = 'admin', password = 'admin123' } = deviceInfo;
+            
+            // 检查Java工具是否可用
+            if (!this.javaAvailable) {
+                console.log('[SDK Bridge] Java工具不可用，尝试编译...');
+                await this.compileJavaTools();
+            }
+            
+            // 构建Java命令
+            let classpath = `"${__dirname}"`;
+            if (this.linuxSdkAvailable) {
+                classpath += `:"${this.linuxLibsDir}/*"`;
+            }
+            
+            const result = await this.execCommand(
+                `java -cp ${classpath} HikvisionSdkTool getFtpConfig ${ip} ${port} ${username} ${password}`
+            );
+
+            if (result.success) {
+                try {
+                    const data = JSON.parse(result.stdout);
+                    return {
+                        ...data,
+                        sdkAvailable: true,
+                        mock: false,
+                        sdkType: this.linuxSdkAvailable ? 'linux' : 'java',
+                        platform: this.platform
+                    };
+                } catch (parseError) {
+                    console.error('[SDK Bridge] 解析Java工具输出失败:', parseError.message);
+                    return {
+                        success: false,
+                        error: `解析输出失败: ${parseError.message}`,
+                        sdkAvailable: true,
+                        mock: false
+                    };
+                }
+            } else {
+                console.error('[SDK Bridge] Java工具执行失败:', result.stderr);
+                return {
+                    success: false,
+                    error: result.stderr || 'Java工具执行失败',
+                    sdkAvailable: true,
+                    mock: false
+                };
+            }
+            
+        } catch (error) {
+            console.error('[SDK Bridge] 获取FTP配置失败:', error.message);
+            return {
+                success: false,
+                error: error.message,
+                sdkAvailable: this.sdkAvailable,
+                mock: !this.sdkAvailable
+            };
+        }
+    }
+    
+    /**
+     * 获取设备图片命名规则
+     */
+    async getPictureNamingRule(deviceInfo) {
+        if (!this.initialized) {
+            await this.initialize();
+        }
+
+        if (!this.sdkAvailable) {
+            // 返回模拟数据
+            return {
+                success: true,
+                sdkAvailable: false,
+                mock: true,
+                namingRuleEnabled: true,
+                prefix: "CAM",
+                dateFormat: "YYYYMMDD",
+                timeFormat: "HHmmss",
+                includeChannelNumber: true,
+                includeSequenceNumber: true,
+                fileExtension: ".jpg",
+                example: "CAM_20240101_120000_CH01_001.jpg",
+                message: "模拟数据 - SDK不可用"
+            };
+        }
+
+        try {
+            const { ip, port = 8000, username = 'admin', password = 'admin123' } = deviceInfo;
+            
+            // 检查Java工具是否可用
+            if (!this.javaAvailable) {
+                console.log('[SDK Bridge] Java工具不可用，尝试编译...');
+                await this.compileJavaTools();
+            }
+            
+            // 构建Java命令
+            let classpath = `"${__dirname}"`;
+            if (this.linuxSdkAvailable) {
+                classpath += `:"${this.linuxLibsDir}/*"`;
+            }
+            
+            const result = await this.execCommand(
+                `java -cp ${classpath} HikvisionSdkTool getPictureNamingRule ${ip} ${port} ${username} ${password}`
+            );
+
+            if (result.success) {
+                try {
+                    const data = JSON.parse(result.stdout);
+                    return {
+                        ...data,
+                        sdkAvailable: true,
+                        mock: false,
+                        sdkType: this.linuxSdkAvailable ? 'linux' : 'java',
+                        platform: this.platform
+                    };
+                } catch (parseError) {
+                    console.error('[SDK Bridge] 解析Java工具输出失败:', parseError.message);
+                    return {
+                        success: false,
+                        error: `解析输出失败: ${parseError.message}`,
+                        sdkAvailable: true,
+                        mock: false
+                    };
+                }
+            } else {
+                console.error('[SDK Bridge] Java工具执行失败:', result.stderr);
+                return {
+                    success: false,
+                    error: result.stderr || 'Java工具执行失败',
+                    sdkAvailable: true,
+                    mock: false
+                };
+            }
+            
+        } catch (error) {
+            console.error('[SDK Bridge] 获取命名规则失败:', error.message);
+            return {
+                success: false,
+                error: error.message,
+                sdkAvailable: this.sdkAvailable,
+                mock: !this.sdkAvailable
+            };
+        }
+    }
 
     /**
      * 获取模拟的触发模式配置
