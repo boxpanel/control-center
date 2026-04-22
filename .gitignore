@@ -18,3 +18,7 @@ export_repo2_git/
 
 .cursor/
 release/
+
+# JNA库文件
+sdk/tools/jna.jar
+*.jar
