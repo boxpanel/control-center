@@ -6718,7 +6718,23 @@ async function runDevicePreviewIsapiRequest(methodOverride = "") {
       };
       let values;
 
-      if (preset.schema === "sdkNetworkConfig") {
+      if (preset.schema === "deviceInfo") {
+        const connection = {
+          host: String(device.host || "").trim(),
+          port: Number(device.port || 80) || 80,
+          username: String(device.username || "").trim(),
+          password: String(device.password || "")
+        };
+
+        const response = await fetchJson("/api/isapi/request", {
+          connection,
+          pathname: schema.path,
+          method: schema.method,
+          contentType: schema.contentType,
+          body: ""
+        });
+        values = schema.mapLoadResult(response?.rawText || "", device);
+      } else if (preset.schema === "sdkNetworkConfig") {
         const response = await fetchJson("/api/sdk/network-config", sdkPayload);
         if (!response?.ok) throw new Error(response?.error || "SDK网络参数获取失败");
         values = schema.mapLoadResult(response.networkConfig || {}, device);
@@ -6738,37 +6754,8 @@ async function runDevicePreviewIsapiRequest(methodOverride = "") {
         const response = await fetchJson("/api/sdk/trigger-config", sdkPayload);
         if (!response?.ok) throw new Error(response?.error || "SDK触发模式配置获取失败");
         values = schema.mapLoadResult(response.triggerConfig || {}, device);
-      } else if (schema.method === "SDK") {
-        const connection = {
-          host: String(device.host || "").trim(),
-          port: Number(device.port || 80) || 80,
-          username: String(device.username || "").trim(),
-          password: String(device.password || "")
-        };
-        if (!schema.apiPath) {
-          throw new Error("SDK schema缺少apiPath配置");
-        }
-        const response = await fetchJson(schema.apiPath, {
-          connection,
-          channel: 1
-        });
-        values = schema.mapLoadResult(response?.rawText || response || "", device);
       } else {
-        const connection = {
-          host: String(device.host || "").trim(),
-          port: Number(device.port || 80) || 80,
-          username: String(device.username || "").trim(),
-          password: String(device.password || "")
-        };
-
-        const response = await fetchJson("/api/isapi/request", {
-          connection,
-          pathname: schema.path,
-          method: schema.method,
-          contentType: schema.contentType,
-          body: ""
-        });
-        values = schema.mapLoadResult(response?.rawText || "", device);
+        throw new Error(`当前海康参数面板不支持旧分类：${preset.schema}`);
       }
       fillDevicePreviewIsapiControls(values);
       
