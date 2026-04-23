@@ -6469,6 +6469,80 @@ app.post("/api/sdk/network-config", async (req, res) => {
   }
 });
 
+app.post("/api/sdk/trigger-config/set", async (req, res) => {
+  try {
+    const { ip, port = 8000, username = "admin", password = "qwer1234", values = {} } = req.body;
+    
+    if (!ip) {
+      return res.status(400).json({ error: "缺少设备IP地址" });
+    }
+    
+    if (!hikvisionSdkBridge) {
+      return res.status(503).json({ 
+        success: false,
+        error: "SDK功能不可用",
+        message: "SDK桥接器未加载或初始化失败",
+        sdkAvailable: false,
+        mock: false
+      });
+    }
+    
+    const result = await hikvisionSdkBridge.setTriggerConfig({ ip, port, username, password }, values || {});
+    
+    res.json({
+      success: true,
+      sdkAvailable: hikvisionSdkBridge.sdkAvailable,
+      ...result
+    });
+    
+  } catch (error) {
+    console.error("[SDK API] 保存触发模式配置失败:", error);
+    res.status(500).json({ 
+      success: false,
+      error: "保存触发模式配置失败",
+      message: error.message,
+      sdkAvailable: hikvisionSdkBridge ? hikvisionSdkBridge.sdkAvailable : false,
+      mock: false
+    });
+  }
+});
+
+app.post("/api/sdk/network-config/set", async (req, res) => {
+  try {
+    const { ip, port = 8000, username = "admin", password = "qwer1234", values = {} } = req.body;
+
+    if (!ip) {
+      return res.status(400).json({ error: "缺少设备IP地址" });
+    }
+
+    if (!hikvisionSdkBridge) {
+      return res.status(503).json({
+        success: false,
+        error: "SDK功能不可用",
+        message: "SDK桥接器未加载或初始化失败",
+        sdkAvailable: false,
+        mock: false
+      });
+    }
+
+    const result = await hikvisionSdkBridge.setNetworkConfig({ ip, port, username, password }, values || {});
+    res.json({
+      success: true,
+      sdkAvailable: hikvisionSdkBridge.sdkAvailable,
+      ...result
+    });
+  } catch (error) {
+    console.error("[SDK API] 保存设备网络参数失败:", error);
+    res.status(500).json({
+      success: false,
+      error: "保存设备网络参数失败",
+      message: error.message,
+      sdkAvailable: hikvisionSdkBridge ? hikvisionSdkBridge.sdkAvailable : false,
+      mock: false
+    });
+  }
+});
+
 /**
  * 测试SDK连接
  */
@@ -6638,6 +6712,43 @@ app.post("/api/sdk/current-trigger-mode", async (req, res) => {
     res.status(500).json({ 
       success: false,
       error: "获取当前触发模式失败",
+      message: error.message,
+      sdkAvailable: hikvisionSdkBridge ? hikvisionSdkBridge.sdkAvailable : false,
+      mock: false
+    });
+  }
+});
+
+app.post("/api/sdk/current-trigger-mode/set", async (req, res) => {
+  try {
+    const { ip, port = 8000, username = "admin", password = "qwer1234", values = {} } = req.body;
+    
+    if (!ip) {
+      return res.status(400).json({ error: "缺少设备IP地址" });
+    }
+    
+    if (!hikvisionSdkBridge) {
+      return res.status(503).json({ 
+        success: false,
+        error: "SDK功能不可用",
+        message: "SDK桥接器未加载或初始化失败",
+        sdkAvailable: false,
+        mock: false
+      });
+    }
+    
+    const result = await hikvisionSdkBridge.setCurrentTriggerMode({ ip, port, username, password }, values || {});
+    
+    res.json({
+      success: true,
+      sdkAvailable: hikvisionSdkBridge.sdkAvailable,
+      ...result
+    });
+  } catch (error) {
+    console.error("[SDK API] 保存当前触发模式失败:", error.message);
+    res.status(500).json({ 
+      success: false,
+      error: "保存当前触发模式失败",
       message: error.message,
       sdkAvailable: hikvisionSdkBridge ? hikvisionSdkBridge.sdkAvailable : false,
       mock: false

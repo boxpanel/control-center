@@ -23,9 +23,12 @@ public class HikvisionTrafficConfigTool {
     private static final int MAX_CUSTOMDIR_LEN = 32;
     private static final int PICNAME_MAXITEM = 15;
     private static final int NET_DVR_GET_NETCFG_V30 = 1000;
+    private static final int NET_DVR_SET_NETCFG_V30 = 1001;
     private static final int NET_ITC_GET_FTPCFG = 3121;
     private static final int NET_ITC_GET_TRIGGERCFG = 3003;
+    private static final int NET_ITC_SET_TRIGGERCFG = 3004;
     private static final int NET_DVR_GET_CURTRIGGERMODE = 3130;
+    private static final int NET_DVR_SET_CURTRIGGERMODE = 3140;
     private static final Charset DEVICE_CHARSET = StandardCharsets.UTF_8;
 
     public interface HCNetSDK extends Library {
@@ -36,6 +39,7 @@ public class HikvisionTrafficConfigTool {
         int NET_DVR_Login_V40(NET_DVR_USER_LOGIN_INFO loginInfo, NET_DVR_DEVICEINFO_V40 deviceInfo);
         boolean NET_DVR_Logout(int userId);
         boolean NET_DVR_GetDVRConfig(int userId, int command, int channel, Pointer outBuffer, int outBufferSize, IntByReference bytesReturned);
+        boolean NET_DVR_SetDVRConfig(int userId, int command, int channel, Pointer inBuffer, int inBufferSize);
         int NET_DVR_GetLastError();
     }
 
@@ -432,14 +436,23 @@ public class HikvisionTrafficConfigTool {
                     case "network-config":
                         success(buildNetworkConfig(userId));
                         break;
+                    case "set-network-config":
+                        success(applyNetworkConfig(userId, args));
+                        break;
                     case "itc-ftp-config":
                         success(buildItcFtpConfig(userId));
                         break;
                     case "current-trigger-mode":
                         success(buildCurrentTriggerMode(userId));
                         break;
+                    case "set-current-trigger-mode":
+                        success(applyCurrentTriggerMode(userId, args));
+                        break;
                     case "trigger-config":
                         success(buildTriggerConfig(userId));
+                        break;
+                    case "set-trigger-config":
+                        success(applyTriggerConfig(userId, args));
                         break;
                     default:
                         fail("Unsupported action: " + action, 0);
@@ -494,16 +507,8 @@ public class HikvisionTrafficConfigTool {
     }
 
     private static String buildNetworkConfig(int userId) {
-        NET_DVR_NETCFG_V30 config = new NET_DVR_NETCFG_V30();
-        config.dwSize = config.size();
-        config.write();
-        IntByReference bytesReturned = new IntByReference();
-        boolean ok = sdk.NET_DVR_GetDVRConfig(userId, NET_DVR_GET_NETCFG_V30, 0, config.getPointer(), config.size(), bytesReturned);
-        if (!ok) {
-            fail("NET_DVR_GetDVRConfig(NETCFG) failed", sdk.NET_DVR_GetLastError());
-            return "";
-        }
-        config.read();
+        NET_DVR_NETCFG_V30 config = loadNetworkConfigStruct(userId);
+        if (config == null) return "";
 
         NET_DVR_ETHERNET_V30 eth = config.struEtherNet[0];
         String ip = ipString(eth.struDVRIP);
@@ -541,17 +546,41 @@ public class HikvisionTrafficConfigTool {
                 + "}";
     }
 
-    private static String buildCurrentTriggerMode(int userId) {
-        NET_DVR_CURTRIGGERMODE current = new NET_DVR_CURTRIGGERMODE();
-        current.dwSize = current.size();
-        current.write();
-        IntByReference bytesReturned = new IntByReference();
-        boolean ok = sdk.NET_DVR_GetDVRConfig(userId, NET_DVR_GET_CURTRIGGERMODE, 0, current.getPointer(), current.size(), bytesReturned);
+    private static String applyNetworkConfig(int userId, String[] args) {
+        NET_DVR_NETCFG_V30 config = loadNetworkConfigStruct(userId);
+        if (config == null) return "";
+
+        NET_DVR_ETHERNET_V30 eth = config.struEtherNet[0];
+        writeIpString(eth.struDVRIP, arg(args, 5, ipString(eth.struDVRIP)));
+        writeIpString(eth.struDVRIPMask, arg(args, 6, ipString(eth.struDVRIPMask)));
+        writeIpString(config.struGatewayIpAddr, arg(args, 7, ipString(config.struGatewayIpAddr)));
+        writeIpString(config.struDnsServer1IpAddr, arg(args, 8, ipString(config.struDnsServer1IpAddr)));
+        writeIpString(config.struDnsServer2IpAddr, arg(args, 9, ipString(config.struDnsServer2IpAddr)));
+        config.byUseDhcp = (byte) (parseBooleanFlag(arg(args, 10, unsignedByte(config.byUseDhcp) == 1 ? "1" : "0")) ? 1 : 0);
+
+        int sdkPort = parseInt(arg(args, 11, String.valueOf(unsignedShort(eth.wDVRPort))), unsignedShort(eth.wDVRPort));
+        int httpPort = parseInt(arg(args, 12, String.valueOf(unsignedShort(config.wHttpPortNo))), unsignedShort(config.wHttpPortNo));
+        int mtu = parseInt(arg(args, 13, String.valueOf(unsignedShort(eth.wMTU))), unsignedShort(eth.wMTU));
+        writeIpString(config.struAlarmHostIpAddr, arg(args, 14, ipString(config.struAlarmHostIpAddr)));
+        int alarmHostPort = parseInt(arg(args, 15, String.valueOf(unsignedShort(config.wAlarmHostIpPort))), unsignedShort(config.wAlarmHostIpPort));
+
+        eth.wDVRPort = (short) sdkPort;
+        config.wHttpPortNo = (short) httpPort;
+        eth.wMTU = (short) mtu;
+        config.wAlarmHostIpPort = (short) alarmHostPort;
+
+        config.write();
+        boolean ok = sdk.NET_DVR_SetDVRConfig(userId, NET_DVR_SET_NETCFG_V30, 0, config.getPointer(), config.size());
         if (!ok) {
-            fail("NET_DVR_GetDVRConfig(CURTRIGGERMODE) failed", sdk.NET_DVR_GetLastError());
+            fail("NET_DVR_SetDVRConfig(NETCFG) failed", sdk.NET_DVR_GetLastError());
             return "";
         }
-        current.read();
+        return buildNetworkConfig(userId);
+    }
+
+    private static String buildCurrentTriggerMode(int userId) {
+        NET_DVR_CURTRIGGERMODE current = loadCurrentTriggerModeStruct(userId);
+        if (current == null) return "";
 
         int triggerType = current.dwTriggerType;
         String label = getTriggerTypeLabel(triggerType);
@@ -566,6 +595,19 @@ public class HikvisionTrafficConfigTool {
                 + "\"summary\":\"" + json(label + " (" + toHex(triggerType) + ")") + "\""
                 + "}"
                 + "}";
+    }
+
+    private static String applyCurrentTriggerMode(int userId, String[] args) {
+        NET_DVR_CURTRIGGERMODE current = loadCurrentTriggerModeStruct(userId);
+        if (current == null) return "";
+        current.dwTriggerType = parseInt(arg(args, 5, String.valueOf(current.dwTriggerType)), current.dwTriggerType);
+        current.write();
+        boolean ok = sdk.NET_DVR_SetDVRConfig(userId, NET_DVR_SET_CURTRIGGERMODE, 0, current.getPointer(), current.size());
+        if (!ok) {
+            fail("NET_DVR_SetDVRConfig(CURTRIGGERMODE) failed", sdk.NET_DVR_GetLastError());
+            return "";
+        }
+        return buildCurrentTriggerMode(userId);
     }
 
     private static String buildItcFtpConfig(int userId) {
@@ -646,16 +688,8 @@ public class HikvisionTrafficConfigTool {
     }
 
     private static String buildTriggerConfig(int userId) {
-        NET_ITC_TRIGGERCFG config = new NET_ITC_TRIGGERCFG();
-        config.dwSize = config.size();
-        config.write();
-        IntByReference bytesReturned = new IntByReference();
-        boolean ok = sdk.NET_DVR_GetDVRConfig(userId, NET_ITC_GET_TRIGGERCFG, 0, config.getPointer(), config.size(), bytesReturned);
-        if (!ok) {
-            fail("NET_DVR_GetDVRConfig(TRIGGERCFG) failed", sdk.NET_DVR_GetLastError());
-            return "";
-        }
-        config.read();
+        NET_ITC_TRIGGERCFG config = loadTriggerConfigStruct(userId);
+        if (config == null) return "";
 
         NET_ITC_SINGLE_TRIGGERCFG trigger = config.struTriggerParam;
         int triggerType = trigger.dwTriggerType;
@@ -664,37 +698,54 @@ public class HikvisionTrafficConfigTool {
 
         int laneCount = 0;
         String detailSource = "raw";
+        Integer triggerSpareMode = null;
         String triggerSpareModeLabel = "";
         Integer faultToleranceMinutes = null;
-        String displayEnabled = "";
+        Boolean displayEnabled = null;
+        String displayEnabledLabel = "";
+        Integer snapMode = null;
         String snapModeLabel = "";
+        Integer speedDetector = null;
         String speedDetectorLabel = "";
+        Integer sceneMode = null;
         String sceneModeLabel = "";
+        Integer capType = null;
         String capTypeLabel = "";
+        Integer capMode = null;
         String capModeLabel = "";
+        Integer speedMode = null;
         String speedModeLabel = "";
 
         if (triggerType == 0x4) {
             NET_ITC_POST_RS485_PARAM rs485 = trigger.uTriggerParam.asRs485();
             laneCount = unsignedByte(rs485.byRelatedLaneNum);
-            triggerSpareModeLabel = getTriggerSpareModeLabel(unsignedByte(rs485.byTriggerSpareMode));
+            triggerSpareMode = unsignedByte(rs485.byTriggerSpareMode);
+            triggerSpareModeLabel = getTriggerSpareModeLabel(triggerSpareMode);
             faultToleranceMinutes = unsignedByte(rs485.byFaultToleranceTime);
             detailSource = "rs485";
         } else if (triggerType == 0x10) {
             NET_ITC_POST_VTCOIL_PARAM vt = trigger.uTriggerParam.asVtCoil();
             laneCount = unsignedByte(vt.byRelatedLaneNum);
-            displayEnabled = unsignedByte(vt.byIsDisplay) == 1 ? "Yes" : "No";
-            snapModeLabel = getSnapModeLabel(unsignedByte(vt.bySnapMode));
-            speedDetectorLabel = getSpeedDetectorLabel(unsignedByte(vt.bySpeedDetector));
-            sceneModeLabel = getSceneModeLabel(vt.dwSceneMode);
+            displayEnabled = unsignedByte(vt.byIsDisplay) == 1;
+            displayEnabledLabel = displayEnabled ? "Yes" : "No";
+            snapMode = unsignedByte(vt.bySnapMode);
+            snapModeLabel = getSnapModeLabel(snapMode);
+            speedDetector = unsignedByte(vt.bySpeedDetector);
+            speedDetectorLabel = getSpeedDetectorLabel(speedDetector);
+            sceneMode = vt.dwSceneMode;
+            sceneModeLabel = getSceneModeLabel(sceneMode);
             detailSource = "virtualCoil";
         } else if ((triggerType & 0x20) != 0 || (triggerType & 0x100000) != 0) {
             NET_ITC_POST_HVT_PARAM_V50 hvt = trigger.uTriggerParam.asHvtV50();
             laneCount = unsignedByte(hvt.byLaneNum);
-            capTypeLabel = getCapTypeLabel(unsignedByte(hvt.byCapType));
-            capModeLabel = getCapModeLabel(unsignedByte(hvt.byCapMode));
-            sceneModeLabel = getSceneModeLabel(unsignedByte(hvt.bySecneMode));
-            speedModeLabel = getSpeedModeLabel(unsignedByte(hvt.bySpeedMode));
+            capType = unsignedByte(hvt.byCapType);
+            capTypeLabel = getCapTypeLabel(capType);
+            capMode = unsignedByte(hvt.byCapMode);
+            capModeLabel = getCapModeLabel(capMode);
+            sceneMode = unsignedByte(hvt.bySecneMode);
+            sceneModeLabel = getSceneModeLabel(sceneMode);
+            speedMode = unsignedByte(hvt.bySpeedMode);
+            speedModeLabel = getSpeedModeLabel(speedMode);
             detailSource = "hvtV50";
         }
 
@@ -715,18 +766,73 @@ public class HikvisionTrafficConfigTool {
                 + "\"triggerTypeLabel\":\"" + json(triggerLabel) + "\","
                 + "\"detailSource\":\"" + json(detailSource) + "\","
                 + "\"laneCount\":" + laneCount + ","
+                + "\"triggerSpareMode\":" + (triggerSpareMode == null ? "null" : triggerSpareMode) + ","
                 + "\"triggerSpareModeLabel\":\"" + json(triggerSpareModeLabel) + "\","
                 + "\"faultToleranceMinutes\":" + (faultToleranceMinutes == null ? "null" : faultToleranceMinutes) + ","
-                + "\"displayEnabled\":\"" + json(displayEnabled) + "\","
+                + "\"displayEnabled\":" + (displayEnabled == null ? "null" : displayEnabled) + ","
+                + "\"displayEnabledLabel\":\"" + json(displayEnabledLabel) + "\","
+                + "\"snapMode\":" + (snapMode == null ? "null" : snapMode) + ","
                 + "\"snapModeLabel\":\"" + json(snapModeLabel) + "\","
+                + "\"speedDetector\":" + (speedDetector == null ? "null" : speedDetector) + ","
                 + "\"speedDetectorLabel\":\"" + json(speedDetectorLabel) + "\","
+                + "\"sceneMode\":" + (sceneMode == null ? "null" : sceneMode) + ","
                 + "\"sceneModeLabel\":\"" + json(sceneModeLabel) + "\","
+                + "\"capType\":" + (capType == null ? "null" : capType) + ","
                 + "\"capTypeLabel\":\"" + json(capTypeLabel) + "\","
+                + "\"capMode\":" + (capMode == null ? "null" : capMode) + ","
                 + "\"capModeLabel\":\"" + json(capModeLabel) + "\","
+                + "\"speedMode\":" + (speedMode == null ? "null" : speedMode) + ","
                 + "\"speedModeLabel\":\"" + json(speedModeLabel) + "\","
                 + "\"summary\":\"" + json(summary.toString()) + "\""
                 + "}"
                 + "}";
+    }
+
+    private static String applyTriggerConfig(int userId, String[] args) {
+        NET_ITC_TRIGGERCFG config = loadTriggerConfigStruct(userId);
+        if (config == null) return "";
+
+        NET_ITC_SINGLE_TRIGGERCFG trigger = config.struTriggerParam;
+        int originalType = trigger.dwTriggerType;
+        trigger.byEnable = (byte) (parseBooleanFlag(arg(args, 5, unsignedByte(trigger.byEnable) == 1 ? "1" : "0")) ? 1 : 0);
+        int nextType = parseInt(arg(args, 6, String.valueOf(trigger.dwTriggerType)), trigger.dwTriggerType);
+        trigger.dwTriggerType = nextType;
+
+        if (nextType == 0x4) {
+            NET_ITC_POST_RS485_PARAM rs485 = (nextType == originalType) ? trigger.uTriggerParam.asRs485() : new NET_ITC_POST_RS485_PARAM();
+            rs485.byRelatedLaneNum = (byte) parseInt(arg(args, 7, String.valueOf(unsignedByte(rs485.byRelatedLaneNum))), unsignedByte(rs485.byRelatedLaneNum));
+            rs485.byTriggerSpareMode = (byte) parseInt(arg(args, 8, String.valueOf(unsignedByte(rs485.byTriggerSpareMode))), unsignedByte(rs485.byTriggerSpareMode));
+            rs485.byFaultToleranceTime = (byte) parseInt(arg(args, 9, String.valueOf(unsignedByte(rs485.byFaultToleranceTime))), unsignedByte(rs485.byFaultToleranceTime));
+            rs485.write();
+            writeStructureToUnion(trigger.uTriggerParam, rs485);
+        } else if (nextType == 0x10) {
+            NET_ITC_POST_VTCOIL_PARAM vt = (nextType == originalType) ? trigger.uTriggerParam.asVtCoil() : new NET_ITC_POST_VTCOIL_PARAM();
+            vt.byRelatedLaneNum = (byte) parseInt(arg(args, 7, String.valueOf(unsignedByte(vt.byRelatedLaneNum))), unsignedByte(vt.byRelatedLaneNum));
+            vt.byIsDisplay = (byte) (parseBooleanFlag(arg(args, 10, unsignedByte(vt.byIsDisplay) == 1 ? "1" : "0")) ? 1 : 0);
+            vt.bySnapMode = (byte) parseInt(arg(args, 11, String.valueOf(unsignedByte(vt.bySnapMode))), unsignedByte(vt.bySnapMode));
+            vt.bySpeedDetector = (byte) parseInt(arg(args, 12, String.valueOf(unsignedByte(vt.bySpeedDetector))), unsignedByte(vt.bySpeedDetector));
+            vt.dwSceneMode = parseInt(arg(args, 13, String.valueOf(vt.dwSceneMode)), vt.dwSceneMode);
+            vt.write();
+            writeStructureToUnion(trigger.uTriggerParam, vt);
+        } else if ((nextType & 0x20) != 0 || (nextType & 0x100000) != 0) {
+            NET_ITC_POST_HVT_PARAM_V50 hvt = ((nextType == originalType) && ((originalType & 0x20) != 0 || (originalType & 0x100000) != 0))
+                    ? trigger.uTriggerParam.asHvtV50() : new NET_ITC_POST_HVT_PARAM_V50();
+            hvt.byLaneNum = (byte) parseInt(arg(args, 7, String.valueOf(unsignedByte(hvt.byLaneNum))), unsignedByte(hvt.byLaneNum));
+            hvt.byCapType = (byte) parseInt(arg(args, 14, String.valueOf(unsignedByte(hvt.byCapType))), unsignedByte(hvt.byCapType));
+            hvt.byCapMode = (byte) parseInt(arg(args, 15, String.valueOf(unsignedByte(hvt.byCapMode))), unsignedByte(hvt.byCapMode));
+            hvt.bySecneMode = (byte) parseInt(arg(args, 13, String.valueOf(unsignedByte(hvt.bySecneMode))), unsignedByte(hvt.bySecneMode));
+            hvt.bySpeedMode = (byte) parseInt(arg(args, 16, String.valueOf(unsignedByte(hvt.bySpeedMode))), unsignedByte(hvt.bySpeedMode));
+            hvt.write();
+            writeStructureToUnion(trigger.uTriggerParam, hvt);
+        }
+
+        config.write();
+        boolean ok = sdk.NET_DVR_SetDVRConfig(userId, NET_ITC_SET_TRIGGERCFG, 0, config.getPointer(), config.size());
+        if (!ok) {
+            fail("NET_DVR_SetDVRConfig(TRIGGERCFG) failed", sdk.NET_DVR_GetLastError());
+            return "";
+        }
+        return buildTriggerConfig(userId);
     }
 
     private static String arg(String[] args, int index, String fallback) {
@@ -747,11 +853,68 @@ public class HikvisionTrafficConfigTool {
         return value == null || value.trim().isEmpty() ? fallback : value.trim();
     }
 
+    private static boolean parseBooleanFlag(String value) {
+        String normalized = withDefault(value, "0").toLowerCase(Locale.ROOT);
+        return "1".equals(normalized) || "true".equals(normalized) || "yes".equals(normalized) || "on".equals(normalized);
+    }
+
     private static void fillBytes(byte[] buffer, String value) {
         Arrays.fill(buffer, (byte) 0);
         if (value == null) return;
         byte[] source = value.getBytes(DEVICE_CHARSET);
         System.arraycopy(source, 0, buffer, 0, Math.min(source.length, buffer.length - 1));
+    }
+
+    private static void writeIpString(NET_DVR_IPADDR target, String value) {
+        if (target == null) return;
+        fillBytes(target.sIpV4, withDefault(value, ""));
+    }
+
+    private static void writeStructureToUnion(NET_ITC_TRIGGER_PARAM_UNION union, Structure value) {
+        byte[] data = value.getPointer().getByteArray(0, value.size());
+        union.getPointer().write(0, data, 0, Math.min(data.length, union.size()));
+    }
+
+    private static NET_DVR_NETCFG_V30 loadNetworkConfigStruct(int userId) {
+        NET_DVR_NETCFG_V30 config = new NET_DVR_NETCFG_V30();
+        config.dwSize = config.size();
+        config.write();
+        IntByReference bytesReturned = new IntByReference();
+        boolean ok = sdk.NET_DVR_GetDVRConfig(userId, NET_DVR_GET_NETCFG_V30, 0, config.getPointer(), config.size(), bytesReturned);
+        if (!ok) {
+            fail("NET_DVR_GetDVRConfig(NETCFG) failed", sdk.NET_DVR_GetLastError());
+            return null;
+        }
+        config.read();
+        return config;
+    }
+
+    private static NET_DVR_CURTRIGGERMODE loadCurrentTriggerModeStruct(int userId) {
+        NET_DVR_CURTRIGGERMODE current = new NET_DVR_CURTRIGGERMODE();
+        current.dwSize = current.size();
+        current.write();
+        IntByReference bytesReturned = new IntByReference();
+        boolean ok = sdk.NET_DVR_GetDVRConfig(userId, NET_DVR_GET_CURTRIGGERMODE, 0, current.getPointer(), current.size(), bytesReturned);
+        if (!ok) {
+            fail("NET_DVR_GetDVRConfig(CURTRIGGERMODE) failed", sdk.NET_DVR_GetLastError());
+            return null;
+        }
+        current.read();
+        return current;
+    }
+
+    private static NET_ITC_TRIGGERCFG loadTriggerConfigStruct(int userId) {
+        NET_ITC_TRIGGERCFG config = new NET_ITC_TRIGGERCFG();
+        config.dwSize = config.size();
+        config.write();
+        IntByReference bytesReturned = new IntByReference();
+        boolean ok = sdk.NET_DVR_GetDVRConfig(userId, NET_ITC_GET_TRIGGERCFG, 0, config.getPointer(), config.size(), bytesReturned);
+        if (!ok) {
+            fail("NET_DVR_GetDVRConfig(TRIGGERCFG) failed", sdk.NET_DVR_GetLastError());
+            return null;
+        }
+        config.read();
+        return config;
     }
 
     private static String trimZero(byte[] value) {

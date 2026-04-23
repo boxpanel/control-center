@@ -1090,6 +1090,11 @@ canvas {
   gap: 16px;
 }
 
+.devicePreviewActionRow {
+  display: flex;
+  justify-content: flex-end;
+}
+
 .devicePreviewInlineFields {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -1164,6 +1169,25 @@ canvas {
   color: #0f172a;
   word-break: break-all;
   white-space: pre-line;
+}
+
+.devicePreviewParamInput,
+.devicePreviewParamSelect {
+  width: 100%;
+  min-width: 0;
+  height: 36px;
+  padding: 0 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(148, 163, 184, 0.55);
+  background: #fff;
+  color: #0f172a;
+  font-size: 13px;
+}
+
+.devicePreviewParamInput[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  padding: 0;
 }
 
 .devicePreviewIsapiHint {

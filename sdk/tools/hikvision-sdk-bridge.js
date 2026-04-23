@@ -187,7 +187,7 @@ class HikvisionSdkBridge {
     });
   }
 
-  async runJavaTool(action, connection = {}) {
+  async runJavaTool(action, connection = {}, extraArgs = []) {
     await this.compileJavaTool();
 
     const classPathArg = `${javaBuildDir}${getJavaClassPathSeparator()}${this.jnaJar}`;
@@ -207,7 +207,8 @@ class HikvisionSdkBridge {
       withDefault(connection.ip),
       String(Number(connection.port || 8000) || 8000),
       withDefault(connection.username, "admin"),
-      withDefault(connection.password)
+      withDefault(connection.password),
+      ...extraArgs.map((value) => String(value ?? ""))
     ];
 
     const { stdout } = await execFileAsync(this.javaBin, args, {
@@ -255,12 +256,51 @@ class HikvisionSdkBridge {
     return this.runJavaTool("network-config", connection);
   }
 
+  async setNetworkConfig(connection, values = {}) {
+    return this.runJavaTool("set-network-config", connection, [
+      withDefault(values.ipAddress),
+      withDefault(values.subnetMask),
+      withDefault(values.gateway),
+      withDefault(values.dns1),
+      withDefault(values.dns2),
+      values.dhcpEnabled ? "1" : "0",
+      String(Number(values.sdkPort || 0) || 0),
+      String(Number(values.httpPort || 0) || 0),
+      String(Number(values.mtu || 0) || 0),
+      withDefault(values.alarmHostIp),
+      String(Number(values.alarmHostPort || 0) || 0)
+    ]);
+  }
+
   async getCurrentTriggerMode(connection) {
     return this.runJavaTool("current-trigger-mode", connection);
   }
 
+  async setCurrentTriggerMode(connection, values = {}) {
+    return this.runJavaTool("set-current-trigger-mode", connection, [
+      String(Number(values.triggerTypeCode || 0) || 0)
+    ]);
+  }
+
   async getTriggerConfig(connection) {
     return this.runJavaTool("trigger-config", connection);
+  }
+
+  async setTriggerConfig(connection, values = {}) {
+    return this.runJavaTool("set-trigger-config", connection, [
+      values.enabled ? "1" : "0",
+      String(Number(values.triggerTypeCode || 0) || 0),
+      String(Number(values.laneCount || 0) || 0),
+      String(Number(values.triggerSpareMode || 0) || 0),
+      String(Number(values.faultToleranceMinutes || 0) || 0),
+      values.displayEnabled ? "1" : "0",
+      String(Number(values.snapMode || 0) || 0),
+      String(Number(values.speedDetector || 0) || 0),
+      String(Number(values.sceneMode || 0) || 0),
+      String(Number(values.capType || 0) || 0),
+      String(Number(values.capMode || 0) || 0),
+      String(Number(values.speedMode || 0) || 0)
+    ]);
   }
 
   async getEnhancedTriggerConfig(connection) {

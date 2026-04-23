@@ -267,6 +267,7 @@ const els = {
   devicePreviewIsapiPanel: document.getElementById("devicePreviewIsapiPanel"),
   devicePreviewIsapiHint: document.getElementById("devicePreviewIsapiHint"),
   devicePreviewIsapiPreset: document.getElementById("devicePreviewIsapiPreset"),
+  devicePreviewIsapiSaveBtn: document.getElementById("devicePreviewIsapiSaveBtn"),
   devicePreviewModalStopBtn: document.getElementById("devicePreviewModalStopBtn"),
   previewVideo: document.getElementById("previewVideo"),
   previewSnapshotBtn: document.getElementById("previewSnapshotBtn"),
@@ -385,24 +386,41 @@ const DEVICE_PREVIEW_ISAPI_SCHEMAS = {
     }
   },
   sdkNetworkConfig: {
-    readOnly: true,
+    readOnly: false,
+    saveApiPath: "/api/sdk/network-config/set",
     fields: [
-      { key: "ipAddress", label: "IP地址", type: "text", readOnly: true },
-      { key: "subnetMask", label: "子网掩码", type: "text", readOnly: true },
-      { key: "gateway", label: "网关", type: "text", readOnly: true },
-      { key: "dns1", label: "DNS1", type: "text", readOnly: true },
-      { key: "dns2", label: "DNS2", type: "text", readOnly: true },
-      { key: "dhcpEnabledLabel", label: "DHCP", type: "text", readOnly: true },
-      { key: "sdkPort", label: "SDK端口", type: "text", readOnly: true },
-      { key: "httpPort", label: "HTTP端口", type: "text", readOnly: true },
-      { key: "mtu", label: "MTU", type: "text", readOnly: true },
+      { key: "ipAddress", label: "IP地址", type: "text" },
+      { key: "subnetMask", label: "子网掩码", type: "text" },
+      { key: "gateway", label: "网关", type: "text" },
+      { key: "dns1", label: "DNS1", type: "text" },
+      { key: "dns2", label: "DNS2", type: "text" },
+      { key: "dhcpEnabled", label: "DHCP启用", type: "checkbox" },
+      { key: "sdkPort", label: "SDK端口", type: "number" },
+      { key: "httpPort", label: "HTTP端口", type: "number" },
+      { key: "mtu", label: "MTU", type: "number" },
       { key: "netInterfaceLabel", label: "网卡模式", type: "text", readOnly: true },
       { key: "macAddress", label: "MAC地址", type: "text", readOnly: true },
-      { key: "alarmHostIp", label: "告警主机IP", type: "text", readOnly: true },
-      { key: "alarmHostPort", label: "告警主机端口", type: "text", readOnly: true }
+      { key: "alarmHostIp", label: "告警主机IP", type: "text" },
+      { key: "alarmHostPort", label: "告警主机端口", type: "number" },
+      { key: "dhcpEnabledLabel", label: "DHCP状态", type: "text", readOnly: true }
     ],
     mapLoadResult(result = {}) {
       return result && typeof result === "object" ? result : {};
+    },
+    buildSavePayload(values = {}) {
+      return {
+        ipAddress: String(values.ipAddress || "").trim(),
+        subnetMask: String(values.subnetMask || "").trim(),
+        gateway: String(values.gateway || "").trim(),
+        dns1: String(values.dns1 || "").trim(),
+        dns2: String(values.dns2 || "").trim(),
+        dhcpEnabled: Boolean(values.dhcpEnabled),
+        sdkPort: Number(values.sdkPort || 0) || 0,
+        httpPort: Number(values.httpPort || 0) || 0,
+        mtu: Number(values.mtu || 0) || 0,
+        alarmHostIp: String(values.alarmHostIp || "").trim(),
+        alarmHostPort: Number(values.alarmHostPort || 0) || 0
+      };
     }
   },
   sdkFtpConfig: {
@@ -449,28 +467,44 @@ const DEVICE_PREVIEW_ISAPI_SCHEMAS = {
     }
   },
   sdkCurrentTriggerMode: {
-    readOnly: true,
+    readOnly: false,
+    saveApiPath: "/api/sdk/current-trigger-mode/set",
     fields: [
+      { key: "triggerTypeCode", label: "触发类型代码", type: "number" },
       { key: "triggerTypeLabel", label: "当前触发模式", type: "text", readOnly: true },
       { key: "triggerTypeHex", label: "触发类型HEX", type: "text", readOnly: true },
-      { key: "triggerTypeCode", label: "触发类型代码", type: "text", readOnly: true },
       { key: "summary", label: "摘要", type: "text", readOnly: true }
     ],
     mapLoadResult(result = {}) {
       return result && typeof result === "object" ? result : {};
+    },
+    buildSavePayload(values = {}) {
+      return {
+        triggerTypeCode: Number(values.triggerTypeCode || 0) || 0
+      };
     }
   },
   sdkTriggerConfig: {
-    readOnly: true,
+    readOnly: false,
+    saveApiPath: "/api/sdk/trigger-config/set",
     fields: [
-      { key: "enabledLabel", label: "启用状态", type: "text", readOnly: true },
+      { key: "enabled", label: "启用状态", type: "checkbox" },
+      { key: "triggerTypeCode", label: "触发类型代码", type: "number" },
+      { key: "laneCount", label: "关联车道数", type: "number" },
+      { key: "triggerSpareMode", label: "备用模式代码", type: "number" },
+      { key: "faultToleranceMinutes", label: "容错时间(分钟)", type: "number" },
+      { key: "displayEnabled", label: "显示辅助线", type: "checkbox" },
+      { key: "snapMode", label: "抓拍模式代码", type: "number" },
+      { key: "speedDetector", label: "测速方式代码", type: "number" },
+      { key: "sceneMode", label: "场景模式代码", type: "number" },
+      { key: "capType", label: "抓拍类型代码", type: "number" },
+      { key: "capMode", label: "抓拍方式代码", type: "number" },
+      { key: "speedMode", label: "速度模式代码", type: "number" },
+      { key: "enabledLabel", label: "启用状态文本", type: "text", readOnly: true },
       { key: "triggerTypeLabel", label: "触发模式", type: "text", readOnly: true },
       { key: "triggerTypeHex", label: "触发类型HEX", type: "text", readOnly: true },
       { key: "detailSource", label: "详细来源", type: "text", readOnly: true },
-      { key: "laneCount", label: "关联车道数", type: "text", readOnly: true },
       { key: "triggerSpareModeLabel", label: "触发备用模式", type: "text", readOnly: true },
-      { key: "faultToleranceMinutes", label: "容错时间(分钟)", type: "text", readOnly: true },
-      { key: "displayEnabled", label: "显示辅助线", type: "text", readOnly: true },
       { key: "snapModeLabel", label: "抓拍模式", type: "text", readOnly: true },
       { key: "speedDetectorLabel", label: "测速方式", type: "text", readOnly: true },
       { key: "sceneModeLabel", label: "场景模式", type: "text", readOnly: true },
@@ -481,6 +515,22 @@ const DEVICE_PREVIEW_ISAPI_SCHEMAS = {
     ],
     mapLoadResult(result = {}) {
       return result && typeof result === "object" ? result : {};
+    },
+    buildSavePayload(values = {}) {
+      return {
+        enabled: Boolean(values.enabled),
+        triggerTypeCode: Number(values.triggerTypeCode || 0) || 0,
+        laneCount: Number(values.laneCount || 0) || 0,
+        triggerSpareMode: Number(values.triggerSpareMode || 0) || 0,
+        faultToleranceMinutes: Number(values.faultToleranceMinutes || 0) || 0,
+        displayEnabled: Boolean(values.displayEnabled),
+        snapMode: Number(values.snapMode || 0) || 0,
+        speedDetector: Number(values.speedDetector || 0) || 0,
+        sceneMode: Number(values.sceneMode || 0) || 0,
+        capType: Number(values.capType || 0) || 0,
+        capMode: Number(values.capMode || 0) || 0,
+        speedMode: Number(values.speedMode || 0) || 0
+      };
     }
   },
   
@@ -6268,7 +6318,45 @@ function setDevicePreviewOnvifModeActive(active) {
 function getOnvifControlValue(field) {
   if (!field) return "";
   if (field.type === "checkbox") return Boolean(field.checked);
-  return field.value;
+  if ("value" in field) return field.value;
+  return field.dataset.value ?? field.textContent ?? "";
+}
+
+function setPreviewControlValue(field, value) {
+  if (!field) return;
+  if (field.type === "checkbox") {
+    field.checked = Boolean(value);
+    return;
+  }
+  if ("value" in field) {
+    field.value = value == null ? "" : String(value);
+    return;
+  }
+  field.dataset.value = value == null ? "" : String(value);
+  field.textContent = value == null ? "" : String(value);
+}
+
+function renderPreviewParamField(field = {}, dataAttr = "data-isapi-field") {
+  const label = field.label || field.key || "";
+  const key = field.key || "";
+  if (field.readOnly) {
+    return `<div class="devicePreviewParamItem"><span class="devicePreviewParamLabel">${label}:</span><span class="devicePreviewParamValue" ${dataAttr}="${key}"></span></div>`;
+  }
+  if (field.type === "checkbox") {
+    return `<div class="devicePreviewParamItem"><span class="devicePreviewParamLabel">${label}:</span><input class="devicePreviewParamInput" type="checkbox" ${dataAttr}="${key}" /></div>`;
+  }
+  if (field.type === "select") {
+    const options = Array.isArray(field.options) ? field.options : [];
+    const optionHtml = options.map((option) => {
+      if (option && typeof option === "object") {
+        return `<option value="${option.value ?? ""}">${option.label ?? option.value ?? ""}</option>`;
+      }
+      return `<option value="${option ?? ""}">${option ?? ""}</option>`;
+    }).join("");
+    return `<div class="devicePreviewParamItem"><span class="devicePreviewParamLabel">${label}:</span><select class="devicePreviewParamSelect" ${dataAttr}="${key}">${optionHtml}</select></div>`;
+  }
+  const inputType = field.type === "number" ? "number" : "text";
+  return `<div class="devicePreviewParamItem"><span class="devicePreviewParamLabel">${label}:</span><input class="devicePreviewParamInput" type="${inputType}" ${dataAttr}="${key}" /></div>`;
 }
 
 function fillDevicePreviewOnvifControls(values = {}) {
@@ -6277,8 +6365,7 @@ function fillDevicePreviewOnvifControls(values = {}) {
   Object.entries(values || {}).forEach(([key, value]) => {
     const field = host.querySelector(`[data-onvif-field="${key}"]`);
     if (!field) return;
-    // 现在field是span元素，设置textContent
-    field.textContent = value == null ? "" : String(value);
+    setPreviewControlValue(field, value);
   });
 }
 
@@ -6308,8 +6395,7 @@ function fillDevicePreviewIsapiControls(values = {}) {
   Object.entries(values || {}).forEach(([key, value]) => {
     const field = host.querySelector(`[data-isapi-field="${key}"]`);
     if (!field) return;
-    // 现在field是span元素，设置textContent
-    field.textContent = value == null ? "" : String(value);
+    setPreviewControlValue(field, value);
   });
 }
 
@@ -6321,10 +6407,7 @@ function renderDevicePreviewOnvifControls(presetKey = "") {
     '<div class="devicePreviewParamList">'
   ];
   for (const field of schema.fields || []) {
-    html.push('<div class="devicePreviewParamItem">');
-    html.push(`<span class="devicePreviewParamLabel">${field.label}:</span>`);
-    html.push(`<span class="devicePreviewParamValue" data-onvif-field="${field.key}"></span>`);
-    html.push("</div>");
+    html.push(renderPreviewParamField(field, "data-onvif-field"));
   }
   html.push("</div>");
   host.innerHTML = html.join("");
@@ -6338,10 +6421,7 @@ function renderDevicePreviewIsapiControls(schemaKey = "") {
     '<div class="devicePreviewParamList">'
   ];
   for (const field of schema.fields || []) {
-    html.push('<div class="devicePreviewParamItem">');
-    html.push(`<span class="devicePreviewParamLabel">${field.label}:</span>`);
-    html.push(`<span class="devicePreviewParamValue" data-isapi-field="${field.key}"></span>`);
-    html.push("</div>");
+    html.push(renderPreviewParamField(field, "data-isapi-field"));
   }
   html.push("</div>");
   host.innerHTML = html.join("");
@@ -6461,11 +6541,30 @@ function setDevicePreviewIsapiInputsDisabled(disabled) {
     els.devicePreviewIsapiMethod,
     els.devicePreviewIsapiContentType,
     els.devicePreviewIsapiPath,
-    els.devicePreviewIsapiBody
+    els.devicePreviewIsapiBody,
+    els.devicePreviewIsapiSaveBtn
   ];
   for (const el of targets) {
     if (el) el.disabled = Boolean(disabled);
   }
+}
+
+function updateDevicePreviewSaveButtonState() {
+  if (!els.devicePreviewIsapiSaveBtn) return;
+  const protocol = getDevicePreviewProtocol();
+  const presetKey = String(els.devicePreviewIsapiPreset?.value || "deviceInfo").trim() || "deviceInfo";
+  if (protocol === "onvif") {
+    const schema = getDevicePreviewOnvifSchema(presetKey);
+    els.devicePreviewIsapiSaveBtn.disabled = !schema?.saveOperation;
+    return;
+  }
+  if (protocol === "hikvision-isapi") {
+    const preset = DEVICE_PREVIEW_ISAPI_PRESETS[presetKey] || DEVICE_PREVIEW_ISAPI_PRESETS.deviceInfo;
+    const schema = DEVICE_PREVIEW_ISAPI_SCHEMAS[preset.schema] || DEVICE_PREVIEW_ISAPI_SCHEMAS.deviceInfo;
+    els.devicePreviewIsapiSaveBtn.disabled = !schema?.saveApiPath;
+    return;
+  }
+  els.devicePreviewIsapiSaveBtn.disabled = true;
 }
 
 function ensureDevicePreviewIsapiPresetOptions() {
@@ -6518,6 +6617,7 @@ function applyDevicePreviewIsapiPreset(presetKey, keepBody = false) {
       els.devicePreviewIsapiBody.value = preset.body || "";
     }
   }
+  updateDevicePreviewSaveButtonState();
 }
 
 async function autoLoadDevicePreviewPreset(presetKey) {
@@ -6546,6 +6646,50 @@ async function autoLoadDevicePreviewPreset(presetKey) {
       els.devicePreviewIsapiResponse.value = String(error?.message || error || "");
     }
   }
+}
+
+async function saveDevicePreviewSdkPreset() {
+  const device = devicePreviewModalState.currentDevice;
+  const protocol = getDevicePreviewProtocol(device);
+  if (!device || !protocol) {
+    throw new Error("当前没有可操作的设备");
+  }
+  if (protocol === "onvif") {
+    return runDevicePreviewOnvifPresetAction("save");
+  }
+  if (protocol !== "hikvision-isapi") {
+    throw new Error("当前协议不支持参数保存");
+  }
+
+  const presetKey = String(els.devicePreviewIsapiPreset?.value || "deviceInfo").trim() || "deviceInfo";
+  const preset = DEVICE_PREVIEW_ISAPI_PRESETS[presetKey] || DEVICE_PREVIEW_ISAPI_PRESETS.deviceInfo;
+  const schema = DEVICE_PREVIEW_ISAPI_SCHEMAS[preset.schema] || DEVICE_PREVIEW_ISAPI_SCHEMAS.deviceInfo;
+  if (!schema?.saveApiPath) {
+    throw new Error("当前分类不支持保存");
+  }
+
+  const values = collectDevicePreviewIsapiControlValues();
+  const payload = typeof schema.buildSavePayload === "function" ? schema.buildSavePayload(values) : values;
+  const sdkPayload = {
+    ip: String(device.host || "").trim(),
+    port: Number(device.port || 8000) || 8000,
+    username: String(device.username || "").trim(),
+    password: String(device.password || ""),
+    values: payload || {}
+  };
+
+  if (els.devicePreviewIsapiHint) {
+    els.devicePreviewIsapiHint.textContent = "正在保存参数...";
+  }
+  const response = await fetchJson(schema.saveApiPath, sdkPayload);
+  if (!response?.ok) {
+    throw new Error(response?.error || response?.message || "SDK参数保存失败");
+  }
+  if (els.devicePreviewIsapiHint) {
+    els.devicePreviewIsapiHint.textContent = "保存成功，正在刷新参数...";
+  }
+  await autoLoadDevicePreviewPreset(presetKey);
+  return response;
 }
 
 function resetDevicePreviewIsapiPanel(device) {
@@ -7181,6 +7325,21 @@ if (els.devicePreviewModalCloseBtn) {
       const presetKey = els.devicePreviewIsapiPreset.value;
       applyDevicePreviewIsapiPreset(presetKey);
       void autoLoadDevicePreviewPreset(presetKey);
+    });
+  }
+
+  if (els.devicePreviewIsapiSaveBtn) {
+    els.devicePreviewIsapiSaveBtn.addEventListener("click", async () => {
+      try {
+        els.devicePreviewIsapiSaveBtn.disabled = true;
+        await saveDevicePreviewSdkPreset();
+      } catch (error) {
+        if (els.devicePreviewIsapiHint) {
+          els.devicePreviewIsapiHint.textContent = `保存失败：${error?.message || error}`;
+        }
+      } finally {
+        updateDevicePreviewSaveButtonState();
+      }
     });
   }
 

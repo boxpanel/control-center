@@ -1,9 +1,9 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>管理平台</title>
+    <title>绠＄悊骞冲彴</title>
     <link rel="stylesheet" href="/style.css?v=67" />
   </head>
   <body class="app-page">
@@ -13,96 +13,96 @@
         <div class="app-header-brand">
           <div class="app-header-mark" aria-hidden="true"></div>
           <div class="app-header-text">
-            <h1 class="app-header-title">管理平台</h1>
+            <h1 class="app-header-title">绠＄悊骞冲彴</h1>
           </div>
         </div>
       </header>
 
       <div class="layout">
-        <nav class="sidebar" aria-label="导航栏">
-          <button id="navHomeBtn" type="button" class="navBtn active" aria-current="page">首页</button>
-          <button id="navNetworkBtn" type="button" class="navBtn">网络设备</button>
-          <button id="navSerialBtn" type="button" class="navBtn">串口设置</button>
-          <button id="navSystemBtn" type="button" class="navBtn">系统设置</button>
+        <nav class="sidebar" aria-label="瀵艰埅鏍?>
+          <button id="navHomeBtn" type="button" class="navBtn active" aria-current="page">棣栭〉</button>
+          <button id="navNetworkBtn" type="button" class="navBtn">缃戠粶璁惧</button>
+          <button id="navSerialBtn" type="button" class="navBtn">涓插彛璁剧疆</button>
+          <button id="navSystemBtn" type="button" class="navBtn">绯荤粺璁剧疆</button>
         </nav>
         <div class="left">
           <div id="homePage" class="mainPage">
             <section class="panel plate-dashboard">
               <div class="dashHeader">
-                <div class="dashTitle">仪表盘（实时统计）</div>
+                <div class="dashTitle">浠〃鐩橈紙瀹炴椂缁熻锛?/div>
                 <div id="dashUpdatedAt" class="dashUpdatedAt"></div>
               </div>
               <div class="dashGrid">
                 <div class="dashCard">
-                  <div class="dashLabel">总记录</div>
+                  <div class="dashLabel">鎬昏褰?/div>
                   <div id="dashTotal" class="dashValue">0</div>
                 </div>
                 <div class="dashCard">
-                  <div class="dashLabel">今日记录</div>
+                  <div class="dashLabel">浠婃棩璁板綍</div>
                   <div id="dashToday" class="dashValue">0</div>
                 </div>
                 <div class="dashCard">
-                  <div class="dashLabel">最近 1 小时</div>
+                  <div class="dashLabel">鏈€杩?1 灏忔椂</div>
                   <div id="dashLastHour" class="dashValue">0</div>
                 </div>
                 <div class="dashCard">
-                  <div class="dashLabel">今日去重车牌</div>
+                  <div class="dashLabel">浠婃棩鍘婚噸杞︾墝</div>
                   <div id="dashUniqueToday" class="dashValue">0</div>
                 </div>
                 <div class="dashCard">
-                  <div class="dashLabel">筛选结果</div>
+                  <div class="dashLabel">绛涢€夌粨鏋?/div>
                   <div id="dashFiltered" class="dashValue">0</div>
                 </div>
                 <div class="dashCard">
-                  <div class="dashLabel">最近一条</div>
+                  <div class="dashLabel">鏈€杩戜竴鏉?/div>
                   <div id="dashLatest" class="dashValue dashLatest">--</div>
                 </div>
               </div>
             </section>
 
             <div class="plate-header">
-              <h2>车牌接收列表</h2>
-              <div class="plate-viewToggle" role="tablist" aria-label="浏览模式">
-                <button id="plateViewCardsBtn" type="button" class="plate-viewBtn active" aria-selected="true">卡片</button>
-                <button id="plateViewTableBtn" type="button" class="plate-viewBtn" aria-selected="false">表格</button>
+              <h2>杞︾墝鎺ユ敹鍒楄〃</h2>
+              <div class="plate-viewToggle" role="tablist" aria-label="娴忚妯″紡">
+                <button id="plateViewCardsBtn" type="button" class="plate-viewBtn active" aria-selected="true">鍗＄墖</button>
+                <button id="plateViewTableBtn" type="button" class="plate-viewBtn" aria-selected="false">琛ㄦ牸</button>
               </div>
             </div>
 
             <div class="plate-pagination">
               <div class="plate-search">
-                <input id="plateSearchInput" type="text" placeholder="查询车牌..." autocomplete="off" />
+                <input id="plateSearchInput" type="text" placeholder="鏌ヨ杞︾墝..." autocomplete="off" />
                 <input id="plateDateInput" type="date" />
-                <button id="plateQueryBtn" type="button">查询</button>
-                <button id="plateSelectAllBtn" type="button">全选</button>
-                <button id="plateDownloadBtn" type="button" disabled>下载</button>
-                <button id="plateDeleteBtn" type="button" disabled>删除</button>
+                <button id="plateQueryBtn" type="button">鏌ヨ</button>
+                <button id="plateSelectAllBtn" type="button">鍏ㄩ€?/button>
+                <button id="plateDownloadBtn" type="button" disabled>涓嬭浇</button>
+                <button id="plateDeleteBtn" type="button" disabled>鍒犻櫎</button>
               </div>
               <div class="plate-tablePager">
-                <label for="platePageSize" class="plate-pageLabel">每页</label>
+                <label for="platePageSize" class="plate-pageLabel">姣忛〉</label>
                 <select id="platePageSize" class="plate-pageSize">
                   <option value="10" selected>10</option>
                   <option value="20">20</option>
                   <option value="50">50</option>
                   <option value="100">100</option>
                 </select>
-                <button id="platePrevPageBtn" type="button">上一页</button>
-                <button id="plateNextPageBtn" type="button">下一页</button>
+                <button id="platePrevPageBtn" type="button">涓婁竴椤?/button>
+                <button id="plateNextPageBtn" type="button">涓嬩竴椤?/button>
               </div>
             </div>
             <section class="plate-list-section">
               <div id="plateList" class="plate-list">
-                <div class="empty-hint">暂无车牌数据，等待接收...</div>
+                <div class="empty-hint">鏆傛棤杞︾墝鏁版嵁锛岀瓑寰呮帴鏀?..</div>
               </div>
               <div id="plateTableWrap" class="plate-tableWrap view-hidden">
                 <div class="plate-tableScroll">
                   <table class="plate-table" cellspacing="0" cellpadding="0">
                     <thead>
                       <tr>
-                        <th style="width: 42px;">选</th>
-                        <th><button class="thBtn" type="button" data-sort="plate">车牌号</button></th>
-                        <th style="width: 210px;"><button class="thBtn" type="button" data-sort="time">时间</button></th>
-                        <th style="width: 90px;"><button class="thBtn" type="button" data-sort="image">图片</button></th>
-                        <th style="width: 210px;"><button class="thBtn" type="button" data-sort="serial">串口发送</button></th>
+                        <th style="width: 42px;">閫?/th>
+                        <th><button class="thBtn" type="button" data-sort="plate">杞︾墝鍙?/button></th>
+                        <th style="width: 210px;"><button class="thBtn" type="button" data-sort="time">鏃堕棿</button></th>
+                        <th style="width: 90px;"><button class="thBtn" type="button" data-sort="image">鍥剧墖</button></th>
+                        <th style="width: 210px;"><button class="thBtn" type="button" data-sort="serial">涓插彛鍙戦€?/button></th>
                       </tr>
                     </thead>
                     <tbody id="plateTableBody"></tbody>
@@ -115,25 +115,25 @@
           <div id="networkPage" class="mainPage view-hidden">
             <section class="panel">
               <div class="logHeader">
-                <div>已接入设备</div>
-                <button id="refreshDeviceListBtn" type="button">刷新列表</button>
+                <div>宸叉帴鍏ヨ澶?/div>
+                <button id="refreshDeviceListBtn" type="button">鍒锋柊鍒楄〃</button>
               </div>
               <div class="actions" style="margin-top:10px;">
-                <button id="addDeviceBtn" type="button">增加设备</button>
-                <button id="updateDeviceBtn" type="button" disabled>修改设备</button>
-                <button id="deleteDeviceBtn" type="button" disabled>删除设备</button>
-                <button id="checkDeviceBtn" type="button" disabled>检测在线</button>
+                <button id="addDeviceBtn" type="button">澧炲姞璁惧</button>
+                <button id="updateDeviceBtn" type="button" disabled>淇敼璁惧</button>
+                <button id="deleteDeviceBtn" type="button" disabled>鍒犻櫎璁惧</button>
+                <button id="checkDeviceBtn" type="button" disabled>妫€娴嬪湪绾?/button>
               </div>
               <div id="managedDeviceHint" style="margin-top:10px; font-size:12px; color:#6b7280;"></div>
               <div class="plate-tableScroll" style="margin-top:10px;">
                 <table class="plate-table" cellspacing="0" cellpadding="0">
                   <thead>
                     <tr>
-                      <th style="width: 90px;">在线状态</th>
-                      <th style="width: 160px;">设备名</th>
-                      <th style="width: 180px;">地址</th>
-                      <th style="width: 90px;">协议</th>
-                      <th>摘要</th>
+                      <th style="width: 90px;">鍦ㄧ嚎鐘舵€?/th>
+                      <th style="width: 160px;">璁惧鍚?/th>
+                      <th style="width: 180px;">鍦板潃</th>
+                      <th style="width: 90px;">鍗忚</th>
+                      <th>鎽樿</th>
                     </tr>
                   </thead>
                   <tbody id="managedDeviceTableBody"></tbody>
@@ -146,44 +146,44 @@
           <div id="serialPage" class="mainPage view-hidden">
             <section class="panel">
               <div class="logHeader">
-                <div>串口设置</div>
-                <div id="serialStatus" style="font-size:12px; color:#374151;">未连接</div>
+                <div>涓插彛璁剧疆</div>
+                <div id="serialStatus" style="font-size:12px; color:#374151;">鏈繛鎺?/div>
               </div>
               <div class="grid">
                 <div class="field span-4">
-                  <label>固定波特率</label>
+                  <label>鍥哄畾娉㈢壒鐜?/label>
                   <div id="serialFixedBaudRate" style="margin-top:6px; min-height:38px; display:flex; align-items:center; padding:0 12px; border:1px solid rgba(148,163,184,0.35); border-radius:12px; background:#f8fafc; color:#0f172a; font-family:Consolas,'Courier New',monospace;">115200</div>
                 </div>
                 <div class="field span-4">
-                  <label for="serialSendInput">发送数据</label>
-                  <input id="serialSendInput" type="text" autocomplete="off" placeholder="输入要发送的内容" />
+                  <label for="serialSendInput">鍙戦€佹暟鎹?/label>
+                  <input id="serialSendInput" type="text" autocomplete="off" placeholder="杈撳叆瑕佸彂閫佺殑鍐呭" />
                 </div>
                 <div class="field span-4">
-                  <label>固定端口</label>
+                  <label>鍥哄畾绔彛</label>
                   <div id="serialFixedPort" style="margin-top:6px; min-height:38px; display:flex; align-items:center; padding:0 12px; border:1px solid rgba(148,163,184,0.35); border-radius:12px; background:#f8fafc; color:#0f172a; font-family:Consolas,'Courier New',monospace;">/dev/ttyAS5</div>
                 </div>
                 <div class="field span-4">
-                  <label for="serialForwardEnabled">串口转发</label>
+                  <label for="serialForwardEnabled">涓插彛杞彂</label>
                   <label style="display:flex; align-items:center; gap:8px; margin-top:6px;">
                     <input id="serialForwardEnabled" type="checkbox" />
-                    开启串口转发
+                    寮€鍚覆鍙ｈ浆鍙?
                   </label>
                 </div>
               </div>
               <div class="actions" style="margin-top:10px;">
-                <button id="serialSaveBtn" type="button">保存设置</button>
-                <button id="serialSendBtn" type="button">发送</button>
+                <button id="serialSaveBtn" type="button">淇濆瓨璁剧疆</button>
+                <button id="serialSendBtn" type="button">鍙戦€?/button>
               </div>
               <div id="serialHint" style="margin-top:10px; font-size:12px; color:#6b7280; display:none;">
-                当前浏览器不支持 Web Serial，无法使用串口功能。
+                褰撳墠娴忚鍣ㄤ笉鏀寔 Web Serial锛屾棤娉曚娇鐢ㄤ覆鍙ｅ姛鑳姐€?
               </div>
               <div id="serialSaveHint" style="margin-top:10px; font-size:12px; color:#6b7280;"></div>
             </section>
 
             <section class="panel">
               <div class="logHeader">
-                <div>串口状态</div>
-                <button id="clearSerialLogBtn" type="button">清空</button>
+                <div>涓插彛鐘舵€?/div>
+                <button id="clearSerialLogBtn" type="button">娓呯┖</button>
               </div>
               <pre id="serialLog" class="log"></pre>
             </section>
@@ -192,106 +192,106 @@
           <div id="systemPage" class="mainPage view-hidden">
             <section class="panel">
               <div class="logHeader">
-                <div>系统设置</div>
+                <div>绯荤粺璁剧疆</div>
               </div>
               <div class="grid">
                 <div class="field span-4">
-                  <label for="systemNameInput">设备名称</label>
-                  <input id="systemNameInput" type="text" autocomplete="off" placeholder="例如：门岗 1 号" />
+                  <label for="systemNameInput">璁惧鍚嶇О</label>
+                  <input id="systemNameInput" type="text" autocomplete="off" placeholder="渚嬪锛氶棬宀?1 鍙? />
                 </div>
 
                 <div class="field span-4">
-                  <label for="systemIpMode">IP 获取方式</label>
+                  <label for="systemIpMode">IP 鑾峰彇鏂瑰紡</label>
                   <select id="systemIpMode" style="max-width: 180px;">
-                    <option value="auto" selected>自动获取</option>
-                    <option value="manual">手动配置</option>
+                    <option value="auto" selected>鑷姩鑾峰彇</option>
+                    <option value="manual">鎵嬪姩閰嶇疆</option>
                   </select>
                 </div>
                 <div class="field span-4">
-                  <label for="systemIpInput">设备 IP（用于对外展示、注册）</label>
-                  <input id="systemIpInput" type="text" autocomplete="off" placeholder="例如：192.168.1.22" />
+                  <label for="systemIpInput">璁惧 IP锛堢敤浜庡澶栧睍绀恒€佹敞鍐岋級</label>
+                  <input id="systemIpInput" type="text" autocomplete="off" placeholder="渚嬪锛?92.168.1.22" />
                 </div>
                 <div class="field span-4">
-                  <label for="systemPrefixInput">子网掩码</label>
-                  <input id="systemPrefixInput" type="text" autocomplete="off" placeholder="例如：255.255.255.0" />
+                  <label for="systemPrefixInput">瀛愮綉鎺╃爜</label>
+                  <input id="systemPrefixInput" type="text" autocomplete="off" placeholder="渚嬪锛?55.255.255.0" />
                 </div>
                 <div class="field span-4">
-                  <label for="systemGatewayInput">网关</label>
-                  <input id="systemGatewayInput" type="text" autocomplete="off" placeholder="例如：192.168.1.1" />
+                  <label for="systemGatewayInput">缃戝叧</label>
+                  <input id="systemGatewayInput" type="text" autocomplete="off" placeholder="渚嬪锛?92.168.1.1" />
                 </div>
                 <div class="field span-4">
-                  <label>当前操作网卡</label>
-                  <div id="systemIfaceInfo" class="fingerprintBox" style="margin-top:6px;">加载中...</div>
+                  <label>褰撳墠鎿嶄綔缃戝崱</label>
+                  <div id="systemIfaceInfo" class="fingerprintBox" style="margin-top:6px;">鍔犺浇涓?..</div>
                 </div>
                 <div class="field span-4">
-                  <label for="dataCleanupEnabled">数据清理</label>
+                  <label for="dataCleanupEnabled">鏁版嵁娓呯悊</label>
                   <div style="display:flex; align-items:center; gap:8px; margin-top:6px;">
                     <input id="dataCleanupEnabled" type="checkbox" />
-                    <span>开启</span>
+                    <span>寮€鍚?/span>
                     <select id="dataCleanupDays" style="max-width: 100px; margin-left: 8px;">
-                      <option value="30" selected>30天</option>
-                      <option value="60">60天</option>
-                      <option value="90">90天</option>
-                      <option value="180">180天</option>
-                      <option value="360">360天</option>
+                      <option value="30" selected>30澶?/option>
+                      <option value="60">60澶?/option>
+                      <option value="90">90澶?/option>
+                      <option value="180">180澶?/option>
+                      <option value="360">360澶?/option>
                     </select>
                   </div>
                 </div>
                 <div class="field span-4">
-                  <label for="systemNewPassword">新密码</label>
-                  <input id="systemNewPassword" type="password" autocomplete="new-password" placeholder="请输入新密码" />
+                  <label for="systemNewPassword">鏂板瘑鐮?/label>
+                  <input id="systemNewPassword" type="password" autocomplete="new-password" placeholder="璇疯緭鍏ユ柊瀵嗙爜" />
                 </div>
               </div>
               <div class="actions" style="margin-top:10px;">
-                <button id="systemSaveBtn" type="button">保存</button>
-                <button id="systemRestartBtn" type="button" style="margin-left: 10px;">重启设备</button>
+                <button id="systemSaveBtn" type="button">淇濆瓨</button>
+                <button id="systemRestartBtn" type="button" style="margin-left: 10px;">閲嶅惎璁惧</button>
               </div>
               <div id="systemPassHint" style="margin-top:10px; font-size:12px; color:#6b7280;"></div>
-              <div id="fingerprintBox" class="fingerprintBox" style="margin-top:10px;">加载设备指纹中...</div>
+              <div id="fingerprintBox" class="fingerprintBox" style="margin-top:10px;">鍔犺浇璁惧鎸囩汗涓?..</div>
               <div id="systemSaveHint" style="margin-top:10px; font-size:12px; color:#6b7280;"></div>
             </section>
 
             <section class="panel">
               <div class="logHeader">
-                <div>接收设置</div>
+                <div>鎺ユ敹璁剧疆</div>
               </div>
               <div class="grid">
                 <div class="field span-4">
-                  <label for="ftpServerEnabled">FTP 接收</label>
+                  <label for="ftpServerEnabled">FTP 鎺ユ敹</label>
                   <label style="display:flex; align-items:center; gap:8px; margin-top:6px;">
                     <input id="ftpServerEnabled" type="checkbox" />
-                    开启 FTP 接收
+                    寮€鍚?FTP 鎺ユ敹
                   </label>
                 </div>
                 <div class="field span-4">
-                  <label for="ftpServerPort">FTP 端口</label>
+                  <label for="ftpServerPort">FTP 绔彛</label>
                   <input id="ftpServerPort" type="number" min="1" max="65535" step="1" value="21" style="max-width: 180px;" />
                 </div>
                 <div class="field span-4">
-                  <label for="ftpServerRootDir">保存路径</label>
-                  <input id="ftpServerRootDir" type="text" autocomplete="off" placeholder="留空默认：uploads/ftp" />
+                  <label for="ftpServerRootDir">淇濆瓨璺緞</label>
+                  <input id="ftpServerRootDir" type="text" autocomplete="off" placeholder="鐣欑┖榛樿锛歶ploads/ftp" />
                 </div>
                 <div class="field span-4">
-                  <label for="ftpServerUser">FTP 用户名</label>
-                  <input id="ftpServerUser" type="text" autocomplete="off" placeholder="留空表示匿名" />
+                  <label for="ftpServerUser">FTP 鐢ㄦ埛鍚?/label>
+                  <input id="ftpServerUser" type="text" autocomplete="off" placeholder="鐣欑┖琛ㄧず鍖垮悕" />
                 </div>
                 <div class="field span-4">
-                  <label for="ftpServerPass">FTP 密码</label>
-                  <input id="ftpServerPass" type="password" autocomplete="off" placeholder="留空表示无密码" />
+                  <label for="ftpServerPass">FTP 瀵嗙爜</label>
+                  <input id="ftpServerPass" type="password" autocomplete="off" placeholder="鐣欑┖琛ㄧず鏃犲瘑鐮? />
                 </div>
               </div>
               <div class="actions" style="margin-top:10px;">
-                <button id="ftpServerSaveBtn" type="button">保存 FTP 设置</button>
+                <button id="ftpServerSaveBtn" type="button">淇濆瓨 FTP 璁剧疆</button>
               </div>
               <div id="ftpServerHint" style="margin-top:10px; font-size:12px; color:#6b7280;"></div>
               <div style="margin-top:10px; font-size:12px; color:#6b7280;">
-                HTTP 接收地址：<span id="httpIngestUrl"></span>
+                HTTP 鎺ユ敹鍦板潃锛?span id="httpIngestUrl"></span>
               </div>
               <div style="margin-top:6px; font-size:12px; color:#6b7280;">
-                FTP 接收地址：<span id="ftpIngestUrl"></span>
+                FTP 鎺ユ敹鍦板潃锛?span id="ftpIngestUrl"></span>
               </div>
               <div style="margin-top:6px; font-size:12px; color:#6b7280;">
-                FTP 保存到：<span id="ftpIngestDir"></span>
+                FTP 淇濆瓨鍒帮細<span id="ftpIngestDir"></span>
               </div>
             </section>
           </div>
@@ -301,25 +301,25 @@
 
     <div id="plateDetailModal" class="modal" aria-hidden="true">
       <div class="modalBackdrop" data-close="1"></div>
-      <div class="modalPanel" role="dialog" aria-modal="true" aria-label="车牌详情">
+      <div class="modalPanel" role="dialog" aria-modal="true" aria-label="杞︾墝璇︽儏">
         <div class="modalHeader">
-          <div id="plateDetailTitle" class="modalTitle">车牌详情</div>
-          <button id="plateDetailCloseBtn" type="button" class="iconBtn" aria-label="关闭">×</button>
+          <div id="plateDetailTitle" class="modalTitle">杞︾墝璇︽儏</div>
+          <button id="plateDetailCloseBtn" type="button" class="iconBtn" aria-label="鍏抽棴">脳</button>
         </div>
         <div class="modalBody">
           <div class="plateDetailGrid">
             <div class="plateDetailLeftColumn">
               <div class="plateDetailImageWrap">
-                <img id="plateDetailImg" class="plateDetailImg" alt="车牌截图" />
+                <img id="plateDetailImg" class="plateDetailImg" alt="杞︾墝鎴浘" />
               </div>
             </div>
             <div class="plateDetailInfo">
-              <div class="kv"><div class="k">车牌号</div><div id="plateDetailPlate" class="v"></div></div>
-              <div class="kv"><div class="k">接收时间</div><div id="plateDetailReceivedAt" class="v"></div></div>
-              <div class="kv"><div class="k">图片大小</div><div id="plateDetailImageSize" class="v"></div></div>
-              <div class="kv"><div class="k">串口发送时间</div><div id="plateDetailSerialSentAt" class="v"></div></div>
-              <div class="kv"><div class="k">FTP 路径</div><div id="plateDetailFtpPath" class="v"></div></div>
-              <div class="kv"><div class="k" data-text="解析信息">解析信息</div><div id="plateDetailParsedMeta" class="v"></div></div>
+              <div class="kv"><div class="k">杞︾墝鍙?/div><div id="plateDetailPlate" class="v"></div></div>
+              <div class="kv"><div class="k">鎺ユ敹鏃堕棿</div><div id="plateDetailReceivedAt" class="v"></div></div>
+              <div class="kv"><div class="k">鍥剧墖澶у皬</div><div id="plateDetailImageSize" class="v"></div></div>
+              <div class="kv"><div class="k">涓插彛鍙戦€佹椂闂?/div><div id="plateDetailSerialSentAt" class="v"></div></div>
+              <div class="kv"><div class="k">FTP 璺緞</div><div id="plateDetailFtpPath" class="v"></div></div>
+              <div class="kv"><div class="k" data-text="瑙ｆ瀽淇℃伅">瑙ｆ瀽淇℃伅</div><div id="plateDetailParsedMeta" class="v"></div></div>
             </div>
           </div>
         </div>
@@ -328,71 +328,71 @@
 
     <div id="deviceConfigModal" class="modal" aria-hidden="true">
       <div class="modalBackdrop" data-close="1"></div>
-      <div class="modalPanel" role="dialog" aria-modal="true" aria-label="设备接入配置">
+      <div class="modalPanel" role="dialog" aria-modal="true" aria-label="璁惧鎺ュ叆閰嶇疆">
         <div class="modalHeader">
-          <div id="deviceConfigModalTitle" class="modalTitle">新增</div>
-          <button id="deviceConfigModalCloseBtn" type="button" class="iconBtn" aria-label="关闭">×</button>
+          <div id="deviceConfigModalTitle" class="modalTitle">鏂板</div>
+          <button id="deviceConfigModalCloseBtn" type="button" class="iconBtn" aria-label="鍏抽棴">脳</button>
         </div>
         <div class="modalBody">
           <div class="deviceConfigGrid">
             <input id="portInput" type="hidden" value="80" />
             <div class="deviceFormRow">
-              <label for="deviceProtocolSelect">接入协议</label>
+              <label for="deviceProtocolSelect">鎺ュ叆鍗忚</label>
               <div class="deviceFormControl">
                 <select id="deviceProtocolSelect">
-                  <option value="">请选择</option>
-                  <option value="gb28181">国标GB28181（2016/2022）</option>
-                  <option value="ehome">国家电网B接口</option>
-                  <option value="jt1078-terminal">交通部JT1078终端设备</option>
-                  <option value="jt1078-platform">交通部JT1078下级平台</option>
+                  <option value="">璇烽€夋嫨</option>
+                  <option value="gb28181">鍥芥爣GB28181锛?016/2022锛?/option>
+                  <option value="ehome">鍥藉鐢电綉B鎺ュ彛</option>
+                  <option value="jt1078-terminal">浜ら€氶儴JT1078缁堢璁惧</option>
+                  <option value="jt1078-platform">浜ら€氶儴JT1078涓嬬骇骞冲彴</option>
                   <option value="onvif">ONVIF 2.0</option>
-                  <option value="hikvision-isapi">海康ISAPI</option>
-                  <option value="hikvision-private">海康私有协议</option>
-                  <option value="dahua-http">大华HTTP</option>
-                  <option value="dahua-private">大华私有协议</option>
-                  <option value="grid-platform">网力平台接入（PVG6.x/PVG10.x）</option>
-                  <option value="custom-rtmp-rtsp">自定义设备（RTMP/RTSP）</option>
+                  <option value="hikvision-isapi">娴峰悍ISAPI</option>
+                  <option value="hikvision-private">娴峰悍绉佹湁鍗忚</option>
+                  <option value="dahua-http">澶у崕HTTP</option>
+                  <option value="dahua-private">澶у崕绉佹湁鍗忚</option>
+                  <option value="grid-platform">缃戝姏骞冲彴鎺ュ叆锛圥VG6.x/PVG10.x锛?/option>
+                  <option value="custom-rtmp-rtsp">鑷畾涔夎澶囷紙RTMP/RTSP锛?/option>
                 </select>
               </div>
             </div>
             <div class="deviceFormRow">
-              <label for="deviceIdInput">设备ID</label>
+              <label for="deviceIdInput">璁惧ID</label>
               <div class="deviceFormControl">
-                <input id="deviceIdInput" type="text" maxlength="20" placeholder="可选，最多20位" autocomplete="off" />
+                <input id="deviceIdInput" type="text" maxlength="20" placeholder="鍙€夛紝鏈€澶?0浣? autocomplete="off" />
                 <span class="deviceFormCounter">20/20</span>
               </div>
             </div>
             <div class="deviceFormRow">
-              <label for="hostInput">设备地址</label>
+              <label for="hostInput">璁惧鍦板潃</label>
               <div class="deviceFormControl">
-                <input id="hostInput" type="text" placeholder="例如：192.168.1.64:80" autocomplete="off" />
+                <input id="hostInput" type="text" placeholder="渚嬪锛?92.168.1.64:80" autocomplete="off" />
               </div>
             </div>
             <div class="deviceFormRow">
-              <label for="userInput">用户名</label>
+              <label for="userInput">鐢ㄦ埛鍚?/label>
               <div class="deviceFormControl">
                 <input id="userInput" type="text" autocomplete="off" />
               </div>
             </div>
             <div class="deviceFormRow">
-              <label for="passInput">密码</label>
+              <label for="passInput">瀵嗙爜</label>
               <div class="deviceFormControl">
                 <input id="passInput" type="password" autocomplete="off" />
               </div>
             </div>
             <div class="deviceFormRow">
-              <label for="deviceNameInput">设备名</label>
+              <label for="deviceNameInput">璁惧鍚?/label>
               <div class="deviceFormControl">
-                <input id="deviceNameInput" type="text" placeholder="海康ISAPI协议设备" autocomplete="off" />
+                <input id="deviceNameInput" type="text" placeholder="娴峰悍ISAPI鍗忚璁惧" autocomplete="off" />
               </div>
             </div>
             <div class="deviceActionRow">
-              <button id="discoverBtn" type="button" class="secondaryBtn">搜索</button>
-              <button id="testIsapiBtn" type="button" class="secondaryBtn">测试连接</button>
-              <button id="connectBtn" type="button" class="primaryBtn">保存</button>
-              <button id="stopBtn" type="button" class="ghost">取消</button>
+              <button id="discoverBtn" type="button" class="secondaryBtn">鎼滅储</button>
+              <button id="testIsapiBtn" type="button" class="secondaryBtn">娴嬭瘯杩炴帴</button>
+              <button id="connectBtn" type="button" class="primaryBtn">淇濆瓨</button>
+              <button id="stopBtn" type="button" class="ghost">鍙栨秷</button>
             </div>
-            <div id="isapiDeviceStatus" class="deviceStatusText">日志</div>
+            <div id="isapiDeviceStatus" class="deviceStatusText">鏃ュ織</div>
             <div id="isapiDeviceSummary" class="deviceSummaryText"></div>
             <pre id="isapiDeviceRaw" class="log deviceRawLog"></pre>
           </div>
@@ -400,92 +400,95 @@
       </div>
     </div>
 
-    <!-- 设备预览弹窗 -->
+    <!-- 璁惧棰勮寮圭獥 -->
     <div id="devicePreviewModal" class="modal">
       <div class="modalPanel" style="width: min(1000px, calc(100vw - 40px)); max-height: calc(100vh - 40px);">
         <div class="modalHeader">
-          <div id="devicePreviewModalTitle" class="modalTitle">设备预览</div>
-          <button id="devicePreviewModalCloseBtn" type="button" class="iconBtn" aria-label="关闭">×</button>
+          <div id="devicePreviewModalTitle" class="modalTitle">璁惧棰勮</div>
+          <button id="devicePreviewModalCloseBtn" type="button" class="iconBtn" aria-label="鍏抽棴">脳</button>
         </div>
         <div class="modalBody" style="padding: 24px;">
           <div class="devicePreviewLayout">
             <div class="devicePreviewMain">
               <div class="logHeader">
-                <div>实时预览</div>
-                <button id="previewSnapshotBtn" type="button" disabled>截图</button>
+                <div>瀹炴椂棰勮</div>
+                <button id="previewSnapshotBtn" type="button" disabled>鎴浘</button>
               </div>
               <div class="videoWrap" style="margin-top: 16px; border-radius: 12px; overflow: hidden; background: #000; width: 100%; aspect-ratio: 16/9;">
                 <video id="previewVideo" autoplay playsinline muted controls style="width: 100%; height: 100%; object-fit: contain;"></video>
               </div>
               <div class="controls" style="margin-top: 20px; display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; align-items: end;">
                 <div class="field">
-                  <label for="previewRtspTransport">RTSP 传输</label>
+                  <label for="previewRtspTransport">RTSP 浼犺緭</label>
                   <select id="previewRtspTransport">
-                    <option value="auto">自动</option>
+                    <option value="auto">鑷姩</option>
                     <option value="tcp">TCP</option>
                     <option value="udp">UDP</option>
                   </select>
                 </div>
                 <div class="field">
-                  <label for="previewProcessMode">图像处理</label>
+                  <label for="previewProcessMode">鍥惧儚澶勭悊</label>
                   <select id="previewProcessMode">
-                    <option value="none">无</option>
-                    <option value="grayscale">灰度</option>
-                    <option value="invert">反色</option>
-                    <option value="edges">边缘检测</option>
+                    <option value="none">鏃?/option>
+                    <option value="grayscale">鐏板害</option>
+                    <option value="invert">鍙嶈壊</option>
+                    <option value="edges">杈圭紭妫€娴?/option>
                   </select>
                 </div>
                 <div class="field" style="display: flex; align-items: center; gap: 16px;">
                   <div style="display: flex; align-items: center;">
                     <input id="previewShowProcessed" type="checkbox" />
-                    <label for="previewShowProcessed" style="margin-left: 8px;">显示处理效果</label>
+                    <label for="previewShowProcessed" style="margin-left: 8px;">鏄剧ず澶勭悊鏁堟灉</label>
                   </div>
-                  <button id="devicePreviewModalStopBtn" type="button" class="primaryBtn" style="height: 42px; min-width: 120px;">停止预览</button>
+                  <button id="devicePreviewModalStopBtn" type="button" class="primaryBtn" style="height: 42px; min-width: 120px;">鍋滄棰勮</button>
                 </div>
               </div>
             </div>
             <aside id="devicePreviewIsapiPanel" class="devicePreviewSide view-hidden">
               <div class="logHeader">
-                <div>ISAPI 参数</div>
+                <div>ISAPI 鍙傛暟</div>
                 <span id="devicePreviewIsapiHint" class="devicePreviewIsapiHint"></span>
               </div>
               <div class="devicePreviewForm">
                 <div class="field" style="margin-bottom: 20px;">
-                  <label for="devicePreviewIsapiPreset">参数分类:</label>
+                  <label for="devicePreviewIsapiPreset">鍙傛暟鍒嗙被:</label>
                   <select id="devicePreviewIsapiPreset">
-                    <option value="deviceInfo">设备信息</option>
-                    <option value="ftpConfig">FTP配置</option>
-                    <option value="namingRules">命名规则</option>
+                    <option value="deviceInfo">璁惧淇℃伅</option>
+                    <option value="ftpConfig">FTP閰嶇疆</option>
+                    <option value="namingRules">鍛藉悕瑙勫垯</option>
                   </select>
                 </div>
                 <div id="devicePreviewOnvifControlsHost"></div>
+                <div class="devicePreviewActionRow">
+                  <button id="devicePreviewIsapiSaveBtn" type="button" class="primaryBtn">保存参数</button>
+                </div>
               </div>
             </aside>
           </div>
         </div>
         <div class="modalFooter">
-          <!-- 停止预览按钮已移动到预览区域的controls部分 -->
+          <!-- 鍋滄棰勮鎸夐挳宸茬Щ鍔ㄥ埌棰勮鍖哄煙鐨刢ontrols閮ㄥ垎 -->
         </div>
       </div>
     </div>
 
-    <!-- 加载动画 -->
+    <!-- 鍔犺浇鍔ㄧ敾 -->
     <div id="loadingOverlay" class="loading-overlay" style="display: none;">
       <div class="loading-spinner">
         <div class="spinner"></div>
-        <div class="loading-text">正在处理，请稍候...</div>
+        <div class="loading-text">姝ｅ湪澶勭悊锛岃绋嶅€?..</div>
       </div>
     </div>
 
-    <!-- 重启确认弹窗 -->
+    <!-- 閲嶅惎纭寮圭獥 -->
     <div id="restartConfirmOverlay" class="confirm-overlay" style="display: none;">
       <div class="confirm-dialog">
-        <div class="confirm-icon">⚠️</div>
-        <div class="confirm-title">重启设备确认</div>
-        <div class="confirm-message">确定要重启设备吗？重启后需要重新登录系统。</div>
+        <div class="confirm-icon">鈿狅笍</div>
+        <div class="confirm-title">閲嶅惎璁惧纭</div>
+        <div class="confirm-message">纭畾瑕侀噸鍚澶囧悧锛熼噸鍚悗闇€瑕侀噸鏂扮櫥褰曠郴缁熴€?/div>
         <div class="confirm-buttons">
-          <button id="restartConfirmOk" class="confirm-btn ok-btn">确定</button>
-          <button id="restartConfirmCancel" class="confirm-btn cancel-btn">取消</button>
+          <button id="restartConfirmOk" class="confirm-btn ok-btn">纭畾</button>
+          <button id="restartConfirmCancel" class="confirm-btn cancel-btn">鍙栨秷</button>
         </div>
       </div>
     </div>
