@@ -304,12 +304,12 @@ const devicePreviewModalState = {
 };
 const DEVICE_PREVIEW_ISAPI_PRESETS = {
   deviceInfo: { label: "设备信息", schema: "deviceInfo" },
-  sdkNetworkConfig: { label: "SDK网络参数", schema: "sdkNetworkConfig" },
-  sdkFtpConfig: { label: "SDK通用FTP配置", schema: "sdkFtpConfig" },
-  sdkNamingRules: { label: "SDK智能交通FTP命名", schema: "sdkNamingRules" },
-  sdkCurrentTriggerMode: { label: "SDK当前触发模式", schema: "sdkCurrentTriggerMode" },
-  sdkTriggerConfig: { label: "SDK触发模式配置", schema: "sdkTriggerConfig" }
-};
+  sdkNetworkConfig: { label: "网络参数", schema: "sdkNetworkConfig" },
+  sdkFtpConfig: { label: "通用FTP配置", schema: "sdkFtpConfig" },
+  sdkNamingRules: { label: "智能交通FTP命名", schema: "sdkNamingRules" },
+  sdkCurrentTriggerMode: { label: "当前触发模式", schema: "sdkCurrentTriggerMode" },
+  sdkTriggerConfig: { label: "触发模式配置", schema: "sdkTriggerConfig" }
+  };
 const DEVICE_PREVIEW_ONVIF_PRESETS = {
   deviceInfo: { label: "设备信息", method: "GET", contentType: "application/json; charset=utf-8", path: "getDeviceInformation", body: "" }
 };
@@ -6659,7 +6659,7 @@ async function saveDevicePreviewSdkPreset() {
     els.devicePreviewIsapiHint.textContent = "正在保存参数...";
   }
   const response = await fetchJson(schema.saveApiPath, sdkPayload);
-  if (!response?.ok) {
+  if (!isSdkApiSuccess(response)) {
     throw new Error(response?.error || response?.message || "SDK参数保存失败");
   }
   if (els.devicePreviewIsapiHint) {
