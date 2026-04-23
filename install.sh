@@ -445,7 +445,10 @@ ensure_sdk_installed() {
   fi
   
   # 编译SDK桥接器
-  local bridge_cpp="$ROOT_DIR/sdk/sdk-bridge.cpp"
+  local bridge_cpp="$ROOT_DIR/sdk/sdk-bridge-fixed.cpp"
+  if [[ ! -f "$bridge_cpp" ]]; then
+    bridge_cpp="$ROOT_DIR/sdk/sdk-bridge.cpp"
+  fi
   local bridge_bin="$ROOT_DIR/sdk/sdk-bridge"
   if [[ -f "$bridge_cpp" ]]; then
     step "编译SDK桥接器"
