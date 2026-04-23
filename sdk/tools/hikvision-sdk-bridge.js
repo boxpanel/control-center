@@ -71,16 +71,14 @@ class HikvisionSdkBridge {
     }
 
     try {
-      const sdkRoot = await this.findSdkRoot();
-      const sdkLibDir = path.join(sdkRoot, "MakeAll");
-      const sdkComDir = path.join(sdkLibDir, "HCNetSDKCom");
-      const jnaJar = await this.findJnaJar(sdkRoot);
+      const sdkLayout = await this.findSdkLayout();
+      const jnaJar = await this.findJnaJar(sdkLayout.sdkRoot);
 
       await fs.mkdir(javaBuildDir, { recursive: true });
 
-      this.sdkRoot = sdkRoot;
-      this.sdkLibDir = sdkLibDir;
-      this.sdkComDir = sdkComDir;
+      this.sdkRoot = sdkLayout.sdkRoot;
+      this.sdkLibDir = sdkLayout.sdkLibDir;
+      this.sdkComDir = sdkLayout.sdkComDir;
       this.jnaJar = jnaJar;
       this.sdkAvailable = true;
       this.initError = "";
@@ -92,8 +90,27 @@ class HikvisionSdkBridge {
     return this;
   }
 
-  async findSdkRoot() {
+  getLegacySdkLayout(candidate) {
+    const sdkLibDir = path.join(candidate, "MakeAll");
+    const sdkComDir = path.join(sdkLibDir, "HCNetSDKCom");
+    if (existsSync(path.join(sdkLibDir, "libhcnetsdk.so"))) {
+      return { sdkRoot: candidate, sdkLibDir, sdkComDir };
+    }
+    return null;
+  }
+
+  getFlatSdkLayout(candidate) {
+    const sdkLibDir = candidate;
+    const sdkComDir = path.join(candidate, "HCNetSDKCom");
+    if (existsSync(path.join(sdkLibDir, "libhcnetsdk.so"))) {
+      return { sdkRoot: candidate, sdkLibDir, sdkComDir };
+    }
+    return null;
+  }
+
+  async findSdkLayout() {
     const directCandidates = [
+      path.join(projectRoot, "sdk", "arm64"),
       path.join(projectRoot, "HCNetSDKV6.1.11.5"),
       path.join(projectRoot, "HCNetSDKV6.1.11.5_build20251204_ArmLinux64_ZH"),
       path.join(projectRoot, "temp_sdk", "HCNetSDKV6.1.11.5"),
@@ -101,9 +118,10 @@ class HikvisionSdkBridge {
     ];
 
     for (const candidate of directCandidates) {
-      if (existsSync(path.join(candidate, "MakeAll", "libhcnetsdk.so"))) {
-        return candidate;
-      }
+      const flatLayout = this.getFlatSdkLayout(candidate);
+      if (flatLayout) return flatLayout;
+      const legacyLayout = this.getLegacySdkLayout(candidate);
+      if (legacyLayout) return legacyLayout;
     }
 
     const tempSdkDir = path.join(projectRoot, "temp_sdk");
@@ -112,26 +130,33 @@ class HikvisionSdkBridge {
       for (const entry of entries) {
         if (!entry.isDirectory()) continue;
         const candidate = path.join(tempSdkDir, entry.name);
-        if (existsSync(path.join(candidate, "MakeAll", "libhcnetsdk.so"))) {
-          return candidate;
-        }
+        const flatLayout = this.getFlatSdkLayout(candidate);
+        if (flatLayout) return flatLayout;
+        const legacyLayout = this.getLegacySdkLayout(candidate);
+        if (legacyLayout) return legacyLayout;
       }
     }
 
-    throw new Error("HCNetSDK root not found. Expected a MakeAll/libhcnetsdk.so layout.");
+    throw new Error("HCNetSDK root not found. Expected sdk/arm64/libhcnetsdk.so or a MakeAll/libhcnetsdk.so layout.");
   }
 
   async findJnaJar(sdkRoot) {
     const directCandidates = [
-      path.join(sdkRoot, "demo", "Java示例", "Java_ClientDemo", "ClientDemo", "lib", "jna-4.5.2_1.jar"),
-      path.join(sdkRoot, "demo", "Java示例", "Java_AlarmDemo", "AlarmDemo", "lib", "jna-4.5.2_1.jar")
+      process.env.JNA_JAR || "",
+      path.join(projectRoot, "sdk", "java", "jna.jar"),
+      path.join(projectRoot, "sdk", "java", "jna-4.5.2_1.jar"),
+      path.join(sdkRoot, "demo", "Java绀轰緥", "Java_ClientDemo", "ClientDemo", "lib", "jna-4.5.2_1.jar"),
+      path.join(sdkRoot, "demo", "Java绀轰緥", "Java_AlarmDemo", "AlarmDemo", "lib", "jna-4.5.2_1.jar"),
+      "/usr/share/java/jna.jar",
+      "/usr/share/java/jna-5.13.0.jar",
+      "/usr/share/java/jna-5.12.1.jar"
     ];
 
     for (const candidate of directCandidates) {
-      if (existsSync(candidate)) return candidate;
+      if (candidate && existsSync(candidate)) return candidate;
     }
 
-    throw new Error("JNA jar not found inside HCNetSDK package.");
+    throw new Error("JNA jar not found. Install libjna-java or set JNA_JAR.");
   }
 
   getDetailedStatus() {
@@ -226,7 +251,7 @@ class HikvisionSdkBridge {
     let parsed;
     try {
       parsed = JSON.parse(text);
-    } catch (error) {
+    } catch {
       throw new Error(`SDK tool returned invalid JSON: ${text}`);
     }
 
@@ -307,12 +332,12 @@ class HikvisionSdkBridge {
     return this.getTriggerConfig(connection);
   }
 
-  async getFtpConfig() {
-    return this.runJavaTool("itc-ftp-config", arguments[0]);
+  async getFtpConfig(connection) {
+    return this.runJavaTool("itc-ftp-config", connection);
   }
 
-  async getPictureNamingRule() {
-    return this.runJavaTool("itc-ftp-config", arguments[0]);
+  async getPictureNamingRule(connection) {
+    return this.runJavaTool("itc-ftp-config", connection);
   }
 }
 

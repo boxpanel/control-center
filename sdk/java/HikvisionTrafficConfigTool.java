@@ -688,7 +688,9 @@ public class HikvisionTrafficConfigTool {
     }
 
     private static String buildTriggerConfig(int userId) {
-        NET_ITC_TRIGGERCFG config = loadTriggerConfigStruct(userId);
+        NET_DVR_CURTRIGGERMODE currentMode = loadCurrentTriggerModeStruct(userId);
+        int currentTriggerType = currentMode == null ? 0 : currentMode.dwTriggerType;
+        NET_ITC_TRIGGERCFG config = loadTriggerConfigStruct(userId, currentTriggerType);
         if (config == null) return "";
 
         NET_ITC_SINGLE_TRIGGERCFG trigger = config.struTriggerParam;
@@ -789,7 +791,9 @@ public class HikvisionTrafficConfigTool {
     }
 
     private static String applyTriggerConfig(int userId, String[] args) {
-        NET_ITC_TRIGGERCFG config = loadTriggerConfigStruct(userId);
+        NET_DVR_CURTRIGGERMODE currentMode = loadCurrentTriggerModeStruct(userId);
+        int currentTriggerType = currentMode == null ? 0 : currentMode.dwTriggerType;
+        NET_ITC_TRIGGERCFG config = loadTriggerConfigStruct(userId, currentTriggerType);
         if (config == null) return "";
 
         NET_ITC_SINGLE_TRIGGERCFG trigger = config.struTriggerParam;
@@ -827,9 +831,10 @@ public class HikvisionTrafficConfigTool {
         }
 
         config.write();
-        boolean ok = sdk.NET_DVR_SetDVRConfig(userId, NET_ITC_SET_TRIGGERCFG, 0, config.getPointer(), config.size());
+        int configChannel = nextType != 0 ? nextType : currentTriggerType;
+        boolean ok = sdk.NET_DVR_SetDVRConfig(userId, NET_ITC_SET_TRIGGERCFG, configChannel, config.getPointer(), config.size());
         if (!ok) {
-            fail("NET_DVR_SetDVRConfig(TRIGGERCFG) failed", sdk.NET_DVR_GetLastError());
+            fail("NET_DVR_SetDVRConfig(TRIGGERCFG) failed, channel=" + configChannel, sdk.NET_DVR_GetLastError());
             return "";
         }
         return buildTriggerConfig(userId);
@@ -903,14 +908,18 @@ public class HikvisionTrafficConfigTool {
         return current;
     }
 
-    private static NET_ITC_TRIGGERCFG loadTriggerConfigStruct(int userId) {
+    private static NET_ITC_TRIGGERCFG loadTriggerConfigStruct(int userId, int currentTriggerType) {
         NET_ITC_TRIGGERCFG config = new NET_ITC_TRIGGERCFG();
         config.dwSize = config.size();
         config.write();
         IntByReference bytesReturned = new IntByReference();
         boolean ok = sdk.NET_DVR_GetDVRConfig(userId, NET_ITC_GET_TRIGGERCFG, 0, config.getPointer(), config.size(), bytesReturned);
+        if (!ok && currentTriggerType != 0) {
+            config.write();
+            ok = sdk.NET_DVR_GetDVRConfig(userId, NET_ITC_GET_TRIGGERCFG, currentTriggerType, config.getPointer(), config.size(), bytesReturned);
+        }
         if (!ok) {
-            fail("NET_DVR_GetDVRConfig(TRIGGERCFG) failed", sdk.NET_DVR_GetLastError());
+            fail("NET_DVR_GetDVRConfig(TRIGGERCFG) failed, currentTriggerType=" + currentTriggerType, sdk.NET_DVR_GetLastError());
             return null;
         }
         config.read();
