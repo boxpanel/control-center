@@ -319,6 +319,65 @@ ensure_nodejs() {
   fi
 }
 
+ensure_sdk_installed() {
+  step "检查海康威视SDK"
+  
+  # 检查GCC版本
+  if ! command -v gcc >/dev/null 2>&1; then
+    printf "警告: GCC未安装，SDK功能可能无法正常工作\n"
+    return 1
+  fi
+  
+  local gcc_version
+  gcc_version=$(gcc -dumpversion)
+  if [[ "$(echo "$gcc_version 4.1.2" | tr ' ' '\n' | sort -V | head -n1)" != "4.1.2" ]]; then
+    printf "警告: GCC版本$gcc_version低于4.1.2，SDK可能无法正常工作\n"
+  fi
+  
+  # 检查SDK目录
+  local sdk_dir="$ROOT_DIR/sdk/arm64"
+  if [[ ! -f "$sdk_dir/libhcnetsdk.so" ]]; then
+    printf "警告: 未找到SDK库文件，FTP配置功能将不可用\n"
+    printf "请将海康威视ARM64 Linux SDK文件复制到: $sdk_dir/\n"
+    return 1
+  fi
+  
+  # 复制SDK库到系统目录
+  local system_lib_dir="/usr/local/lib"
+  if [[ ! -f "$system_lib_dir/libhcnetsdk.so" ]]; then
+    step "安装SDK库到系统目录"
+    run_root cp "$sdk_dir/libhcnetsdk.so" "$system_lib_dir/"
+    run_root ldconfig
+  fi
+  
+  # 安装jsoncpp开发包（用于C++ JSON解析）
+  if ! dpkg -s libjsoncpp-dev >/dev/null 2>&1; then
+    step "安装jsoncpp开发包"
+    run_root apt-get install -y libjsoncpp-dev
+  fi
+  
+  # 编译SDK桥接器
+  local bridge_cpp="$ROOT_DIR/sdk/sdk-bridge.cpp"
+  local bridge_bin="$ROOT_DIR/sdk/sdk-bridge"
+  if [[ -f "$bridge_cpp" ]]; then
+    step "编译SDK桥接器"
+    cd "$ROOT_DIR/sdk"
+    g++ -std=c++11 -I. -I/usr/include/jsoncpp -L/usr/local/lib -lhcnetsdk -ljsoncpp -o "$bridge_bin" "$bridge_cpp"
+    if [[ $? -eq 0 ]]; then
+      chmod +x "$bridge_bin"
+      printf "SDK桥接器编译成功: $bridge_bin\n"
+    else
+      printf "警告: SDK桥接器编译失败，FTP配置功能可能无法使用\n"
+    fi
+    cd "$ROOT_DIR"
+  else
+    printf "警告: 未找到SDK桥接器源代码: $bridge_cpp\n"
+  fi
+  
+  printf "SDK已安装: libhcnetsdk.so\n"
+  return 0
+}
+
 bootstrap_repo_then_run() {
   trap rollback_bootstrap ERR
 
@@ -541,6 +600,7 @@ ensure_install_settings_present
 step "Preparing Ubuntu dependencies"
 ensure_base_packages
 ensure_nodejs
+ensure_sdk_installed
 printf "Node version: %s\n" "$(node -v)"
 printf "Platform: Ubuntu/Linux\n"
 

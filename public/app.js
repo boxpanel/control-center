@@ -647,63 +647,44 @@ const DEVICE_PREVIEW_ISAPI_SCHEMAS = {
     }
   },
   
-  // FTP配置schema - ISAPI方式
+  // FTP配置schema - SDK方式
+  // 使用海康SDK的NET_DVR_GET_FTPUPLOAD_CFG API获取FTP配置
+  // 设备iDS-2CD9371-KS支持通过SDK配置FTP
   ftpConfig: {
     readOnly: true,
-    method: "GET",
-    contentType: "application/xml; charset=utf-8",
-    path: "/ISAPI/System/Network/Ftp/channels/1",
+    method: "SDK", // 使用SDK方式
+    sdkCommand: "get-ftp", // SDK桥接器命令
+    contentType: "application/json; charset=utf-8",
+    apiPath: "/api/sdk/ftp-config/get", // 后端API路径
+    unsupported: false, // 现在支持SDK方式
     fields: [
-      { key: "ftpEnabled", label: "FTP启用状态", type: "text", readOnly: true },
-      { key: "ftpServer", label: "FTP服务器地址", type: "text", readOnly: true },
-      { key: "ftpPort", label: "FTP端口", type: "text", readOnly: true },
-      { key: "ftpUsername", label: "FTP用户名", type: "text", readOnly: true },
-      { key: "ftpPassword", label: "FTP密码", type: "text", readOnly: true },
-      { key: "ftpDirectory", label: "FTP目录", type: "text", readOnly: true },
-      { key: "ftpUploadMode", label: "上传模式", type: "text", readOnly: true },
-      { key: "ftpUploadInterval", label: "上传间隔(秒)", type: "text", readOnly: true },
-      { key: "ftpImageQuality", label: "图片质量", type: "text", readOnly: true },
-      { key: "ftpImageResolution", label: "图片分辨率", type: "text", readOnly: true },
-      { key: "ftpUploadType", label: "上传类型", type: "text", readOnly: true },
-      { key: "ftpFileNameFormat", label: "文件名格式", type: "text", readOnly: true },
-      { key: "ftpImageFormat", label: "图片格式", type: "text", readOnly: true }
+      { key: "enable", label: "FTP启用状态", type: "text", readOnly: true },
+      { key: "host", label: "FTP服务器地址", type: "text", readOnly: true },
+      { key: "port", label: "FTP端口", type: "text", readOnly: true },
+      { key: "username", label: "FTP用户名", type: "text", readOnly: true },
+      { key: "password", label: "FTP密码", type: "text", readOnly: true },
+      { key: "path", label: "FTP目录", type: "text", readOnly: true },
+      { key: "uploadMode", label: "上传模式", type: "text", readOnly: true },
+      { key: "uploadInterval", label: "上传间隔(秒)", type: "text", readOnly: true }
     ],
-    mapLoadResult(xmlText = "", device = null) {
-      // 从XML中提取FTP配置信息
-      const extract = (tag) => {
-        const match = xmlText.match(new RegExp(`<${tag}>([\\s\\S]*?)</${tag}>`, "i"));
-        return match ? match[1].trim() : "";
-      };
+    mapLoadResult(jsonData = {}, device = null) {
+      // 处理SDK返回的JSON数据
+      if (!jsonData || typeof jsonData !== 'object') {
+        return {};
+      }
       
-      // 解析FTP配置
-      const enabled = extract("enabled") || extract("Enabled") || "false";
-      const server = extract("host") || extract("Host") || extract("server") || extract("Server") || "";
-      const port = extract("port") || extract("Port") || "21";
-      const username = extract("userName") || extract("UserName") || extract("username") || extract("Username") || "";
-      const password = extract("password") || extract("Password") || "";
-      const directory = extract("directory") || extract("Directory") || "";
-      const uploadMode = extract("uploadMode") || extract("UploadMode") || "主动模式";
-      const uploadInterval = extract("uploadInterval") || extract("UploadInterval") || "5";
-      const imageQuality = extract("imageQuality") || extract("ImageQuality") || "高";
-      const imageResolution = extract("imageResolution") || extract("ImageResolution") || "1920x1080";
-      const uploadType = extract("uploadType") || extract("UploadType") || "定时上传";
-      const fileNameFormat = extract("fileNameFormat") || extract("FileNameFormat") || "";
-      const imageFormat = extract("imageFormat") || extract("ImageFormat") || "JPEG";
+      // SDK返回的字段名与前端字段名对应
+      const ftpConfig = jsonData.ftpConfig || jsonData;
       
       return {
-        ftpEnabled: enabled === "true" ? "已启用" : "已禁用",
-        ftpServer: server,
-        ftpPort: port,
-        ftpUsername: username,
-        ftpPassword: password ? "******" : "",
-        ftpDirectory: directory,
-        ftpUploadMode: uploadMode,
-        ftpUploadInterval: uploadInterval,
-        ftpImageQuality: imageQuality,
-        ftpImageResolution: imageResolution,
-        ftpUploadType: uploadType,
-        ftpFileNameFormat: fileNameFormat,
-        ftpImageFormat: imageFormat
+        enable: ftpConfig.enable === 1 ? "已启用" : "已禁用",
+        host: ftpConfig.host || "",
+        port: ftpConfig.port ? ftpConfig.port.toString() : "21",
+        username: ftpConfig.username || "",
+        password: ftpConfig.password ? "******" : "",
+        path: ftpConfig.path || "",
+        uploadMode: ftpConfig.mode === 0 ? "主动模式" : ftpConfig.mode === 1 ? "被动模式" : "未知",
+        uploadInterval: ftpConfig.interval ? ftpConfig.interval.toString() : "5"
       };
     }
   },
@@ -6538,10 +6519,22 @@ async function runDevicePreviewIsapiRequest(methodOverride = "") {
       const preset = DEVICE_PREVIEW_ISAPI_PRESETS[presetKey] || DEVICE_PREVIEW_ISAPI_PRESETS.deviceInfo;
       const schema = DEVICE_PREVIEW_ISAPI_SCHEMAS[preset.schema] || DEVICE_PREVIEW_ISAPI_SCHEMAS.deviceInfo;
       
+      // 检查schema是否标记为不支持
+      if (schema.unsupported) {
+        if (els.devicePreviewIsapiHint) {
+          els.devicePreviewIsapiHint.textContent = schema.unsupportedMessage || "此功能在当前设备上不支持";
+        }
+        if (els.devicePreviewIsapiResponse) {
+          els.devicePreviewIsapiResponse.value = schema.unsupportedMessage || "此功能在当前设备上不支持";
+        }
+        // 清空控件
+        fillDevicePreviewIsapiControls({});
+        return;
+      }
+      
       // 渲染ISAPI控件
       renderDevicePreviewIsapiControls(preset.schema);
       
-      // 总是使用ISAPI方式获取数据，不再使用SDK
       const connection = {
         host: String(device.host || "").trim(),
         port: Number(device.port || 80) || 80,
@@ -6549,13 +6542,29 @@ async function runDevicePreviewIsapiRequest(methodOverride = "") {
         password: String(device.password || "")
       };
       
-      const response = await fetchJson("/api/isapi/request", {
-        connection,
-        pathname: schema.path,
-        method: schema.method,
-        contentType: schema.contentType,
-        body: ""
-      });
+      let response;
+      
+      // 根据schema.method决定使用ISAPI还是SDK
+      if (schema.method === "SDK") {
+        // 使用SDK方式获取数据
+        if (!schema.apiPath) {
+          throw new Error("SDK schema缺少apiPath配置");
+        }
+        
+        response = await fetchJson(schema.apiPath, {
+          connection,
+          channel: 1 // 默认通道1
+        });
+      } else {
+        // 使用ISAPI方式获取数据
+        response = await fetchJson("/api/isapi/request", {
+          connection,
+          pathname: schema.path,
+          method: schema.method,
+          contentType: schema.contentType,
+          body: ""
+        });
+      }
       
       // 解析响应并填充控件
       const values = schema.mapLoadResult(response?.rawText || "", device);
@@ -6587,27 +6596,57 @@ async function runDevicePreviewIsapiSchemaRequest(schemaKey, device) {
       throw new Error(`未找到schema定义：${schemaKey}`);
     }
     
+    // 检查schema是否标记为不支持
+    if (schema.unsupported) {
+      return {
+        success: false,
+        error: schema.unsupportedMessage || "此功能在当前设备上不支持",
+        values: {}
+      };
+    }
+    
     let response;
     let values = {};
     
-    // 根据schema类型调用不同的ISAPI API
+    // 根据schema类型调用不同的API
     if (schemaKey === "ftpConfig") {
-      // 获取FTP配置（ISAPI方式）
-      response = await fetchJson("/api/device/ftp-config", {
-        connection: {
-          host: String(device.host || "").trim(),
-          port: Number(device.port || 80) || 80,
-          username: String(device.username || "").trim(),
-          password: String(device.password || "")
+      // 获取FTP配置（根据schema.method决定使用ISAPI还是SDK）
+      if (schema.method === "SDK") {
+        // 使用SDK方式获取FTP配置
+        response = await fetchJson("/api/sdk/ftp-config/get", {
+          connection: {
+            host: String(device.host || "").trim(),
+            port: Number(device.port || 80) || 80,
+            username: String(device.username || "").trim(),
+            password: String(device.password || "")
+          },
+          channel: 1
+        });
+        
+        // 解析SDK返回的FTP配置数据
+        if (response && response.ok) {
+          values = schema.mapLoadResult(response.ftpConfig || response, device);
+        } else {
+          throw new Error(response?.error || "SDK FTP配置获取失败");
         }
-      });
-      
-      // 解析FTP配置数据
-      if (response && response.ok) {
-        const ftpData = response.ftpConfig || response.rawText || "";
-        values = schema.mapLoadResult(ftpData, device);
       } else {
-        throw new Error(response?.error || "FTP配置获取失败");
+        // 使用ISAPI方式获取FTP配置
+        response = await fetchJson("/api/device/ftp-config", {
+          connection: {
+            host: String(device.host || "").trim(),
+            port: Number(device.port || 80) || 80,
+            username: String(device.username || "").trim(),
+            password: String(device.password || "")
+          }
+        });
+        
+        // 解析FTP配置数据
+        if (response && response.ok) {
+          const ftpData = response.ftpConfig || response.rawText || "";
+          values = schema.mapLoadResult(ftpData, device);
+        } else {
+          throw new Error(response?.error || "FTP配置获取失败");
+        }
       }
     } else if (schemaKey === "namingRules") {
       // 获取命名规则（ISAPI方式 - 从FTP配置中提取）
