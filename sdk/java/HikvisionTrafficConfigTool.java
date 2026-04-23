@@ -239,6 +239,155 @@ public class HikvisionTrafficConfigTool {
         }
     }
 
+    public static class NET_ITC_INTERVAL_PARAM extends Structure {
+        public byte byIntervalType;
+        public byte[] byRes1 = new byte[3];
+        public short[] wInterval = new short[4];
+        public byte[] byRes = new byte[8];
+
+        @Override
+        protected List<String> getFieldOrder() {
+            return Arrays.asList("byIntervalType", "byRes1", "wInterval", "byRes");
+        }
+    }
+
+    public static class NET_ITC_PLATE_RECOG_PARAM extends Structure {
+        public byte[] byDefaultCHN = new byte[3];
+        public byte byEnable;
+        public int dwRecogMode;
+        public byte byVehicleLogoRecog;
+        public byte byProvince;
+        public byte byRegion;
+        public byte byCountry;
+        public short wPlatePixelWidthMin;
+        public short wPlatePixelWidthMax;
+        public byte[] byRes = new byte[24];
+
+        @Override
+        protected List<String> getFieldOrder() {
+            return Arrays.asList(
+                    "byDefaultCHN", "byEnable", "dwRecogMode", "byVehicleLogoRecog",
+                    "byProvince", "byRegion", "byCountry", "wPlatePixelWidthMin", "wPlatePixelWidthMax", "byRes"
+            );
+        }
+    }
+
+    public static class NET_VCA_POINT extends Structure {
+        public float fX;
+        public float fY;
+
+        @Override
+        protected List<String> getFieldOrder() {
+            return Arrays.asList("fX", "fY");
+        }
+    }
+
+    public static class NET_VCA_RECT extends Structure {
+        public float fX;
+        public float fY;
+        public float fWidth;
+        public float fHeight;
+
+        @Override
+        protected List<String> getFieldOrder() {
+            return Arrays.asList("fX", "fY", "fWidth", "fHeight");
+        }
+    }
+
+    public static class NET_ITC_POLYGON extends Structure {
+        public int dwPointNum;
+        public NET_VCA_POINT[] struPos = (NET_VCA_POINT[]) new NET_VCA_POINT().toArray(20);
+
+        @Override
+        protected List<String> getFieldOrder() {
+            return Arrays.asList("dwPointNum", "struPos");
+        }
+    }
+
+    public static class NET_ITC_PLATE_RECOG_REGION_PARAM extends Structure {
+        public byte byMode;
+        public byte[] byRes1 = new byte[3];
+        public byte[] uRegion = new byte[164];
+        public byte[] byRes = new byte[16];
+
+        @Override
+        protected List<String> getFieldOrder() {
+            return Arrays.asList("byMode", "byRes1", "uRegion", "byRes");
+        }
+    }
+
+    public static class NET_ITC_LANE_PARAM extends Structure {
+        public byte byEnable;
+        public byte byRelatedDriveWay;
+        public short wDistance;
+        public short wTrigDelayTime;
+        public byte byTrigDelayDistance;
+        public byte bySpeedCapEn;
+        public byte bySignSpeed;
+        public byte bySpeedLimit;
+        public byte bySnapTimes;
+        public byte byOverlayDriveWay;
+        public NET_ITC_INTERVAL_PARAM struInterval = new NET_ITC_INTERVAL_PARAM();
+        public byte[] byRelatedIOOut = new byte[4];
+        public byte byFlashMode;
+        public byte byCartSignSpeed;
+        public byte byCartSpeedLimit;
+        public byte byRelatedIOOutEx;
+        public NET_ITC_PLATE_RECOG_REGION_PARAM[] struPlateRecog = (NET_ITC_PLATE_RECOG_REGION_PARAM[]) new NET_ITC_PLATE_RECOG_REGION_PARAM().toArray(2);
+        public byte byLaneType;
+        public byte byUseageType;
+        public byte byRelaLaneDirectionType;
+        public byte byLowSpeedLimit;
+        public byte byBigCarLowSpeedLimit;
+        public byte byLowSpeedCapEn;
+        public byte byEmergencyCapEn;
+        public byte[] byRes = new byte[9];
+
+        @Override
+        protected List<String> getFieldOrder() {
+            return Arrays.asList(
+                    "byEnable", "byRelatedDriveWay", "wDistance", "wTrigDelayTime", "byTrigDelayDistance",
+                    "bySpeedCapEn", "bySignSpeed", "bySpeedLimit", "bySnapTimes", "byOverlayDriveWay",
+                    "struInterval", "byRelatedIOOut", "byFlashMode", "byCartSignSpeed", "byCartSpeedLimit",
+                    "byRelatedIOOutEx", "struPlateRecog", "byLaneType", "byUseageType", "byRelaLaneDirectionType",
+                    "byLowSpeedLimit", "byBigCarLowSpeedLimit", "byLowSpeedCapEn", "byEmergencyCapEn", "byRes"
+            );
+        }
+    }
+
+    public static class NET_ITC_RADAR_PARAM extends Structure {
+        public byte byRadarType;
+        public byte byLevelAngle;
+        public short wRadarSensitivity;
+        public short wRadarSpeedValidTime;
+        public byte[] byRes1 = new byte[2];
+        public float fLineCorrectParam;
+        public int iConstCorrectParam;
+        public byte[] byRes2 = new byte[8];
+
+        @Override
+        protected List<String> getFieldOrder() {
+            return Arrays.asList(
+                    "byRadarType", "byLevelAngle", "wRadarSensitivity", "wRadarSpeedValidTime",
+                    "byRes1", "fLineCorrectParam", "iConstCorrectParam", "byRes2"
+            );
+        }
+    }
+
+    public static class NET_ITC_POST_RS485_RADAR_PARAM extends Structure {
+        public byte byRelatedLaneNum;
+        public byte[] byRes1 = new byte[3];
+        public NET_ITC_PLATE_RECOG_PARAM struPlateRecog = new NET_ITC_PLATE_RECOG_PARAM();
+        public NET_ITC_LANE_PARAM[] struLane = (NET_ITC_LANE_PARAM[]) new NET_ITC_LANE_PARAM().toArray(6);
+        public NET_ITC_RADAR_PARAM struRadar = new NET_ITC_RADAR_PARAM();
+        public byte[] byRes = new byte[32];
+
+        @Override
+        protected List<String> getFieldOrder() {
+            return Arrays.asList("byRelatedLaneNum", "byRes1", "struPlateRecog", "struLane", "struRadar", "byRes");
+        }
+    }
+
     public static class NET_ITC_POST_VTCOIL_PARAM extends Structure {
         public byte byRelatedLaneNum;
         public byte byIsDisplay;
@@ -302,6 +451,13 @@ public class HikvisionTrafficConfigTool {
 
         public NET_ITC_POST_RS485_PARAM asRs485() {
             NET_ITC_POST_RS485_PARAM value = new NET_ITC_POST_RS485_PARAM();
+            value.getPointer().write(0, this.getPointer().getByteArray(0, value.size()), 0, value.size());
+            value.read();
+            return value;
+        }
+
+        public NET_ITC_POST_RS485_RADAR_PARAM asRadar() {
+            NET_ITC_POST_RS485_RADAR_PARAM value = new NET_ITC_POST_RS485_RADAR_PARAM();
             value.getPointer().write(0, this.getPointer().getByteArray(0, value.size()), 0, value.size());
             value.read();
             return value;
@@ -749,6 +905,42 @@ public class HikvisionTrafficConfigTool {
         String capModeLabel = "";
         Integer speedMode = null;
         String speedModeLabel = "";
+        Integer radarType = null;
+        String radarTypeLabel = "";
+        Integer levelAngle = null;
+        Integer radarSensitivity = null;
+        Integer radarSpeedValidTime = null;
+        Float lineCorrectParam = null;
+        Integer constCorrectParam = null;
+        Boolean plateRecogEnabled = null;
+        Integer plateRecogMode = null;
+        Boolean vehicleLogoRecogEnabled = null;
+        Integer plateProvince = null;
+        Integer plateRegion = null;
+        Integer plateCountry = null;
+        Integer platePixelWidthMin = null;
+        Integer platePixelWidthMax = null;
+        Boolean firstLaneEnabled = null;
+        Integer firstLaneRelatedDriveWay = null;
+        Integer firstLaneDistance = null;
+        Integer firstLaneTrigDelayTime = null;
+        Integer firstLaneTrigDelayDistance = null;
+        Boolean firstLaneSpeedCapEnabled = null;
+        Integer firstLaneSignSpeed = null;
+        Integer firstLaneSpeedLimit = null;
+        Integer firstLaneSnapTimes = null;
+        Integer firstLaneOverlayDriveWay = null;
+        Integer firstLaneFlashMode = null;
+        Integer firstLaneCartSignSpeed = null;
+        Integer firstLaneCartSpeedLimit = null;
+        Integer firstLaneRelatedIOOutEx = null;
+        Integer firstLaneLaneType = null;
+        Integer firstLaneUseageType = null;
+        Integer firstLaneDirectionType = null;
+        Integer firstLaneLowSpeedLimit = null;
+        Integer firstLaneBigCarLowSpeedLimit = null;
+        Boolean firstLaneLowSpeedCapEnabled = null;
+        Boolean firstLaneEmergencyCapEnabled = null;
 
         if (triggerType == 0x4) {
             NET_ITC_POST_RS485_PARAM rs485 = trigger.uTriggerParam.asRs485();
@@ -757,6 +949,47 @@ public class HikvisionTrafficConfigTool {
             triggerSpareModeLabel = getTriggerSpareModeLabel(triggerSpareMode);
             faultToleranceMinutes = unsignedByte(rs485.byFaultToleranceTime);
             detailSource = "rs485";
+        } else if (triggerType == 0x8) {
+            NET_ITC_POST_RS485_RADAR_PARAM radar = trigger.uTriggerParam.asRadar();
+            laneCount = unsignedByte(radar.byRelatedLaneNum);
+            radarType = unsignedByte(radar.struRadar.byRadarType);
+            radarTypeLabel = getRadarTypeLabel(radarType);
+            levelAngle = unsignedByte(radar.struRadar.byLevelAngle);
+            radarSensitivity = unsignedShort(radar.struRadar.wRadarSensitivity);
+            radarSpeedValidTime = unsignedShort(radar.struRadar.wRadarSpeedValidTime);
+            lineCorrectParam = radar.struRadar.fLineCorrectParam;
+            constCorrectParam = radar.struRadar.iConstCorrectParam;
+            plateRecogEnabled = unsignedByte(radar.struPlateRecog.byEnable) == 1;
+            plateRecogMode = radar.struPlateRecog.dwRecogMode;
+            vehicleLogoRecogEnabled = unsignedByte(radar.struPlateRecog.byVehicleLogoRecog) == 1;
+            plateProvince = unsignedByte(radar.struPlateRecog.byProvince);
+            plateRegion = unsignedByte(radar.struPlateRecog.byRegion);
+            plateCountry = unsignedByte(radar.struPlateRecog.byCountry);
+            platePixelWidthMin = unsignedShort(radar.struPlateRecog.wPlatePixelWidthMin);
+            platePixelWidthMax = unsignedShort(radar.struPlateRecog.wPlatePixelWidthMax);
+            NET_ITC_LANE_PARAM firstLane = radar.struLane[0];
+            firstLaneEnabled = unsignedByte(firstLane.byEnable) == 1;
+            firstLaneRelatedDriveWay = unsignedByte(firstLane.byRelatedDriveWay);
+            firstLaneDistance = unsignedShort(firstLane.wDistance);
+            firstLaneTrigDelayTime = unsignedShort(firstLane.wTrigDelayTime);
+            firstLaneTrigDelayDistance = unsignedByte(firstLane.byTrigDelayDistance);
+            firstLaneSpeedCapEnabled = unsignedByte(firstLane.bySpeedCapEn) == 1;
+            firstLaneSignSpeed = unsignedByte(firstLane.bySignSpeed);
+            firstLaneSpeedLimit = unsignedByte(firstLane.bySpeedLimit);
+            firstLaneSnapTimes = unsignedByte(firstLane.bySnapTimes);
+            firstLaneOverlayDriveWay = unsignedByte(firstLane.byOverlayDriveWay);
+            firstLaneFlashMode = unsignedByte(firstLane.byFlashMode);
+            firstLaneCartSignSpeed = unsignedByte(firstLane.byCartSignSpeed);
+            firstLaneCartSpeedLimit = unsignedByte(firstLane.byCartSpeedLimit);
+            firstLaneRelatedIOOutEx = unsignedByte(firstLane.byRelatedIOOutEx);
+            firstLaneLaneType = unsignedByte(firstLane.byLaneType);
+            firstLaneUseageType = unsignedByte(firstLane.byUseageType);
+            firstLaneDirectionType = unsignedByte(firstLane.byRelaLaneDirectionType);
+            firstLaneLowSpeedLimit = unsignedByte(firstLane.byLowSpeedLimit);
+            firstLaneBigCarLowSpeedLimit = unsignedByte(firstLane.byBigCarLowSpeedLimit);
+            firstLaneLowSpeedCapEnabled = unsignedByte(firstLane.byLowSpeedCapEn) == 1;
+            firstLaneEmergencyCapEnabled = unsignedByte(firstLane.byEmergencyCapEn) == 1;
+            detailSource = "rs485Radar";
         } else if (triggerType == 0x10) {
             NET_ITC_POST_VTCOIL_PARAM vt = trigger.uTriggerParam.asVtCoil();
             laneCount = unsignedByte(vt.byRelatedLaneNum);
@@ -817,6 +1050,48 @@ public class HikvisionTrafficConfigTool {
                 + "\"capModeLabel\":\"" + json(capModeLabel) + "\","
                 + "\"speedMode\":" + (speedMode == null ? "null" : speedMode) + ","
                 + "\"speedModeLabel\":\"" + json(speedModeLabel) + "\","
+                + "\"radarType\":" + (radarType == null ? "null" : radarType) + ","
+                + "\"radarTypeLabel\":\"" + json(radarTypeLabel) + "\","
+                + "\"levelAngle\":" + (levelAngle == null ? "null" : levelAngle) + ","
+                + "\"radarSensitivity\":" + (radarSensitivity == null ? "null" : radarSensitivity) + ","
+                + "\"radarSpeedValidTime\":" + (radarSpeedValidTime == null ? "null" : radarSpeedValidTime) + ","
+                + "\"lineCorrectParam\":" + (lineCorrectParam == null ? "null" : floatString(lineCorrectParam)) + ","
+                + "\"constCorrectParam\":" + (constCorrectParam == null ? "null" : constCorrectParam) + ","
+                + "\"plateRecogEnabled\":" + (plateRecogEnabled == null ? "null" : plateRecogEnabled) + ","
+                + "\"plateRecogEnabledLabel\":\"" + json(boolNullableLabel(plateRecogEnabled)) + "\","
+                + "\"plateRecogMode\":" + (plateRecogMode == null ? "null" : plateRecogMode) + ","
+                + "\"vehicleLogoRecogEnabled\":" + (vehicleLogoRecogEnabled == null ? "null" : vehicleLogoRecogEnabled) + ","
+                + "\"vehicleLogoRecogEnabledLabel\":\"" + json(boolNullableLabel(vehicleLogoRecogEnabled)) + "\","
+                + "\"plateProvince\":" + (plateProvince == null ? "null" : plateProvince) + ","
+                + "\"plateRegion\":" + (plateRegion == null ? "null" : plateRegion) + ","
+                + "\"plateCountry\":" + (plateCountry == null ? "null" : plateCountry) + ","
+                + "\"platePixelWidthMin\":" + (platePixelWidthMin == null ? "null" : platePixelWidthMin) + ","
+                + "\"platePixelWidthMax\":" + (platePixelWidthMax == null ? "null" : platePixelWidthMax) + ","
+                + "\"firstLaneEnabled\":" + (firstLaneEnabled == null ? "null" : firstLaneEnabled) + ","
+                + "\"firstLaneEnabledLabel\":\"" + json(boolNullableLabel(firstLaneEnabled)) + "\","
+                + "\"firstLaneRelatedDriveWay\":" + (firstLaneRelatedDriveWay == null ? "null" : firstLaneRelatedDriveWay) + ","
+                + "\"firstLaneDistance\":" + (firstLaneDistance == null ? "null" : firstLaneDistance) + ","
+                + "\"firstLaneTrigDelayTime\":" + (firstLaneTrigDelayTime == null ? "null" : firstLaneTrigDelayTime) + ","
+                + "\"firstLaneTrigDelayDistance\":" + (firstLaneTrigDelayDistance == null ? "null" : firstLaneTrigDelayDistance) + ","
+                + "\"firstLaneSpeedCapEnabled\":" + (firstLaneSpeedCapEnabled == null ? "null" : firstLaneSpeedCapEnabled) + ","
+                + "\"firstLaneSpeedCapEnabledLabel\":\"" + json(boolNullableLabel(firstLaneSpeedCapEnabled)) + "\","
+                + "\"firstLaneSignSpeed\":" + (firstLaneSignSpeed == null ? "null" : firstLaneSignSpeed) + ","
+                + "\"firstLaneSpeedLimit\":" + (firstLaneSpeedLimit == null ? "null" : firstLaneSpeedLimit) + ","
+                + "\"firstLaneSnapTimes\":" + (firstLaneSnapTimes == null ? "null" : firstLaneSnapTimes) + ","
+                + "\"firstLaneOverlayDriveWay\":" + (firstLaneOverlayDriveWay == null ? "null" : firstLaneOverlayDriveWay) + ","
+                + "\"firstLaneFlashMode\":" + (firstLaneFlashMode == null ? "null" : firstLaneFlashMode) + ","
+                + "\"firstLaneCartSignSpeed\":" + (firstLaneCartSignSpeed == null ? "null" : firstLaneCartSignSpeed) + ","
+                + "\"firstLaneCartSpeedLimit\":" + (firstLaneCartSpeedLimit == null ? "null" : firstLaneCartSpeedLimit) + ","
+                + "\"firstLaneRelatedIOOutEx\":" + (firstLaneRelatedIOOutEx == null ? "null" : firstLaneRelatedIOOutEx) + ","
+                + "\"firstLaneLaneType\":" + (firstLaneLaneType == null ? "null" : firstLaneLaneType) + ","
+                + "\"firstLaneUseageType\":" + (firstLaneUseageType == null ? "null" : firstLaneUseageType) + ","
+                + "\"firstLaneDirectionType\":" + (firstLaneDirectionType == null ? "null" : firstLaneDirectionType) + ","
+                + "\"firstLaneLowSpeedLimit\":" + (firstLaneLowSpeedLimit == null ? "null" : firstLaneLowSpeedLimit) + ","
+                + "\"firstLaneBigCarLowSpeedLimit\":" + (firstLaneBigCarLowSpeedLimit == null ? "null" : firstLaneBigCarLowSpeedLimit) + ","
+                + "\"firstLaneLowSpeedCapEnabled\":" + (firstLaneLowSpeedCapEnabled == null ? "null" : firstLaneLowSpeedCapEnabled) + ","
+                + "\"firstLaneLowSpeedCapEnabledLabel\":\"" + json(boolNullableLabel(firstLaneLowSpeedCapEnabled)) + "\","
+                + "\"firstLaneEmergencyCapEnabled\":" + (firstLaneEmergencyCapEnabled == null ? "null" : firstLaneEmergencyCapEnabled) + ","
+                + "\"firstLaneEmergencyCapEnabledLabel\":\"" + json(boolNullableLabel(firstLaneEmergencyCapEnabled)) + "\","
                 + "\"summary\":\"" + json(summary.toString()) + "\""
                 + "}"
                 + "}";
@@ -993,6 +1268,15 @@ public class HikvisionTrafficConfigTool {
         return String.format(Locale.ROOT, "0x%X", value);
     }
 
+    private static String floatString(float value) {
+        return String.format(Locale.ROOT, "%.4f", value);
+    }
+
+    private static String boolNullableLabel(Boolean value) {
+        if (value == null) return "";
+        return value ? "Yes" : "No";
+    }
+
     private static String getEncodingLabel(int code) {
         switch (code) {
             case 0: return "Unknown";
@@ -1037,6 +1321,19 @@ public class HikvisionTrafficConfigTool {
             case 0x200000: return "Mobile traffic";
             case 0x400000: return "Pedestrian red light";
             case 0x800000: return "No-comity pedestrian";
+            default: return "Unknown";
+        }
+    }
+
+    private static String getRadarTypeLabel(int code) {
+        switch (code) {
+            case 0: return "No radar";
+            case 1: return "Andale";
+            case 2: return "Olivia";
+            case 3: return "Chuansu microwave";
+            case 4: return "Radar IO expander";
+            case 5: return "Andale (no controller)";
+            case 0xFF: return "Custom";
             default: return "Unknown";
         }
     }
