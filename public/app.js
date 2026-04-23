@@ -6157,6 +6157,10 @@ function isSdkApiSuccess(response) {
   return Boolean(response?.ok || response?.success);
 }
 
+function getDevicePreviewSdkPort(device) {
+  return Number(device?.sdkPort || device?.sdkPortNo || 8000) || 8000;
+}
+
 function getDevicePreviewPanelTitleEl() {
   return els.devicePreviewIsapiPanel?.querySelector(".logHeader > div") || null;
 }
@@ -6603,7 +6607,7 @@ async function saveDevicePreviewSdkPreset() {
   const payload = typeof schema.buildSavePayload === "function" ? schema.buildSavePayload(values) : values;
   const sdkPayload = {
     ip: String(device.host || "").trim(),
-    port: Number(device.port || 8000) || 8000,
+    port: getDevicePreviewSdkPort(device),
     username: String(device.username || "").trim(),
     password: String(device.password || ""),
     values: payload || {}
@@ -6716,7 +6720,7 @@ async function runDevicePreviewIsapiRequest(methodOverride = "") {
 
       const sdkPayload = {
         ip: String(device.host || "").trim(),
-        port: Number(device.port || 8000) || 8000,
+        port: getDevicePreviewSdkPort(device),
         username: String(device.username || "").trim(),
         password: String(device.password || "")
       };
@@ -7382,5 +7386,6 @@ if (els.previewSnapshotBtn) {
     }
   });
 }
+
 
 
