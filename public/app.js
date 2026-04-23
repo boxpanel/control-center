@@ -6143,6 +6143,16 @@ function normalizeHikvisionPreviewPresetKey(rawKey = "") {
   return DEVICE_PREVIEW_ISAPI_PRESETS[key] ? key : "deviceInfo";
 }
 
+function isAllowedHikvisionSchema(schemaName = "") {
+  const key = String(schemaName || "").trim();
+  return key === "deviceInfo"
+    || key === "sdkNetworkConfig"
+    || key === "sdkFtpConfig"
+    || key === "sdkNamingRules"
+    || key === "sdkCurrentTriggerMode"
+    || key === "sdkTriggerConfig";
+}
+
 function getDevicePreviewPanelTitleEl() {
   return els.devicePreviewIsapiPanel?.querySelector(".logHeader > div") || null;
 }
@@ -6492,7 +6502,10 @@ function applyDevicePreviewIsapiPreset(presetKey, keepBody = false) {
   const key = isHikvisionIsapi
     ? normalizeHikvisionPreviewPresetKey(presetKey)
     : (String(presetKey || "").trim() || "deviceInfo");
-  const preset = presets[key] || presets.deviceInfo;
+  let preset = presets[key] || presets.deviceInfo;
+  if (isHikvisionIsapi && !isAllowedHikvisionSchema(preset?.schema)) {
+    preset = presets.deviceInfo || DEVICE_PREVIEW_ISAPI_PRESETS.deviceInfo;
+  }
   if (els.devicePreviewIsapiPreset) els.devicePreviewIsapiPreset.value = key;
   
   // 检查是否有schema定义
@@ -6536,7 +6549,10 @@ async function autoLoadDevicePreviewPreset(presetKey) {
     if (protocol === "hikvision-isapi") {
       const safePresetKey = normalizeHikvisionPreviewPresetKey(presetKey);
       // 获取预设信息
-      const preset = DEVICE_PREVIEW_ISAPI_PRESETS[safePresetKey] || DEVICE_PREVIEW_ISAPI_PRESETS.deviceInfo;
+      let preset = DEVICE_PREVIEW_ISAPI_PRESETS[safePresetKey] || DEVICE_PREVIEW_ISAPI_PRESETS.deviceInfo;
+      if (!isAllowedHikvisionSchema(preset?.schema)) {
+        preset = DEVICE_PREVIEW_ISAPI_PRESETS.deviceInfo;
+      }
       const schema = DEVICE_PREVIEW_ISAPI_SCHEMAS[preset.schema] || DEVICE_PREVIEW_ISAPI_SCHEMAS.deviceInfo;
       
       // 渲染控件
@@ -6672,7 +6688,10 @@ async function runDevicePreviewIsapiRequest(methodOverride = "") {
       if (els.devicePreviewIsapiPreset && els.devicePreviewIsapiPreset.value !== presetKey) {
         els.devicePreviewIsapiPreset.value = presetKey;
       }
-      const preset = DEVICE_PREVIEW_ISAPI_PRESETS[presetKey] || DEVICE_PREVIEW_ISAPI_PRESETS.deviceInfo;
+      let preset = DEVICE_PREVIEW_ISAPI_PRESETS[presetKey] || DEVICE_PREVIEW_ISAPI_PRESETS.deviceInfo;
+      if (!isAllowedHikvisionSchema(preset?.schema)) {
+        preset = DEVICE_PREVIEW_ISAPI_PRESETS.deviceInfo;
+      }
       const schema = DEVICE_PREVIEW_ISAPI_SCHEMAS[preset.schema] || DEVICE_PREVIEW_ISAPI_SCHEMAS.deviceInfo;
       
       // 检查schema是否标记为不支持
