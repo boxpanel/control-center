@@ -40,6 +40,8 @@ public class HikvisionTrafficConfigTool {
         boolean NET_DVR_Logout(int userId);
         boolean NET_DVR_GetDVRConfig(int userId, int command, int channel, Pointer outBuffer, int outBufferSize, IntByReference bytesReturned);
         boolean NET_DVR_SetDVRConfig(int userId, int command, int channel, Pointer inBuffer, int inBufferSize);
+        boolean NET_DVR_GetDeviceConfig(int userId, int command, int count, Pointer inBuffer, int inBufferSize, Pointer statusList, Pointer outBuffer, int outBufferSize);
+        boolean NET_DVR_SetDeviceConfig(int userId, int command, int count, Pointer inBuffer, int inBufferSize, Pointer statusList, Pointer inParamBuffer, int inParamBufferSize);
         int NET_DVR_GetLastError();
     }
 
@@ -389,6 +391,17 @@ public class HikvisionTrafficConfigTool {
         }
     }
 
+    public static class NET_ITC_FTP_TYPE_COND extends Structure {
+        public int dwChannel;
+        public byte byWorkMode;
+        public byte[] byRes = new byte[7];
+
+        @Override
+        protected List<String> getFieldOrder() {
+            return Arrays.asList("dwChannel", "byWorkMode", "byRes");
+        }
+    }
+
     private static HCNetSDK sdk;
 
     public static void main(String[] args) {
@@ -611,13 +624,32 @@ public class HikvisionTrafficConfigTool {
     }
 
     private static String buildItcFtpConfig(int userId) {
+        NET_ITC_FTP_TYPE_COND condition = new NET_ITC_FTP_TYPE_COND();
+        condition.dwChannel = 1;
+        condition.byWorkMode = 0;
+        condition.write();
+
         NET_ITC_FTP_CFG config = new NET_ITC_FTP_CFG();
         config.dwSize = config.size();
         config.write();
-        IntByReference bytesReturned = new IntByReference();
-        boolean ok = sdk.NET_DVR_GetDVRConfig(userId, NET_ITC_GET_FTPCFG, 0, config.getPointer(), config.size(), bytesReturned);
+        IntByReference statusList = new IntByReference(0);
+        boolean ok = sdk.NET_DVR_GetDeviceConfig(
+                userId,
+                NET_ITC_GET_FTPCFG,
+                1,
+                condition.getPointer(),
+                condition.size(),
+                statusList.getPointer(),
+                config.getPointer(),
+                config.size()
+        );
         if (!ok) {
-            fail("NET_DVR_GetDVRConfig(ITC_FTP_CFG) failed", sdk.NET_DVR_GetLastError());
+            fail("NET_DVR_GetDeviceConfig(ITC_FTP_CFG) failed", sdk.NET_DVR_GetLastError());
+            return "";
+        }
+        int status = statusList.getValue();
+        if (status != 0 && status != 1) {
+            fail("NET_DVR_GetDeviceConfig(ITC_FTP_CFG) returned status=" + status, status);
             return "";
         }
         config.read();
