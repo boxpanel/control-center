@@ -432,11 +432,18 @@ ensure_sdk_installed() {
   
   # 复制SDK库到系统目录
   local system_lib_dir="/usr/local/lib"
+  local system_com_dir="$system_lib_dir/HCNetSDKCom"
   if [[ ! -f "$system_lib_dir/libhcnetsdk.so" ]]; then
     step "安装SDK库到系统目录"
     run_root cp "$sdk_dir/libhcnetsdk.so" "$system_lib_dir/"
     run_root ldconfig
   fi
+  run_root mkdir -p "$system_com_dir"
+  run_root cp "$sdk_dir"/*.so* "$system_lib_dir/" 2>/dev/null || true
+  if [[ -d "$sdk_dir/HCNetSDKCom" ]]; then
+    run_root cp "$sdk_dir/HCNetSDKCom"/*.so* "$system_com_dir/" 2>/dev/null || true
+  fi
+  run_root ldconfig
   
   # 安装jsoncpp开发包（用于C++ JSON解析）
   if ! dpkg -s libjsoncpp-dev >/dev/null 2>&1; then
@@ -453,7 +460,12 @@ ensure_sdk_installed() {
   if [[ -f "$bridge_cpp" ]]; then
     step "编译SDK桥接器"
     cd "$ROOT_DIR/sdk"
-    g++ -std=c++11 -I. -I/usr/include/jsoncpp -L/usr/local/lib -o "$bridge_bin" "$bridge_cpp" -lhcnetsdk -ljsoncpp
+    g++ -std=c++11 \
+      -I. -I/usr/include/jsoncpp \
+      -L/usr/local/lib -L/usr/local/lib/HCNetSDKCom \
+      -Wl,-rpath,/usr/local/lib:/usr/local/lib/HCNetSDKCom \
+      -Wl,-rpath-link,/usr/local/lib:/usr/local/lib/HCNetSDKCom \
+      -o "$bridge_bin" "$bridge_cpp" -lhcnetsdk -ljsoncpp
     if [[ $? -eq 0 ]]; then
       chmod +x "$bridge_bin"
       printf "SDK桥接器编译成功: $bridge_bin\n"
