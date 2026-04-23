@@ -6709,14 +6709,18 @@ async function runDevicePreviewIsapiRequest(methodOverride = "") {
   if (!device || !protocol) {
     throw new Error("当前没有可操作的设备");
   }
+  const useLoadingOverlay = protocol === "hikvision-isapi";
   
   if (els.devicePreviewIsapiHint) {
     els.devicePreviewIsapiHint.textContent = "正在读取设备信息...";
   }
+  if (useLoadingOverlay) {
+    showLoading("获取参数中...");
+  }
   
-  if (protocol === "onvif") {
-    // ONVIF设备 - 直接显示设备信息
-    try {
+  try {
+    if (protocol === "onvif") {
+      // ONVIF设备 - 直接显示设备信息
       // 渲染ONVIF控件
       renderDevicePreviewOnvifControls("deviceInfo");
       // 加载设备信息
@@ -6724,15 +6728,8 @@ async function runDevicePreviewIsapiRequest(methodOverride = "") {
       if (els.devicePreviewIsapiHint) {
         els.devicePreviewIsapiHint.textContent = "设备信息读取成功";
       }
-    } catch (error) {
-      if (els.devicePreviewIsapiHint) {
-        els.devicePreviewIsapiHint.textContent = `读取失败：${error.message || error}`;
-      }
-      throw error;
-    }
-  } else if (protocol === "hikvision-isapi") {
-    // ISAPI设备 - 直接显示设备信息
-    try {
+    } else if (protocol === "hikvision-isapi") {
+      // ISAPI设备 - 直接显示设备信息
       // 获取当前选中的预设
       const presetKey = normalizeHikvisionPreviewPresetKey(els.devicePreviewIsapiPreset?.value || "deviceInfo");
       if (els.devicePreviewIsapiPreset && els.devicePreviewIsapiPreset.value !== presetKey) {
@@ -6812,14 +6809,18 @@ async function runDevicePreviewIsapiRequest(methodOverride = "") {
       if (els.devicePreviewIsapiHint) {
         els.devicePreviewIsapiHint.textContent = "设备信息读取成功";
       }
-    } catch (error) {
-      if (els.devicePreviewIsapiHint) {
-        els.devicePreviewIsapiHint.textContent = `读取失败：${error.message || error}`;
-      }
-      throw error;
+    } else {
+      throw new Error(`不支持的协议：${protocol}`);
     }
-  } else {
-    throw new Error(`不支持的协议：${protocol}`);
+  } catch (error) {
+    if (els.devicePreviewIsapiHint) {
+      els.devicePreviewIsapiHint.textContent = `读取失败：${error.message || error}`;
+    }
+    throw error;
+  } finally {
+    if (useLoadingOverlay) {
+      hideLoading();
+    }
   }
 }
 
