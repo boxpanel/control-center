@@ -453,7 +453,7 @@ ensure_sdk_installed() {
   if [[ -f "$bridge_cpp" ]]; then
     step "编译SDK桥接器"
     cd "$ROOT_DIR/sdk"
-    g++ -std=c++11 -I. -I/usr/include/jsoncpp -L/usr/local/lib -lhcnetsdk -ljsoncpp -o "$bridge_bin" "$bridge_cpp"
+    g++ -std=c++11 -I. -I/usr/include/jsoncpp -L/usr/local/lib -o "$bridge_bin" "$bridge_cpp" -lhcnetsdk -ljsoncpp
     if [[ $? -eq 0 ]]; then
       chmod +x "$bridge_bin"
       printf "SDK桥接器编译成功: $bridge_bin\n"
