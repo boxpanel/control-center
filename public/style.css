@@ -1144,11 +1144,12 @@ canvas {
   display: flex;
   flex-direction: column;
   gap: 12px;
+  max-width: 430px;
 }
 
 .devicePreviewParamItem {
   display: grid;
-  grid-template-columns: 108px minmax(0, 420px);
+  grid-template-columns: 96px minmax(0, 300px);
   gap: 12px;
   align-items: center;
   padding: 10px 12px;
@@ -1175,7 +1176,7 @@ canvas {
 .devicePreviewParamInput,
 .devicePreviewParamSelect {
   width: 100%;
-  max-width: 420px;
+  max-width: 300px;
   min-width: 0;
   height: 36px;
   padding: 0 10px;
@@ -1194,6 +1195,10 @@ canvas {
 }
 
 @media (max-width: 900px) {
+  .devicePreviewParamList {
+    max-width: 100%;
+  }
+
   .devicePreviewParamItem {
     grid-template-columns: 96px minmax(0, 1fr);
   }
