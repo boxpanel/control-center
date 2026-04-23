@@ -6138,6 +6138,11 @@ function getDevicePreviewPresetMap(protocol = "") {
   return DEVICE_PREVIEW_ISAPI_PRESETS;
 }
 
+function normalizeHikvisionPreviewPresetKey(rawKey = "") {
+  const key = String(rawKey || "").trim();
+  return DEVICE_PREVIEW_ISAPI_PRESETS[key] ? key : "deviceInfo";
+}
+
 function getDevicePreviewPanelTitleEl() {
   return els.devicePreviewIsapiPanel?.querySelector(".logHeader > div") || null;
 }
@@ -6484,7 +6489,9 @@ function applyDevicePreviewIsapiPreset(presetKey, keepBody = false) {
   const isOnvif = protocol === "onvif";
   const isHikvisionIsapi = protocol === "hikvision-isapi";
   const presets = getDevicePreviewPresetMap(protocol);
-  const key = String(presetKey || "").trim() || "deviceInfo";
+  const key = isHikvisionIsapi
+    ? normalizeHikvisionPreviewPresetKey(presetKey)
+    : (String(presetKey || "").trim() || "deviceInfo");
   const preset = presets[key] || presets.deviceInfo;
   if (els.devicePreviewIsapiPreset) els.devicePreviewIsapiPreset.value = key;
   
@@ -6527,14 +6534,17 @@ async function autoLoadDevicePreviewPreset(presetKey) {
     const protocol = getDevicePreviewProtocol(device);
     
     if (protocol === "hikvision-isapi") {
+      const safePresetKey = normalizeHikvisionPreviewPresetKey(presetKey);
       // 获取预设信息
-      const preset = DEVICE_PREVIEW_ISAPI_PRESETS[presetKey] || DEVICE_PREVIEW_ISAPI_PRESETS.deviceInfo;
+      const preset = DEVICE_PREVIEW_ISAPI_PRESETS[safePresetKey] || DEVICE_PREVIEW_ISAPI_PRESETS.deviceInfo;
       const schema = DEVICE_PREVIEW_ISAPI_SCHEMAS[preset.schema] || DEVICE_PREVIEW_ISAPI_SCHEMAS.deviceInfo;
       
       // 渲染控件
       renderDevicePreviewIsapiControls(preset.schema);
       
-      // 总是使用ISAPI方式获取数据，不再使用SDK
+      if (els.devicePreviewIsapiPreset && els.devicePreviewIsapiPreset.value !== safePresetKey) {
+        els.devicePreviewIsapiPreset.value = safePresetKey;
+      }
       await runDevicePreviewIsapiRequest("GET");
     } else {
       await runDevicePreviewIsapiRequest("GET");
@@ -6658,7 +6668,10 @@ async function runDevicePreviewIsapiRequest(methodOverride = "") {
     // ISAPI设备 - 直接显示设备信息
     try {
       // 获取当前选中的预设
-      const presetKey = String(els.devicePreviewIsapiPreset?.value || "deviceInfo").trim() || "deviceInfo";
+      const presetKey = normalizeHikvisionPreviewPresetKey(els.devicePreviewIsapiPreset?.value || "deviceInfo");
+      if (els.devicePreviewIsapiPreset && els.devicePreviewIsapiPreset.value !== presetKey) {
+        els.devicePreviewIsapiPreset.value = presetKey;
+      }
       const preset = DEVICE_PREVIEW_ISAPI_PRESETS[presetKey] || DEVICE_PREVIEW_ISAPI_PRESETS.deviceInfo;
       const schema = DEVICE_PREVIEW_ISAPI_SCHEMAS[preset.schema] || DEVICE_PREVIEW_ISAPI_SCHEMAS.deviceInfo;
       
