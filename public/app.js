@@ -341,6 +341,65 @@ const DEVICE_PREVIEW_ONVIF_SCHEMAS = {
   }
 };
 
+const SDK_TRIGGER_TYPE_OPTIONS = [
+  { value: 1, label: "IO测速" },
+  { value: 2, label: "单IO" },
+  { value: 4, label: "RS485车检器" },
+  { value: 8, label: "RS485雷达" },
+  { value: 16, label: "虚拟线圈" },
+  { value: 32, label: "HVT抓拍" },
+  { value: 256, label: "雷达视频" },
+  { value: 4096, label: "IPC HVT" },
+  { value: 1048576, label: "HVT V50" }
+];
+
+const SDK_TRIGGER_SPARE_MODE_OPTIONS = [
+  { value: 0, label: "默认" },
+  { value: 1, label: "虚拟线圈备用" },
+  { value: 2, label: "手动雷达模式" }
+];
+
+const SDK_SNAP_MODE_OPTIONS = [
+  { value: 0, label: "频闪" },
+  { value: 1, label: "爆闪" },
+  { value: 2, label: "手动" }
+];
+
+const SDK_SPEED_DETECTOR_OPTIONS = [
+  { value: 0, label: "关闭" },
+  { value: 1, label: "雷达" },
+  { value: 2, label: "线圈" },
+  { value: 3, label: "视频" }
+];
+
+const SDK_SCENE_MODE_OPTIONS = [
+  { value: 0, label: "城市道路" },
+  { value: 1, label: "小区出入口" },
+  { value: 2, label: "高速公路" },
+  { value: 3, label: "隧道" },
+  { value: 4, label: "卡口" }
+];
+
+const SDK_CAP_TYPE_OPTIONS = [
+  { value: 0, label: "默认" },
+  { value: 1, label: "机动车" },
+  { value: 2, label: "非机动车" },
+  { value: 3, label: "行人" }
+];
+
+const SDK_CAP_MODE_OPTIONS = [
+  { value: 0, label: "视频帧抓拍" },
+  { value: 1, label: "间隔抓拍" },
+  { value: 2, label: "连续抓拍" }
+];
+
+const SDK_SPEED_MODE_OPTIONS = [
+  { value: 0, label: "不测速" },
+  { value: 1, label: "雷达测速" },
+  { value: 2, label: "线圈测速" },
+  { value: 3, label: "视频测速" }
+];
+
 // ISAPI协议的字段定义 - 修改为只显示设备基本信息
 const DEVICE_PREVIEW_ISAPI_SCHEMAS = {
   deviceInfo: {
@@ -470,7 +529,7 @@ const DEVICE_PREVIEW_ISAPI_SCHEMAS = {
     readOnly: false,
     saveApiPath: "/api/sdk/current-trigger-mode/set",
     fields: [
-      { key: "triggerTypeCode", label: "触发类型代码", type: "number" },
+      { key: "triggerTypeCode", label: "触发类型代码", type: "select", options: SDK_TRIGGER_TYPE_OPTIONS },
       { key: "triggerTypeLabel", label: "当前触发模式", type: "text", readOnly: true },
       { key: "triggerTypeHex", label: "触发类型HEX", type: "text", readOnly: true },
       { key: "summary", label: "摘要", type: "text", readOnly: true }
@@ -489,17 +548,17 @@ const DEVICE_PREVIEW_ISAPI_SCHEMAS = {
     saveApiPath: "/api/sdk/trigger-config/set",
     fields: [
       { key: "enabled", label: "启用状态", type: "checkbox" },
-      { key: "triggerTypeCode", label: "触发类型代码", type: "number" },
+      { key: "triggerTypeCode", label: "触发类型代码", type: "select", options: SDK_TRIGGER_TYPE_OPTIONS },
       { key: "laneCount", label: "关联车道数", type: "number" },
-      { key: "triggerSpareMode", label: "备用模式代码", type: "number" },
+      { key: "triggerSpareMode", label: "备用模式代码", type: "select", options: SDK_TRIGGER_SPARE_MODE_OPTIONS },
       { key: "faultToleranceMinutes", label: "容错时间(分钟)", type: "number" },
       { key: "displayEnabled", label: "显示辅助线", type: "checkbox" },
-      { key: "snapMode", label: "抓拍模式代码", type: "number" },
-      { key: "speedDetector", label: "测速方式代码", type: "number" },
-      { key: "sceneMode", label: "场景模式代码", type: "number" },
-      { key: "capType", label: "抓拍类型代码", type: "number" },
-      { key: "capMode", label: "抓拍方式代码", type: "number" },
-      { key: "speedMode", label: "速度模式代码", type: "number" },
+      { key: "snapMode", label: "抓拍模式代码", type: "select", options: SDK_SNAP_MODE_OPTIONS },
+      { key: "speedDetector", label: "测速方式代码", type: "select", options: SDK_SPEED_DETECTOR_OPTIONS },
+      { key: "sceneMode", label: "场景模式代码", type: "select", options: SDK_SCENE_MODE_OPTIONS },
+      { key: "capType", label: "抓拍类型代码", type: "select", options: SDK_CAP_TYPE_OPTIONS },
+      { key: "capMode", label: "抓拍方式代码", type: "select", options: SDK_CAP_MODE_OPTIONS },
+      { key: "speedMode", label: "速度模式代码", type: "select", options: SDK_SPEED_MODE_OPTIONS },
       { key: "enabledLabel", label: "启用状态文本", type: "text", readOnly: true },
       { key: "triggerTypeLabel", label: "触发模式", type: "text", readOnly: true },
       { key: "triggerTypeHex", label: "触发类型HEX", type: "text", readOnly: true },
