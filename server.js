@@ -6424,6 +6424,49 @@ app.post("/api/sdk/device-info", async (req, res) => {
       mock: false
     });
   }
+  });
+
+/**
+ * 获取设备网络参数配置 (通过SDK)
+ */
+app.post("/api/sdk/network-config", async (req, res) => {
+  try {
+    const { ip, port = 8000, username = "admin", password = "qwer1234" } = req.body;
+
+    if (!ip) {
+      return res.status(400).json({ error: "缺少设备IP地址" });
+    }
+
+    if (!hikvisionSdkBridge) {
+      return res.status(503).json({
+        success: false,
+        error: "SDK功能不可用",
+        message: "SDK桥接器未加载或初始化失败",
+        sdkAvailable: false,
+        mock: false
+      });
+    }
+
+    console.log(`[SDK API] 获取设备网络参数: ${ip}:${port}`);
+    const result = await hikvisionSdkBridge.getNetworkConfig({
+      ip, port, username, password
+    });
+
+    res.json({
+      success: true,
+      sdkAvailable: hikvisionSdkBridge.sdkAvailable,
+      ...result
+    });
+  } catch (error) {
+    console.error("[SDK API] 获取设备网络参数失败:", error);
+    res.status(500).json({
+      success: false,
+      error: "获取设备网络参数失败",
+      message: error.message,
+      sdkAvailable: hikvisionSdkBridge ? hikvisionSdkBridge.sdkAvailable : false,
+      mock: false
+    });
+  }
 });
 
 /**

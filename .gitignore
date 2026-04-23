@@ -22,3 +22,5 @@ release/
 # JNA库文件
 sdk/tools/jna.jar
 *.jar
+
+sdk/java/*.class

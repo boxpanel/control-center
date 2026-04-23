@@ -297,6 +297,88 @@ ensure_base_packages() {
   fi
 }
 
+has_hikvision_sdk_assets() {
+  [[ -f "$ROOT_DIR/sdk/tools/hikvision-sdk-bridge.js" ]] || return 1
+  [[ -f "$ROOT_DIR/sdk/java/HikvisionTrafficConfigTool.java" ]] || return 1
+  return 0
+}
+
+find_hikvision_sdk_root() {
+  local candidates=(
+    "$ROOT_DIR/HCNetSDKV6.1.11.5"
+    "$ROOT_DIR/HCNetSDKV6.1.11.5_build20251204_ArmLinux64_ZH"
+    "$ROOT_DIR/temp_sdk/HCNetSDKV6.1.11.5"
+    "$ROOT_DIR/temp_sdk/HCNetSDKV6.1.11.5_build20251204_ArmLinux64_ZH"
+  )
+  local candidate=""
+  for candidate in "${candidates[@]}"; do
+    if [[ -f "$candidate/MakeAll/libhcnetsdk.so" ]]; then
+      printf "%s" "$candidate"
+      return 0
+    fi
+  done
+
+  local temp_sdk_dir="$ROOT_DIR/temp_sdk"
+  if [[ -d "$temp_sdk_dir" ]]; then
+    local entry=""
+    for entry in "$temp_sdk_dir"/*; do
+      [[ -d "$entry" ]] || continue
+      if [[ -f "$entry/MakeAll/libhcnetsdk.so" ]]; then
+        printf "%s" "$entry"
+        return 0
+      fi
+    done
+  fi
+
+  return 1
+}
+
+ensure_sdk_packages() {
+  if ! has_hikvision_sdk_assets; then
+    return
+  fi
+
+  local missing=()
+  local required=(openjdk-17-jre-headless openjdk-17-jdk-headless)
+  local pkg=""
+  for pkg in "${required[@]}"; do
+    if ! dpkg -s "$pkg" >/dev/null 2>&1; then
+      missing+=("$pkg")
+    fi
+  done
+
+  if [[ "${#missing[@]}" -gt 0 ]]; then
+    step "Installing Hikvision SDK dependencies"
+    install_apt_packages "${missing[@]}"
+  fi
+}
+
+print_sdk_runtime_status() {
+  if ! has_hikvision_sdk_assets; then
+    return
+  fi
+
+  local sdk_root=""
+  sdk_root="$(find_hikvision_sdk_root 2>/dev/null || true)"
+
+  printf "SDK bridge         : detected\n"
+  if command -v java >/dev/null 2>&1; then
+    printf "Java runtime       : %s\n" "$(java -version 2>&1 | head -n 1)"
+  else
+    printf "Java runtime       : missing\n"
+  fi
+  if command -v javac >/dev/null 2>&1; then
+    printf "Java compiler      : %s\n" "$(javac -version 2>&1)"
+  else
+    printf "Java compiler      : missing\n"
+  fi
+  if [[ -n "$sdk_root" ]]; then
+    printf "HCNetSDK root      : %s\n" "$sdk_root"
+  else
+    printf "HCNetSDK root      : not found (SDK-only features will stay unavailable until the Linux SDK package is present)\n"
+  fi
+}
+
 
 
 ensure_nodejs() {
@@ -600,9 +682,11 @@ ensure_install_settings_present
 step "Preparing Ubuntu dependencies"
 ensure_base_packages
 ensure_nodejs
+ensure_sdk_packages
 ensure_sdk_installed
 printf "Node version: %s\n" "$(node -v)"
 printf "Platform: Ubuntu/Linux\n"
+print_sdk_runtime_status
 
 step "Creating app folders"
 mkdir -p data uploads uploads/ftp uploads/plates streams

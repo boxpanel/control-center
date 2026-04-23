@@ -1,0 +1,1118 @@
+import com.sun.jna.Library;
+import com.sun.jna.Native;
+import com.sun.jna.Pointer;
+import com.sun.jna.Structure;
+import com.sun.jna.ptr.IntByReference;
+
+import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+import java.util.Locale;
+
+public class HikvisionTrafficConfigTool {
+    private static final int NET_DVR_DEV_ADDRESS_MAX_LEN = 129;
+    private static final int NET_DVR_LOGIN_USERNAME_MAX_LEN = 64;
+    private static final int NET_DVR_LOGIN_PASSWD_MAX_LEN = 64;
+    private static final int SERIALNO_LEN = 48;
+    private static final int MAX_ETHERNET = 2;
+    private static final int NAME_LEN = 32;
+    private static final int PASSWD_LEN = 16;
+    private static final int MAX_DOMAIN_NAME = 64;
+    private static final int MAX_CUSTOMDIR_LEN = 32;
+    private static final int PICNAME_MAXITEM = 15;
+    private static final int NET_DVR_GET_NETCFG_V30 = 1000;
+    private static final int NET_ITC_GET_FTPCFG = 3121;
+    private static final int NET_ITC_GET_TRIGGERCFG = 3003;
+    private static final int NET_DVR_GET_CURTRIGGERMODE = 3130;
+    private static final Charset DEVICE_CHARSET = StandardCharsets.UTF_8;
+
+    public interface HCNetSDK extends Library {
+        boolean NET_DVR_Init();
+        boolean NET_DVR_Cleanup();
+        boolean NET_DVR_SetConnectTime(int waitTime, int tryTimes);
+        boolean NET_DVR_SetReconnect(int interval, boolean enableRecon);
+        int NET_DVR_Login_V40(NET_DVR_USER_LOGIN_INFO loginInfo, NET_DVR_DEVICEINFO_V40 deviceInfo);
+        boolean NET_DVR_Logout(int userId);
+        boolean NET_DVR_GetDVRConfig(int userId, int command, int channel, Pointer outBuffer, int outBufferSize, IntByReference bytesReturned);
+        int NET_DVR_GetLastError();
+    }
+
+    public static class NET_DVR_IPADDR extends Structure {
+        public byte[] sIpV4 = new byte[16];
+        public byte[] byRes = new byte[128];
+
+        @Override
+        protected List<String> getFieldOrder() {
+            return Arrays.asList("sIpV4", "byRes");
+        }
+    }
+
+    public static class NET_DVR_ETHERNET_V30 extends Structure {
+        public NET_DVR_IPADDR struDVRIP = new NET_DVR_IPADDR();
+        public NET_DVR_IPADDR struDVRIPMask = new NET_DVR_IPADDR();
+        public int dwNetInterface;
+        public short wDVRPort;
+        public short wMTU;
+        public byte[] byMACAddr = new byte[6];
+
+        @Override
+        protected List<String> getFieldOrder() {
+            return Arrays.asList("struDVRIP", "struDVRIPMask", "dwNetInterface", "wDVRPort", "wMTU", "byMACAddr");
+        }
+    }
+
+    public static class NET_DVR_PPPOECFG extends Structure {
+        public int dwPPPOE;
+        public byte[] sPPPoEUser = new byte[32];
+        public byte[] sPPPoEPassword = new byte[16];
+        public NET_DVR_IPADDR struPPPoEIP = new NET_DVR_IPADDR();
+
+        @Override
+        protected List<String> getFieldOrder() {
+            return Arrays.asList("dwPPPOE", "sPPPoEUser", "sPPPoEPassword", "struPPPoEIP");
+        }
+    }
+
+    public static class NET_DVR_NETCFG_V30 extends Structure {
+        public int dwSize;
+        public NET_DVR_ETHERNET_V30[] struEtherNet = (NET_DVR_ETHERNET_V30[]) new NET_DVR_ETHERNET_V30().toArray(MAX_ETHERNET);
+        public NET_DVR_IPADDR[] struRes1 = (NET_DVR_IPADDR[]) new NET_DVR_IPADDR().toArray(2);
+        public NET_DVR_IPADDR struAlarmHostIpAddr = new NET_DVR_IPADDR();
+        public short[] wRes2 = new short[2];
+        public short wAlarmHostIpPort;
+        public byte byUseDhcp;
+        public byte byRes3;
+        public NET_DVR_IPADDR struDnsServer1IpAddr = new NET_DVR_IPADDR();
+        public NET_DVR_IPADDR struDnsServer2IpAddr = new NET_DVR_IPADDR();
+        public byte[] byIpResolver = new byte[64];
+        public short wIpResolverPort;
+        public short wHttpPortNo;
+        public NET_DVR_IPADDR struMulticastIpAddr = new NET_DVR_IPADDR();
+        public NET_DVR_IPADDR struGatewayIpAddr = new NET_DVR_IPADDR();
+        public NET_DVR_PPPOECFG struPPPoE = new NET_DVR_PPPOECFG();
+        public byte[] byRes = new byte[64];
+
+        @Override
+        protected List<String> getFieldOrder() {
+            return Arrays.asList(
+                    "dwSize", "struEtherNet", "struRes1", "struAlarmHostIpAddr", "wRes2", "wAlarmHostIpPort",
+                    "byUseDhcp", "byRes3", "struDnsServer1IpAddr", "struDnsServer2IpAddr", "byIpResolver",
+                    "wIpResolverPort", "wHttpPortNo", "struMulticastIpAddr", "struGatewayIpAddr", "struPPPoE", "byRes"
+            );
+        }
+    }
+
+    public static class NET_DVR_DEVICEINFO_V30 extends Structure {
+        public byte[] sSerialNumber = new byte[SERIALNO_LEN];
+        public byte byAlarmInPortNum;
+        public byte byAlarmOutPortNum;
+        public byte byDiskNum;
+        public byte byDVRType;
+        public byte byChanNum;
+        public byte byStartChan;
+        public byte byAudioChanNum;
+        public byte byIPChanNum;
+        public byte byZeroChanNum;
+        public byte byMainProto;
+        public byte bySubProto;
+        public byte bySupport;
+        public byte bySupport1;
+        public byte bySupport2;
+        public short wDevType;
+        public byte bySupport3;
+        public byte byMultiStreamProto;
+        public byte byStartDChan;
+        public byte byStartDTalkChan;
+        public byte byHighDChanNum;
+        public byte bySupport4;
+        public byte byLanguageType;
+        public byte byVoiceInChanNum;
+        public byte byStartVoiceInChanNo;
+        public byte bySupport5;
+        public byte bySupport6;
+        public byte byMirrorChanNum;
+        public short wStartMirrorChanNo;
+        public byte bySupport7;
+        public byte byRes2;
+
+        @Override
+        protected List<String> getFieldOrder() {
+            return Arrays.asList(
+                    "sSerialNumber", "byAlarmInPortNum", "byAlarmOutPortNum", "byDiskNum", "byDVRType", "byChanNum",
+                    "byStartChan", "byAudioChanNum", "byIPChanNum", "byZeroChanNum", "byMainProto", "bySubProto",
+                    "bySupport", "bySupport1", "bySupport2", "wDevType", "bySupport3", "byMultiStreamProto",
+                    "byStartDChan", "byStartDTalkChan", "byHighDChanNum", "bySupport4", "byLanguageType",
+                    "byVoiceInChanNum", "byStartVoiceInChanNo", "bySupport5", "bySupport6", "byMirrorChanNum",
+                    "wStartMirrorChanNo", "bySupport7", "byRes2"
+            );
+        }
+    }
+
+    public static class NET_DVR_DEVICEINFO_V40 extends Structure {
+        public NET_DVR_DEVICEINFO_V30 struDeviceV30 = new NET_DVR_DEVICEINFO_V30();
+        public byte bySupportLock;
+        public byte byRetryLoginTime;
+        public byte byPasswordLevel;
+        public byte byRes1;
+        public int dwSurplusLockTime;
+        public byte byCharEncodeType;
+        public byte bySupportDev5;
+        public byte bySupport;
+        public byte byLoginMode;
+        public int dwOEMCode;
+        public int iResidualValidity;
+        public byte byResidualValidity;
+        public byte bySingleStartDTalkChan;
+        public byte bySingleDTalkChanNums;
+        public byte byPassWordResetLevel;
+        public byte bySupportStreamEncrypt;
+        public byte byMarketType;
+        public byte[] byRes2 = new byte[238];
+
+        @Override
+        protected List<String> getFieldOrder() {
+            return Arrays.asList(
+                    "struDeviceV30", "bySupportLock", "byRetryLoginTime", "byPasswordLevel", "byRes1",
+                    "dwSurplusLockTime", "byCharEncodeType", "bySupportDev5", "bySupport", "byLoginMode",
+                    "dwOEMCode", "iResidualValidity", "byResidualValidity", "bySingleStartDTalkChan",
+                    "bySingleDTalkChanNums", "byPassWordResetLevel", "bySupportStreamEncrypt", "byMarketType", "byRes2"
+            );
+        }
+    }
+
+    public static class NET_DVR_USER_LOGIN_INFO extends Structure {
+        public byte[] sDeviceAddress = new byte[NET_DVR_DEV_ADDRESS_MAX_LEN];
+        public byte byUseTransport;
+        public short wPort;
+        public byte[] sUserName = new byte[NET_DVR_LOGIN_USERNAME_MAX_LEN];
+        public byte[] sPassword = new byte[NET_DVR_LOGIN_PASSWD_MAX_LEN];
+        public Pointer cbLoginResult;
+        public Pointer pUser;
+        public boolean bUseAsynLogin;
+        public byte byProxyType;
+        public byte byUseUTCTime;
+        public byte byLoginMode;
+        public byte byHttps;
+        public int iProxyID;
+        public byte byVerifyMode;
+        public byte[] byRes2 = new byte[119];
+
+        @Override
+        protected List<String> getFieldOrder() {
+            return Arrays.asList(
+                    "sDeviceAddress", "byUseTransport", "wPort", "sUserName", "sPassword", "cbLoginResult", "pUser",
+                    "bUseAsynLogin", "byProxyType", "byUseUTCTime", "byLoginMode", "byHttps", "iProxyID",
+                    "byVerifyMode", "byRes2"
+            );
+        }
+    }
+
+    public static class NET_DVR_CURTRIGGERMODE extends Structure {
+        public int dwSize;
+        public int dwTriggerType;
+        public byte[] byRes = new byte[24];
+
+        @Override
+        protected List<String> getFieldOrder() {
+            return Arrays.asList("dwSize", "dwTriggerType", "byRes");
+        }
+    }
+
+    public static class NET_ITC_POST_RS485_PARAM extends Structure {
+        public byte byRelatedLaneNum;
+        public byte byTriggerSpareMode;
+        public byte byFaultToleranceTime;
+        public byte byRes1;
+        public byte[] byRest = new byte[864];
+
+        @Override
+        protected List<String> getFieldOrder() {
+            return Arrays.asList("byRelatedLaneNum", "byTriggerSpareMode", "byFaultToleranceTime", "byRes1", "byRest");
+        }
+    }
+
+    public static class NET_ITC_POST_VTCOIL_PARAM extends Structure {
+        public byte byRelatedLaneNum;
+        public byte byIsDisplay;
+        public byte byLoopPos;
+        public byte byPolarLenType;
+        public byte byDayAuxLightMode;
+        public byte byVideoLaneNO;
+        public byte byVideoLowTh;
+        public byte byVideoHighTh;
+        public byte byRecordMode;
+        public byte bySnapMode;
+        public byte bySpeedDetector;
+        public byte byRes2;
+        public short wResolutionX;
+        public short wResolutionY;
+        public int dwDayInitExp;
+        public int dwDayMaxExp;
+        public int dwNightExp;
+        public int dwSnapExp;
+        public byte byDayInitGain;
+        public byte byDayMaxGain;
+        public byte byNightGain;
+        public byte bySnapGain;
+        public int dwSceneMode;
+        public byte[] byRest = new byte[1396];
+
+        @Override
+        protected List<String> getFieldOrder() {
+            return Arrays.asList(
+                    "byRelatedLaneNum", "byIsDisplay", "byLoopPos", "byPolarLenType", "byDayAuxLightMode",
+                    "byVideoLaneNO", "byVideoLowTh", "byVideoHighTh", "byRecordMode", "bySnapMode", "bySpeedDetector",
+                    "byRes2", "wResolutionX", "wResolutionY", "dwDayInitExp", "dwDayMaxExp", "dwNightExp", "dwSnapExp",
+                    "byDayInitGain", "byDayMaxGain", "byNightGain", "bySnapGain", "dwSceneMode", "byRest"
+            );
+        }
+    }
+
+    public static class NET_ITC_POST_HVT_PARAM_V50 extends Structure {
+        public byte byLaneNum;
+        public byte byCapType;
+        public byte byCapMode;
+        public byte bySecneMode;
+        public byte bySpeedMode;
+        public byte byLineRuleEffect;
+        public byte[] byRes1 = new byte[78];
+        public byte[] byRest = new byte[1872];
+
+        @Override
+        protected List<String> getFieldOrder() {
+            return Arrays.asList("byLaneNum", "byCapType", "byCapMode", "bySecneMode", "bySpeedMode", "byLineRuleEffect", "byRes1", "byRest");
+        }
+    }
+
+    public static class NET_ITC_TRIGGER_PARAM_UNION extends Structure {
+        public int[] uLen = new int[1070];
+
+        @Override
+        protected List<String> getFieldOrder() {
+            return Collections.singletonList("uLen");
+        }
+
+        public NET_ITC_POST_RS485_PARAM asRs485() {
+            NET_ITC_POST_RS485_PARAM value = new NET_ITC_POST_RS485_PARAM();
+            value.getPointer().write(0, this.getPointer().getByteArray(0, value.size()), 0, value.size());
+            value.read();
+            return value;
+        }
+
+        public NET_ITC_POST_VTCOIL_PARAM asVtCoil() {
+            NET_ITC_POST_VTCOIL_PARAM value = new NET_ITC_POST_VTCOIL_PARAM();
+            value.getPointer().write(0, this.getPointer().getByteArray(0, value.size()), 0, value.size());
+            value.read();
+            return value;
+        }
+
+        public NET_ITC_POST_HVT_PARAM_V50 asHvtV50() {
+            NET_ITC_POST_HVT_PARAM_V50 value = new NET_ITC_POST_HVT_PARAM_V50();
+            value.getPointer().write(0, this.getPointer().getByteArray(0, value.size()), 0, value.size());
+            value.read();
+            return value;
+        }
+    }
+
+    public static class NET_ITC_SINGLE_TRIGGERCFG extends Structure {
+        public byte byEnable;
+        public byte[] byRes1 = new byte[3];
+        public int dwTriggerType;
+        public NET_ITC_TRIGGER_PARAM_UNION uTriggerParam = new NET_ITC_TRIGGER_PARAM_UNION();
+        public byte[] byRes = new byte[64];
+
+        @Override
+        protected List<String> getFieldOrder() {
+            return Arrays.asList("byEnable", "byRes1", "dwTriggerType", "uTriggerParam", "byRes");
+        }
+    }
+
+    public static class NET_ITC_TRIGGERCFG extends Structure {
+        public int dwSize;
+        public NET_ITC_SINGLE_TRIGGERCFG struTriggerParam = new NET_ITC_SINGLE_TRIGGERCFG();
+        public byte[] byRes = new byte[32];
+
+        @Override
+        protected List<String> getFieldOrder() {
+            return Arrays.asList("dwSize", "struTriggerParam", "byRes");
+        }
+    }
+
+    public static class NET_DVR_PICTURE_NAME extends Structure {
+        public byte[] byItemOrder = new byte[PICNAME_MAXITEM];
+        public byte byDelimiter;
+
+        @Override
+        protected List<String> getFieldOrder() {
+            return Arrays.asList("byItemOrder", "byDelimiter");
+        }
+    }
+
+    public static class NET_ITC_FTP_CFG extends Structure {
+        public int dwSize;
+        public byte byEnable;
+        public byte byAddressType;
+        public short wFTPPort;
+        public byte[] unionServer = new byte[144];
+        public byte[] szUserName = new byte[NAME_LEN];
+        public byte[] szPassWORD = new byte[PASSWD_LEN];
+        public byte byRes4;
+        public byte byDirLevel;
+        public byte byIsFilterCarPic;
+        public byte byUploadDataType;
+        public NET_DVR_PICTURE_NAME struPicNameRule = new NET_DVR_PICTURE_NAME();
+        public byte byTopDirMode;
+        public byte bySubDirMode;
+        public byte byThreeDirMode;
+        public byte byFourDirMode;
+        public byte[] szPicNameCustom = new byte[MAX_CUSTOMDIR_LEN];
+        public byte[] szTopCustomDir = new byte[MAX_CUSTOMDIR_LEN];
+        public byte[] szSubCustomDir = new byte[MAX_CUSTOMDIR_LEN];
+        public byte[] szThreeCustomDir = new byte[MAX_CUSTOMDIR_LEN];
+        public byte[] szFourCustomDir = new byte[MAX_CUSTOMDIR_LEN];
+        public byte[] byRes3 = new byte[900];
+
+        @Override
+        protected List<String> getFieldOrder() {
+            return Arrays.asList(
+                    "dwSize", "byEnable", "byAddressType", "wFTPPort", "unionServer",
+                    "szUserName", "szPassWORD", "byRes4", "byDirLevel", "byIsFilterCarPic", "byUploadDataType",
+                    "struPicNameRule", "byTopDirMode", "bySubDirMode", "byThreeDirMode", "byFourDirMode",
+                    "szPicNameCustom", "szTopCustomDir", "szSubCustomDir", "szThreeCustomDir", "szFourCustomDir", "byRes3"
+            );
+        }
+    }
+
+    private static HCNetSDK sdk;
+
+    public static void main(String[] args) {
+        String action = arg(args, 0, "");
+        String ip = arg(args, 1, "");
+        int port = parseInt(arg(args, 2, "8000"), 8000);
+        String username = arg(args, 3, "admin");
+        String password = arg(args, 4, "");
+
+        try {
+            sdk = loadSdk();
+            if (!sdk.NET_DVR_Init()) {
+                fail("NET_DVR_Init failed", sdk.NET_DVR_GetLastError());
+                return;
+            }
+
+            sdk.NET_DVR_SetConnectTime(5000, 1);
+            sdk.NET_DVR_SetReconnect(10000, true);
+
+            NET_DVR_USER_LOGIN_INFO loginInfo = new NET_DVR_USER_LOGIN_INFO();
+            fillBytes(loginInfo.sDeviceAddress, ip);
+            fillBytes(loginInfo.sUserName, username);
+            fillBytes(loginInfo.sPassword, password);
+            loginInfo.wPort = (short) port;
+            loginInfo.byUseTransport = 0;
+            loginInfo.bUseAsynLogin = false;
+            loginInfo.byLoginMode = 0;
+            loginInfo.write();
+
+            NET_DVR_DEVICEINFO_V40 deviceInfo = new NET_DVR_DEVICEINFO_V40();
+            int userId = sdk.NET_DVR_Login_V40(loginInfo, deviceInfo);
+            if (userId < 0) {
+                fail("NET_DVR_Login_V40 failed", sdk.NET_DVR_GetLastError());
+                sdk.NET_DVR_Cleanup();
+                return;
+            }
+
+            deviceInfo.read();
+
+            try {
+                switch (action) {
+                    case "device-info":
+                        success(buildDeviceInfo(deviceInfo, ip, port, username));
+                        break;
+                    case "network-config":
+                        success(buildNetworkConfig(userId));
+                        break;
+                    case "itc-ftp-config":
+                        success(buildItcFtpConfig(userId));
+                        break;
+                    case "current-trigger-mode":
+                        success(buildCurrentTriggerMode(userId));
+                        break;
+                    case "trigger-config":
+                        success(buildTriggerConfig(userId));
+                        break;
+                    default:
+                        fail("Unsupported action: " + action, 0);
+                        break;
+                }
+            } finally {
+                sdk.NET_DVR_Logout(userId);
+                sdk.NET_DVR_Cleanup();
+            }
+        } catch (Exception error) {
+            fail(error.getMessage(), 0);
+        }
+    }
+
+    private static HCNetSDK loadSdk() {
+        String libDir = withDefault(System.getenv("HIKVISION_SDK_LIB"), "");
+        if (!libDir.isEmpty()) {
+            String current = withDefault(System.getProperty("jna.library.path"), "");
+            if (current.isEmpty()) {
+                System.setProperty("jna.library.path", libDir);
+            } else if (!current.contains(libDir)) {
+                System.setProperty("jna.library.path", libDir + java.io.File.pathSeparator + current);
+            }
+        }
+        return Native.loadLibrary("hcnetsdk", HCNetSDK.class);
+    }
+
+    private static String buildDeviceInfo(NET_DVR_DEVICEINFO_V40 deviceInfo, String ip, int port, String username) {
+        String serial = trimZero(deviceInfo.struDeviceV30.sSerialNumber);
+        int charEncodingType = unsignedByte(deviceInfo.byCharEncodeType);
+        int channelCount = unsignedByte(deviceInfo.struDeviceV30.byChanNum);
+        int alarmIn = unsignedByte(deviceInfo.struDeviceV30.byAlarmInPortNum);
+        int alarmOut = unsignedByte(deviceInfo.struDeviceV30.byAlarmOutPortNum);
+
+        return "{"
+                + "\"success\":true,"
+                + "\"message\":\"SDK device info loaded\","
+                + "\"deviceInfo\":{"
+                + "\"ip\":\"" + json(ip) + "\","
+                + "\"port\":" + port + ","
+                + "\"username\":\"" + json(username) + "\","
+                + "\"serialNumber\":\"" + json(serial) + "\","
+                + "\"channelCount\":" + channelCount + ","
+                + "\"alarmInCount\":" + alarmIn + ","
+                + "\"alarmOutCount\":" + alarmOut + ","
+                + "\"charEncodeType\":" + charEncodingType + ","
+                + "\"charEncodeLabel\":\"" + json(getEncodingLabel(charEncodingType)) + "\","
+                + "\"loginMode\":" + unsignedByte(deviceInfo.byLoginMode) + ","
+                + "\"marketType\":" + unsignedByte(deviceInfo.byMarketType)
+                + "}"
+                + "}";
+    }
+
+    private static String buildNetworkConfig(int userId) {
+        NET_DVR_NETCFG_V30 config = new NET_DVR_NETCFG_V30();
+        config.dwSize = config.size();
+        config.write();
+        IntByReference bytesReturned = new IntByReference();
+        boolean ok = sdk.NET_DVR_GetDVRConfig(userId, NET_DVR_GET_NETCFG_V30, 0, config.getPointer(), config.size(), bytesReturned);
+        if (!ok) {
+            fail("NET_DVR_GetDVRConfig(NETCFG) failed", sdk.NET_DVR_GetLastError());
+            return "";
+        }
+        config.read();
+
+        NET_DVR_ETHERNET_V30 eth = config.struEtherNet[0];
+        String ip = ipString(eth.struDVRIP);
+        String mask = ipString(eth.struDVRIPMask);
+        String gateway = ipString(config.struGatewayIpAddr);
+        String dns1 = ipString(config.struDnsServer1IpAddr);
+        String dns2 = ipString(config.struDnsServer2IpAddr);
+        String alarmHost = ipString(config.struAlarmHostIpAddr);
+        String mac = macString(eth.byMACAddr);
+        int httpPort = unsignedShort(config.wHttpPortNo);
+        int sdkPort = unsignedShort(eth.wDVRPort);
+        int mtu = unsignedShort(eth.wMTU);
+        boolean dhcpEnabled = unsignedByte(config.byUseDhcp) == 1;
+
+        return "{"
+                + "\"success\":true,"
+                + "\"message\":\"SDK network config loaded\","
+                + "\"networkConfig\":{"
+                + "\"ipAddress\":\"" + json(ip) + "\","
+                + "\"subnetMask\":\"" + json(mask) + "\","
+                + "\"gateway\":\"" + json(gateway) + "\","
+                + "\"dns1\":\"" + json(dns1) + "\","
+                + "\"dns2\":\"" + json(dns2) + "\","
+                + "\"dhcpEnabled\":" + dhcpEnabled + ","
+                + "\"dhcpEnabledLabel\":\"" + json(dhcpEnabled ? "Enabled" : "Disabled") + "\","
+                + "\"sdkPort\":" + sdkPort + ","
+                + "\"httpPort\":" + httpPort + ","
+                + "\"mtu\":" + mtu + ","
+                + "\"macAddress\":\"" + json(mac) + "\","
+                + "\"netInterfaceCode\":" + eth.dwNetInterface + ","
+                + "\"netInterfaceLabel\":\"" + json(getNetInterfaceLabel(eth.dwNetInterface)) + "\","
+                + "\"alarmHostIp\":\"" + json(alarmHost) + "\","
+                + "\"alarmHostPort\":" + unsignedShort(config.wAlarmHostIpPort)
+                + "}"
+                + "}";
+    }
+
+    private static String buildCurrentTriggerMode(int userId) {
+        NET_DVR_CURTRIGGERMODE current = new NET_DVR_CURTRIGGERMODE();
+        current.dwSize = current.size();
+        current.write();
+        IntByReference bytesReturned = new IntByReference();
+        boolean ok = sdk.NET_DVR_GetDVRConfig(userId, NET_DVR_GET_CURTRIGGERMODE, 0, current.getPointer(), current.size(), bytesReturned);
+        if (!ok) {
+            fail("NET_DVR_GetDVRConfig(CURTRIGGERMODE) failed", sdk.NET_DVR_GetLastError());
+            return "";
+        }
+        current.read();
+
+        int triggerType = current.dwTriggerType;
+        String label = getTriggerTypeLabel(triggerType);
+
+        return "{"
+                + "\"success\":true,"
+                + "\"message\":\"SDK current trigger mode loaded\","
+                + "\"currentTriggerMode\":{"
+                + "\"triggerTypeCode\":" + triggerType + ","
+                + "\"triggerTypeHex\":\"" + json(toHex(triggerType)) + "\","
+                + "\"triggerTypeLabel\":\"" + json(label) + "\","
+                + "\"summary\":\"" + json(label + " (" + toHex(triggerType) + ")") + "\""
+                + "}"
+                + "}";
+    }
+
+    private static String buildItcFtpConfig(int userId) {
+        NET_ITC_FTP_CFG config = new NET_ITC_FTP_CFG();
+        config.dwSize = config.size();
+        config.write();
+        IntByReference bytesReturned = new IntByReference();
+        boolean ok = sdk.NET_DVR_GetDVRConfig(userId, NET_ITC_GET_FTPCFG, 0, config.getPointer(), config.size(), bytesReturned);
+        if (!ok) {
+            fail("NET_DVR_GetDVRConfig(ITC_FTP_CFG) failed", sdk.NET_DVR_GetLastError());
+            return "";
+        }
+        config.read();
+
+        boolean enabled = unsignedByte(config.byEnable) == 1;
+        boolean useDomain = unsignedByte(config.byAddressType) == 1;
+        String serverAddress = useDomain
+                ? trimZero(config.unionServer, MAX_DOMAIN_NAME)
+                : trimZero(Arrays.copyOfRange(config.unionServer, 0, 16));
+        String username = trimZero(config.szUserName);
+        String passwordMasked = trimZero(config.szPassWORD).isEmpty() ? "" : "******";
+        int ftpPort = unsignedShort(config.wFTPPort);
+        int dirLevel = unsignedByte(config.byDirLevel);
+        int uploadDataType = unsignedByte(config.byUploadDataType);
+        int ftpServerType = unsignedByte(config.byRes4);
+        boolean filterCarPic = unsignedByte(config.byIsFilterCarPic) == 1;
+
+        String namingElements = buildPictureNameRule(config.struPicNameRule, trimZero(config.szPicNameCustom));
+        String fileNameFormat = buildPictureNameFormat(config.struPicNameRule, trimZero(config.szPicNameCustom));
+        String delimiter = delimiterString(config.struPicNameRule.byDelimiter);
+        String example = buildPictureNameExample(config.struPicNameRule, trimZero(config.szPicNameCustom), delimiter);
+
+        return "{"
+                + "\"success\":true,"
+                + "\"message\":\"SDK ITC FTP config loaded\","
+                + "\"ftpConfig\":{"
+                + "\"ftpEnabled\":\"" + json(enabled ? "已启用" : "已禁用") + "\","
+                + "\"ftpServer\":\"" + json(serverAddress) + "\","
+                + "\"ftpPort\":\"" + json(String.valueOf(ftpPort)) + "\","
+                + "\"ftpUsername\":\"" + json(username) + "\","
+                + "\"ftpPassword\":\"" + json(passwordMasked) + "\","
+                + "\"ftpDirectory\":\"" + json(buildDirectorySummary(config)) + "\","
+                + "\"ftpUploadMode\":\"" + json(dirLevelLabel(dirLevel)) + "\","
+                + "\"ftpUploadInterval\":\"" + json("0") + "\","
+                + "\"ftpImageQuality\":\"" + json("") + "\","
+                + "\"ftpImageResolution\":\"" + json("") + "\","
+                + "\"ftpUploadType\":\"" + json(uploadDataTypeLabel(uploadDataType)) + "\","
+                + "\"ftpFileNameFormat\":\"" + json(fileNameFormat) + "\","
+                + "\"ftpImageFormat\":\"" + json("JPEG") + "\""
+                + "},"
+                + "\"namingRules\":{"
+                + "\"fileNameFormat\":\"" + json(fileNameFormat) + "\","
+                + "\"namingRuleEnabled\":\"" + json(namingElements.isEmpty() ? "未配置" : "已启用") + "\","
+                + "\"prefix\":\"" + json(trimZero(config.szPicNameCustom)) + "\","
+                + "\"dateFormat\":\"" + json(fileNameFormat.contains("时间") ? "YYYYMMDDHHmmss" : "") + "\","
+                + "\"timeFormat\":\"" + json(fileNameFormat.contains("时间") ? "HHmmss" : "") + "\","
+                + "\"includeChannelNumber\":\"" + json(boolLabel(containsPictureItem(config.struPicNameRule, 5)) ) + "\","
+                + "\"includeSequenceNumber\":\"" + json(boolLabel(containsPictureItem(config.struPicNameRule, 13) || containsPictureItem(config.struPicNameRule, 14))) + "\","
+                + "\"includeCameraName\":\"" + json(boolLabel(containsPictureItem(config.struPicNameRule, 1) || containsPictureItem(config.struPicNameRule, 4))) + "\","
+                + "\"includePlateNumber\":\"" + json(boolLabel(containsPictureItem(config.struPicNameRule, 8))) + "\","
+                + "\"includeTimestamp\":\"" + json(boolLabel(containsPictureItem(config.struPicNameRule, 6))) + "\","
+                + "\"includeEventType\":\"" + json(boolLabel(containsPictureItem(config.struPicNameRule, 22))) + "\","
+                + "\"fileExtension\":\"" + json(".jpg") + "\","
+                + "\"namingElements\":\"" + json(namingElements) + "\","
+                + "\"example\":\"" + json(example) + "\""
+                + "},"
+                + "\"itcFtpMeta\":{"
+                + "\"serverTypeLabel\":\"" + json(ftpServerTypeLabel(ftpServerType)) + "\","
+                + "\"addressTypeLabel\":\"" + json(useDomain ? "域名" : "IP地址") + "\","
+                + "\"isFilterCarPicLabel\":\"" + json(filterCarPic ? "不上传" : "上传") + "\","
+                + "\"topDirModeLabel\":\"" + json(dirModeLabel(unsignedByte(config.byTopDirMode))) + "\","
+                + "\"subDirModeLabel\":\"" + json(dirModeLabel(unsignedByte(config.bySubDirMode))) + "\","
+                + "\"threeDirModeLabel\":\"" + json(dirModeLabel(unsignedByte(config.byThreeDirMode))) + "\","
+                + "\"fourDirModeLabel\":\"" + json(dirModeLabel(unsignedByte(config.byFourDirMode))) + "\","
+                + "\"delimiter\":\"" + json(delimiter) + "\""
+                + "}"
+                + "}";
+    }
+
+    private static String buildTriggerConfig(int userId) {
+        NET_ITC_TRIGGERCFG config = new NET_ITC_TRIGGERCFG();
+        config.dwSize = config.size();
+        config.write();
+        IntByReference bytesReturned = new IntByReference();
+        boolean ok = sdk.NET_DVR_GetDVRConfig(userId, NET_ITC_GET_TRIGGERCFG, 0, config.getPointer(), config.size(), bytesReturned);
+        if (!ok) {
+            fail("NET_DVR_GetDVRConfig(TRIGGERCFG) failed", sdk.NET_DVR_GetLastError());
+            return "";
+        }
+        config.read();
+
+        NET_ITC_SINGLE_TRIGGERCFG trigger = config.struTriggerParam;
+        int triggerType = trigger.dwTriggerType;
+        String triggerLabel = getTriggerTypeLabel(triggerType);
+        boolean enabled = unsignedByte(trigger.byEnable) == 1;
+
+        int laneCount = 0;
+        String detailSource = "raw";
+        String triggerSpareModeLabel = "";
+        Integer faultToleranceMinutes = null;
+        String displayEnabled = "";
+        String snapModeLabel = "";
+        String speedDetectorLabel = "";
+        String sceneModeLabel = "";
+        String capTypeLabel = "";
+        String capModeLabel = "";
+        String speedModeLabel = "";
+
+        if (triggerType == 0x4) {
+            NET_ITC_POST_RS485_PARAM rs485 = trigger.uTriggerParam.asRs485();
+            laneCount = unsignedByte(rs485.byRelatedLaneNum);
+            triggerSpareModeLabel = getTriggerSpareModeLabel(unsignedByte(rs485.byTriggerSpareMode));
+            faultToleranceMinutes = unsignedByte(rs485.byFaultToleranceTime);
+            detailSource = "rs485";
+        } else if (triggerType == 0x10) {
+            NET_ITC_POST_VTCOIL_PARAM vt = trigger.uTriggerParam.asVtCoil();
+            laneCount = unsignedByte(vt.byRelatedLaneNum);
+            displayEnabled = unsignedByte(vt.byIsDisplay) == 1 ? "Yes" : "No";
+            snapModeLabel = getSnapModeLabel(unsignedByte(vt.bySnapMode));
+            speedDetectorLabel = getSpeedDetectorLabel(unsignedByte(vt.bySpeedDetector));
+            sceneModeLabel = getSceneModeLabel(vt.dwSceneMode);
+            detailSource = "virtualCoil";
+        } else if ((triggerType & 0x20) != 0 || (triggerType & 0x100000) != 0) {
+            NET_ITC_POST_HVT_PARAM_V50 hvt = trigger.uTriggerParam.asHvtV50();
+            laneCount = unsignedByte(hvt.byLaneNum);
+            capTypeLabel = getCapTypeLabel(unsignedByte(hvt.byCapType));
+            capModeLabel = getCapModeLabel(unsignedByte(hvt.byCapMode));
+            sceneModeLabel = getSceneModeLabel(unsignedByte(hvt.bySecneMode));
+            speedModeLabel = getSpeedModeLabel(unsignedByte(hvt.bySpeedMode));
+            detailSource = "hvtV50";
+        }
+
+        StringBuilder summary = new StringBuilder();
+        summary.append(enabled ? "Enabled" : "Disabled").append(" / ").append(triggerLabel);
+        if (laneCount > 0) summary.append(" / lanes=").append(laneCount);
+        if (!triggerSpareModeLabel.isEmpty()) summary.append(" / spare=").append(triggerSpareModeLabel);
+        if (!capModeLabel.isEmpty()) summary.append(" / capMode=").append(capModeLabel);
+
+        return "{"
+                + "\"success\":true,"
+                + "\"message\":\"SDK trigger config loaded\","
+                + "\"triggerConfig\":{"
+                + "\"enabled\":" + enabled + ","
+                + "\"enabledLabel\":\"" + json(enabled ? "Enabled" : "Disabled") + "\","
+                + "\"triggerTypeCode\":" + triggerType + ","
+                + "\"triggerTypeHex\":\"" + json(toHex(triggerType)) + "\","
+                + "\"triggerTypeLabel\":\"" + json(triggerLabel) + "\","
+                + "\"detailSource\":\"" + json(detailSource) + "\","
+                + "\"laneCount\":" + laneCount + ","
+                + "\"triggerSpareModeLabel\":\"" + json(triggerSpareModeLabel) + "\","
+                + "\"faultToleranceMinutes\":" + (faultToleranceMinutes == null ? "null" : faultToleranceMinutes) + ","
+                + "\"displayEnabled\":\"" + json(displayEnabled) + "\","
+                + "\"snapModeLabel\":\"" + json(snapModeLabel) + "\","
+                + "\"speedDetectorLabel\":\"" + json(speedDetectorLabel) + "\","
+                + "\"sceneModeLabel\":\"" + json(sceneModeLabel) + "\","
+                + "\"capTypeLabel\":\"" + json(capTypeLabel) + "\","
+                + "\"capModeLabel\":\"" + json(capModeLabel) + "\","
+                + "\"speedModeLabel\":\"" + json(speedModeLabel) + "\","
+                + "\"summary\":\"" + json(summary.toString()) + "\""
+                + "}"
+                + "}";
+    }
+
+    private static String arg(String[] args, int index, String fallback) {
+        if (index < 0 || index >= args.length) return fallback;
+        String value = args[index];
+        return value == null ? fallback : value;
+    }
+
+    private static int parseInt(String value, int fallback) {
+        try {
+            return Integer.parseInt(value);
+        } catch (Exception error) {
+            return fallback;
+        }
+    }
+
+    private static String withDefault(String value, String fallback) {
+        return value == null || value.trim().isEmpty() ? fallback : value.trim();
+    }
+
+    private static void fillBytes(byte[] buffer, String value) {
+        Arrays.fill(buffer, (byte) 0);
+        if (value == null) return;
+        byte[] source = value.getBytes(DEVICE_CHARSET);
+        System.arraycopy(source, 0, buffer, 0, Math.min(source.length, buffer.length - 1));
+    }
+
+    private static String trimZero(byte[] value) {
+        int end = 0;
+        while (end < value.length && value[end] != 0) {
+            end++;
+        }
+        if (end <= 0) return "";
+        return new String(value, 0, end, DEVICE_CHARSET).trim();
+    }
+
+    private static String ipString(NET_DVR_IPADDR ipAddr) {
+        if (ipAddr == null) return "";
+        return trimZero(ipAddr.sIpV4);
+    }
+
+    private static String macString(byte[] mac) {
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < mac.length; i++) {
+            if (i > 0) sb.append(':');
+            sb.append(String.format(Locale.ROOT, "%02X", mac[i] & 0xFF));
+        }
+        return sb.toString();
+    }
+
+    private static int unsignedByte(byte value) {
+        return value & 0xFF;
+    }
+
+    private static int unsignedShort(short value) {
+        return value & 0xFFFF;
+    }
+
+    private static String toHex(int value) {
+        return String.format(Locale.ROOT, "0x%X", value);
+    }
+
+    private static String getEncodingLabel(int code) {
+        switch (code) {
+            case 0: return "Unknown";
+            case 1: return "GB2312";
+            case 2: return "GBK";
+            case 6: return "UTF-8";
+            default: return "Code " + code;
+        }
+    }
+
+    private static String getNetInterfaceLabel(int code) {
+        switch (code) {
+            case 1: return "10M half-duplex";
+            case 2: return "10M full-duplex";
+            case 3: return "100M half-duplex";
+            case 4: return "100M full-duplex";
+            case 5: return "10/100M auto";
+            case 6: return "1000M half-duplex";
+            case 7: return "1000M full-duplex";
+            case 8: return "10/100/1000M auto";
+            default: return "Code " + code;
+        }
+    }
+
+    private static String getTriggerTypeLabel(int code) {
+        switch (code) {
+            case 0x1: return "IO speed detector";
+            case 0x2: return "Single IO";
+            case 0x4: return "RS485 vehicle detector";
+            case 0x8: return "RS485 radar";
+            case 0x10: return "Virtual coil";
+            case 0x20: return "Mixed traffic HVT";
+            case 0x40: return "Multi-frame plate";
+            case 0x80: return "Video detection";
+            case 0x100: return "IO traffic light";
+            case 0x200: return "RS485 ePolice";
+            case 0x400: return "VIA";
+            case 0x10000: return "Card-style ePolice";
+            case 0x20000: return "Video ePolice";
+            case 0x80000: return "Smart defense";
+            case 0x100000: return "IPC HVT";
+            case 0x200000: return "Mobile traffic";
+            case 0x400000: return "Pedestrian red light";
+            case 0x800000: return "No-comity pedestrian";
+            default: return "Unknown";
+        }
+    }
+
+    private static String getTriggerSpareModeLabel(int code) {
+        switch (code) {
+            case 0: return "Default";
+            case 1: return "Virtual coil spare mode";
+            case 2: return "Mixed traffic spare mode";
+            default: return "";
+        }
+    }
+
+    private static String getSnapModeLabel(int code) {
+        switch (code) {
+            case 0: return "Frequency flash";
+            case 1: return "Burst flash";
+            default: return "";
+        }
+    }
+
+    private static String getSpeedDetectorLabel(int code) {
+        switch (code) {
+            case 0: return "Disabled";
+            case 1: return "Radar";
+            case 2: return "Video";
+            default: return "";
+        }
+    }
+
+    private static String getSceneModeLabel(int code) {
+        switch (code) {
+            case 0: return "Urban road";
+            case 1: return "Community entrance";
+            case 2: return "Highway";
+            default: return "";
+        }
+    }
+
+    private static String getCapTypeLabel(int code) {
+        switch (code) {
+            case 0: return "Default";
+            case 1: return "Motor vehicle";
+            default: return "";
+        }
+    }
+
+    private static String getCapModeLabel(int code) {
+        switch (code) {
+            case 0: return "Video frame capture";
+            case 1: return "Interrupted capture";
+            case 2: return "Hybrid mode";
+            default: return "";
+        }
+    }
+
+    private static String getSpeedModeLabel(int code) {
+        switch (code) {
+            case 0: return "No speed";
+            case 1: return "Radar speed";
+            case 2: return "Video speed";
+            default: return "";
+        }
+    }
+
+    private static String trimZero(byte[] value, int maxLength) {
+        if (value == null || value.length == 0) return "";
+        int limit = Math.min(value.length, Math.max(maxLength, 0));
+        int end = 0;
+        while (end < limit && value[end] != 0) {
+            end++;
+        }
+        if (end <= 0) return "";
+        return new String(value, 0, end, DEVICE_CHARSET).trim();
+    }
+
+    private static String boolLabel(boolean value) {
+        return value ? "是" : "否";
+    }
+
+    private static boolean containsPictureItem(NET_DVR_PICTURE_NAME rule, int itemCode) {
+        if (rule == null) return false;
+        for (byte code : rule.byItemOrder) {
+            if ((code & 0xFF) == itemCode) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static String delimiterString(byte delimiter) {
+        int value = delimiter & 0xFF;
+        if (value == 0) return "_";
+        return Character.toString((char) value);
+    }
+
+    private static String buildPictureNameRule(NET_DVR_PICTURE_NAME rule, String customName) {
+        if (rule == null) return "";
+        StringBuilder sb = new StringBuilder();
+        for (byte code : rule.byItemOrder) {
+            int item = code & 0xFF;
+            if (item == 0) continue;
+            String label = pictureItemLabel(item, customName);
+            if (label.isEmpty()) continue;
+            if (sb.length() > 0) sb.append(" / ");
+            sb.append(label);
+        }
+        return sb.toString();
+    }
+
+    private static String buildPictureNameFormat(NET_DVR_PICTURE_NAME rule, String customName) {
+        if (rule == null) return "";
+        String delimiter = delimiterString(rule.byDelimiter);
+        StringBuilder sb = new StringBuilder();
+        for (byte code : rule.byItemOrder) {
+            int item = code & 0xFF;
+            if (item == 0) continue;
+            String label = pictureItemLabel(item, customName);
+            if (label.isEmpty()) continue;
+            if (sb.length() > 0) sb.append(delimiter);
+            sb.append(label);
+        }
+        return sb.toString();
+    }
+
+    private static String buildPictureNameExample(NET_DVR_PICTURE_NAME rule, String customName, String delimiter) {
+        if (rule == null) return "";
+        StringBuilder sb = new StringBuilder();
+        for (byte code : rule.byItemOrder) {
+            int item = code & 0xFF;
+            if (item == 0) continue;
+            String sample = pictureItemExample(item, customName);
+            if (sample.isEmpty()) continue;
+            if (sb.length() > 0) sb.append(delimiter);
+            sb.append(sample);
+        }
+        return sb.toString();
+    }
+
+    private static String pictureItemLabel(int item, String customName) {
+        switch (item) {
+            case 1: return "设备名";
+            case 2: return "设备号";
+            case 3: return "设备IP";
+            case 4: return "通道名";
+            case 5: return "通道号";
+            case 6: return "时间";
+            case 7: return "卡号";
+            case 8: return "车牌号码";
+            case 9: return "车牌颜色";
+            case 10: return "车道号";
+            case 11: return "车辆速度";
+            case 12: return "监测点";
+            case 13: return "图片序号";
+            case 14: return "车辆序号";
+            case 15: return "限速值";
+            case 16: return "国标违法代码";
+            case 17: return "路口编号";
+            case 18: return "方向编号";
+            case 19: return "车身颜色";
+            case 20: return "车牌坐标";
+            case 21: return "车辆类型";
+            case 22: return "违规类型";
+            case 255: return customName == null || customName.isEmpty() ? "自定义" : customName;
+            default: return "元素" + item;
+        }
+    }
+
+    private static String pictureItemExample(int item, String customName) {
+        switch (item) {
+            case 1: return "Camera";
+            case 2: return "0007";
+            case 3: return "192.168.1.64";
+            case 4: return "Channel1";
+            case 5: return "01";
+            case 6: return "20260423143030";
+            case 7: return "CARD001";
+            case 8: return "浙A12345";
+            case 9: return "蓝";
+            case 10: return "2";
+            case 11: return "064";
+            case 12: return "070";
+            case 13: return "01";
+            case 14: return "00025";
+            case 15: return "070";
+            case 16: return "1302";
+            case 17: return "01";
+            case 18: return "02";
+            case 19: return "白";
+            case 20: return "x1y1x2y2";
+            case 21: return "小型车";
+            case 22: return "正常";
+            case 255: return customName == null || customName.isEmpty() ? "CUSTOM" : customName;
+            default: return "ITEM" + item;
+        }
+    }
+
+    private static String dirLevelLabel(int level) {
+        switch (level) {
+            case 0: return "根目录";
+            case 1: return "1级目录";
+            case 2: return "2级目录";
+            case 3: return "3级目录";
+            case 4: return "4级目录";
+            default: return "级别" + level;
+        }
+    }
+
+    private static String dirModeLabel(int mode) {
+        switch (mode) {
+            case 0x1: return "设备名";
+            case 0x2: return "设备号";
+            case 0x3: return "设备IP";
+            case 0x4: return "监测点";
+            case 0x5: return "时间(年月)";
+            case 0x6: return "时间(年月日)";
+            case 0x7: return "违规类型";
+            case 0x8: return "方向";
+            case 0x9: return "地点";
+            case 0xA: return "通道名";
+            case 0xB: return "通道号";
+            case 0xC: return "车道号";
+            case 0xFF: return "自定义";
+            case 0: return "";
+            default: return "模式" + mode;
+        }
+    }
+
+    private static String ftpServerTypeLabel(int code) {
+        switch (code) {
+            case 0: return "主FTP";
+            case 1: return "备FTP";
+            default: return "类型" + code;
+        }
+    }
+
+    private static String uploadDataTypeLabel(int code) {
+        switch (code) {
+            case 0: return "全部";
+            case 1: return "卡口";
+            case 2: return "违章";
+            default: return "类型" + code;
+        }
+    }
+
+    private static String buildDirectorySummary(NET_ITC_FTP_CFG config) {
+        StringBuilder sb = new StringBuilder();
+        int dirLevel = unsignedByte(config.byDirLevel);
+        if (dirLevel <= 0) {
+            return "根目录";
+        }
+        String[] labels = {
+                dirModeLabel(unsignedByte(config.byTopDirMode)),
+                dirModeLabel(unsignedByte(config.bySubDirMode)),
+                dirModeLabel(unsignedByte(config.byThreeDirMode)),
+                dirModeLabel(unsignedByte(config.byFourDirMode))
+        };
+        for (int i = 0; i < Math.min(dirLevel, labels.length); i++) {
+            String label = labels[i];
+            if (label == null || label.isEmpty()) continue;
+            if (sb.length() > 0) sb.append(" / ");
+            sb.append(label);
+        }
+        return sb.toString();
+    }
+
+    private static String json(String value) {
+        String text = value == null ? "" : value;
+        return text.replace("\\", "\\\\").replace("\"", "\\\"").replace("\r", "\\r").replace("\n", "\\n");
+    }
+
+    private static void success(String json) {
+        System.out.println(json);
+    }
+
+    private static void fail(String message, int errorCode) {
+        System.out.println("{"
+                + "\"success\":false,"
+                + "\"error\":\"" + json(message) + "\","
+                + "\"errorCode\":" + errorCode
+                + "}");
+    }
+}

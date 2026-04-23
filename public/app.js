@@ -1,4 +1,4 @@
-function updatePageTitle(systemName) {
+﻿function updatePageTitle(systemName) {
   const baseTitle = "管理平台";
   const titleElement = document.querySelector("title");
   const headerTitleElement = document.querySelector(".app-header-title");
@@ -303,12 +303,11 @@ const devicePreviewModalState = {
 };
 const DEVICE_PREVIEW_ISAPI_PRESETS = {
   deviceInfo: { label: "设备信息", schema: "deviceInfo" },
-  ftpConfig: { label: "FTP配置", schema: "ftpConfig" },
-  namingRules: { label: "命名规则", schema: "namingRules" },
-  triggerConfig: { label: "事件触发配置", schema: "triggerConfig" },
-  smartTriggerConfig: { label: "智能事件触发配置", schema: "smartTriggerConfig" },
-  videoTriggerConfig: { label: "视频输入触发配置", schema: "videoTriggerConfig" },
-  ioTriggerConfig: { label: "报警输入触发配置", schema: "ioTriggerConfig" }
+  sdkNetworkConfig: { label: "SDK网络参数", schema: "sdkNetworkConfig" },
+  sdkFtpConfig: { label: "SDK通用FTP配置", schema: "sdkFtpConfig" },
+  sdkNamingRules: { label: "SDK智能交通FTP命名", schema: "sdkNamingRules" },
+  sdkCurrentTriggerMode: { label: "SDK当前触发模式", schema: "sdkCurrentTriggerMode" },
+  sdkTriggerConfig: { label: "SDK触发模式配置", schema: "sdkTriggerConfig" }
 };
 const DEVICE_PREVIEW_ONVIF_PRESETS = {
   deviceInfo: { label: "设备信息", method: "GET", contentType: "application/json; charset=utf-8", path: "getDeviceInformation", body: "" }
@@ -383,6 +382,105 @@ const DEVICE_PREVIEW_ISAPI_SCHEMAS = {
         ipAddress: ipAddress,
         macAddress: extract("macAddress") || extract("MAC") || ""
       };
+    }
+  },
+  sdkNetworkConfig: {
+    readOnly: true,
+    fields: [
+      { key: "ipAddress", label: "IP地址", type: "text", readOnly: true },
+      { key: "subnetMask", label: "子网掩码", type: "text", readOnly: true },
+      { key: "gateway", label: "网关", type: "text", readOnly: true },
+      { key: "dns1", label: "DNS1", type: "text", readOnly: true },
+      { key: "dns2", label: "DNS2", type: "text", readOnly: true },
+      { key: "dhcpEnabledLabel", label: "DHCP", type: "text", readOnly: true },
+      { key: "sdkPort", label: "SDK端口", type: "text", readOnly: true },
+      { key: "httpPort", label: "HTTP端口", type: "text", readOnly: true },
+      { key: "mtu", label: "MTU", type: "text", readOnly: true },
+      { key: "netInterfaceLabel", label: "网卡模式", type: "text", readOnly: true },
+      { key: "macAddress", label: "MAC地址", type: "text", readOnly: true },
+      { key: "alarmHostIp", label: "告警主机IP", type: "text", readOnly: true },
+      { key: "alarmHostPort", label: "告警主机端口", type: "text", readOnly: true }
+    ],
+    mapLoadResult(result = {}) {
+      return result && typeof result === "object" ? result : {};
+    }
+  },
+  sdkFtpConfig: {
+    readOnly: true,
+    fields: [
+      { key: "ftpEnabled", label: "FTP启用状态", type: "text", readOnly: true },
+      { key: "ftpServer", label: "FTP服务器地址", type: "text", readOnly: true },
+      { key: "ftpPort", label: "FTP端口", type: "text", readOnly: true },
+      { key: "ftpUsername", label: "FTP用户名", type: "text", readOnly: true },
+      { key: "ftpPassword", label: "FTP密码", type: "text", readOnly: true },
+      { key: "ftpDirectory", label: "FTP目录", type: "text", readOnly: true },
+      { key: "ftpUploadMode", label: "上传模式", type: "text", readOnly: true },
+      { key: "ftpUploadInterval", label: "上传间隔(秒)", type: "text", readOnly: true },
+      { key: "ftpImageQuality", label: "图片质量", type: "text", readOnly: true },
+      { key: "ftpImageResolution", label: "图片分辨率", type: "text", readOnly: true },
+      { key: "ftpUploadType", label: "上传类型", type: "text", readOnly: true },
+      { key: "ftpFileNameFormat", label: "文件名格式", type: "text", readOnly: true },
+      { key: "ftpImageFormat", label: "图片格式", type: "text", readOnly: true }
+    ],
+    mapLoadResult(result = {}) {
+      return result && typeof result === "object" ? result : {};
+    }
+  },
+  sdkNamingRules: {
+    readOnly: true,
+    fields: [
+      { key: "fileNameFormat", label: "文件名格式", type: "text", readOnly: true },
+      { key: "namingRuleEnabled", label: "命名规则启用状态", type: "text", readOnly: true },
+      { key: "prefix", label: "文件名前缀", type: "text", readOnly: true },
+      { key: "dateFormat", label: "日期格式", type: "text", readOnly: true },
+      { key: "timeFormat", label: "时间格式", type: "text", readOnly: true },
+      { key: "includeChannelNumber", label: "包含通道号", type: "text", readOnly: true },
+      { key: "includeSequenceNumber", label: "包含序列号", type: "text", readOnly: true },
+      { key: "includeCameraName", label: "包含摄像头名称", type: "text", readOnly: true },
+      { key: "includePlateNumber", label: "包含车牌号码", type: "text", readOnly: true },
+      { key: "includeTimestamp", label: "包含时间戳", type: "text", readOnly: true },
+      { key: "includeEventType", label: "包含事件类型", type: "text", readOnly: true },
+      { key: "fileExtension", label: "文件扩展名", type: "text", readOnly: true },
+      { key: "namingElements", label: "命名元素", type: "text", readOnly: true },
+      { key: "example", label: "示例文件名", type: "text", readOnly: true }
+    ],
+    mapLoadResult(result = {}) {
+      return result && typeof result === "object" ? result : {};
+    }
+  },
+  sdkCurrentTriggerMode: {
+    readOnly: true,
+    fields: [
+      { key: "triggerTypeLabel", label: "当前触发模式", type: "text", readOnly: true },
+      { key: "triggerTypeHex", label: "触发类型HEX", type: "text", readOnly: true },
+      { key: "triggerTypeCode", label: "触发类型代码", type: "text", readOnly: true },
+      { key: "summary", label: "摘要", type: "text", readOnly: true }
+    ],
+    mapLoadResult(result = {}) {
+      return result && typeof result === "object" ? result : {};
+    }
+  },
+  sdkTriggerConfig: {
+    readOnly: true,
+    fields: [
+      { key: "enabledLabel", label: "启用状态", type: "text", readOnly: true },
+      { key: "triggerTypeLabel", label: "触发模式", type: "text", readOnly: true },
+      { key: "triggerTypeHex", label: "触发类型HEX", type: "text", readOnly: true },
+      { key: "detailSource", label: "详细来源", type: "text", readOnly: true },
+      { key: "laneCount", label: "关联车道数", type: "text", readOnly: true },
+      { key: "triggerSpareModeLabel", label: "触发备用模式", type: "text", readOnly: true },
+      { key: "faultToleranceMinutes", label: "容错时间(分钟)", type: "text", readOnly: true },
+      { key: "displayEnabled", label: "显示辅助线", type: "text", readOnly: true },
+      { key: "snapModeLabel", label: "抓拍模式", type: "text", readOnly: true },
+      { key: "speedDetectorLabel", label: "测速方式", type: "text", readOnly: true },
+      { key: "sceneModeLabel", label: "场景模式", type: "text", readOnly: true },
+      { key: "capTypeLabel", label: "抓拍类型", type: "text", readOnly: true },
+      { key: "capModeLabel", label: "抓拍方式", type: "text", readOnly: true },
+      { key: "speedModeLabel", label: "速度模式", type: "text", readOnly: true },
+      { key: "summary", label: "摘要", type: "text", readOnly: true }
+    ],
+    mapLoadResult(result = {}) {
+      return result && typeof result === "object" ? result : {};
     }
   },
   
@@ -6534,40 +6632,67 @@ async function runDevicePreviewIsapiRequest(methodOverride = "") {
       
       // 渲染ISAPI控件
       renderDevicePreviewIsapiControls(preset.schema);
-      
-      const connection = {
-        host: String(device.host || "").trim(),
-        port: Number(device.port || 80) || 80,
+
+      const sdkPayload = {
+        ip: String(device.host || "").trim(),
+        port: Number(device.port || 8000) || 8000,
         username: String(device.username || "").trim(),
         password: String(device.password || "")
       };
-      
-      let response;
-      
-      // 根据schema.method决定使用ISAPI还是SDK
-      if (schema.method === "SDK") {
-        // 使用SDK方式获取数据
+      let values;
+
+      if (preset.schema === "sdkNetworkConfig") {
+        const response = await fetchJson("/api/sdk/network-config", sdkPayload);
+        if (!response?.ok) throw new Error(response?.error || "SDK网络参数获取失败");
+        values = schema.mapLoadResult(response.networkConfig || {}, device);
+      } else if (preset.schema === "sdkFtpConfig") {
+        const response = await fetchJson("/api/sdk/ftp-config", sdkPayload);
+        if (!response?.ok) throw new Error(response?.error || "SDK通用FTP配置获取失败");
+        values = schema.mapLoadResult(response.ftpConfig || response.result || {}, device);
+      } else if (preset.schema === "sdkNamingRules") {
+        const response = await fetchJson("/api/sdk/naming-rules", sdkPayload);
+        if (!response?.ok) throw new Error(response?.error || "SDK智能交通FTP命名获取失败");
+        values = schema.mapLoadResult(response.namingRules || response.pictureNamingRule || response.result || {}, device);
+      } else if (preset.schema === "sdkCurrentTriggerMode") {
+        const response = await fetchJson("/api/sdk/current-trigger-mode", sdkPayload);
+        if (!response?.ok) throw new Error(response?.error || "SDK当前触发模式获取失败");
+        values = schema.mapLoadResult(response.currentTriggerMode || {}, device);
+      } else if (preset.schema === "sdkTriggerConfig") {
+        const response = await fetchJson("/api/sdk/trigger-config", sdkPayload);
+        if (!response?.ok) throw new Error(response?.error || "SDK触发模式配置获取失败");
+        values = schema.mapLoadResult(response.triggerConfig || {}, device);
+      } else if (schema.method === "SDK") {
+        const connection = {
+          host: String(device.host || "").trim(),
+          port: Number(device.port || 80) || 80,
+          username: String(device.username || "").trim(),
+          password: String(device.password || "")
+        };
         if (!schema.apiPath) {
           throw new Error("SDK schema缺少apiPath配置");
         }
-        
-        response = await fetchJson(schema.apiPath, {
+        const response = await fetchJson(schema.apiPath, {
           connection,
-          channel: 1 // 默认通道1
+          channel: 1
         });
+        values = schema.mapLoadResult(response?.rawText || response || "", device);
       } else {
-        // 使用ISAPI方式获取数据
-        response = await fetchJson("/api/isapi/request", {
+        const connection = {
+          host: String(device.host || "").trim(),
+          port: Number(device.port || 80) || 80,
+          username: String(device.username || "").trim(),
+          password: String(device.password || "")
+        };
+
+        const response = await fetchJson("/api/isapi/request", {
           connection,
           pathname: schema.path,
           method: schema.method,
           contentType: schema.contentType,
           body: ""
         });
+        values = schema.mapLoadResult(response?.rawText || "", device);
       }
-      
-      // 解析响应并填充控件
-      const values = schema.mapLoadResult(response?.rawText || "", device);
       fillDevicePreviewIsapiControls(values);
       
       if (els.devicePreviewIsapiHint) {
