@@ -6153,6 +6153,10 @@ function isAllowedHikvisionSchema(schemaName = "") {
     || key === "sdkTriggerConfig";
 }
 
+function isSdkApiSuccess(response) {
+  return Boolean(response?.ok || response?.success);
+}
+
 function getDevicePreviewPanelTitleEl() {
   return els.devicePreviewIsapiPanel?.querySelector(".logHeader > div") || null;
 }
@@ -6736,23 +6740,23 @@ async function runDevicePreviewIsapiRequest(methodOverride = "") {
         values = schema.mapLoadResult(response?.rawText || "", device);
       } else if (preset.schema === "sdkNetworkConfig") {
         const response = await fetchJson("/api/sdk/network-config", sdkPayload);
-        if (!response?.ok) throw new Error(response?.error || "SDK网络参数获取失败");
+        if (!isSdkApiSuccess(response)) throw new Error(response?.error || "SDK网络参数获取失败");
         values = schema.mapLoadResult(response.networkConfig || {}, device);
       } else if (preset.schema === "sdkFtpConfig") {
         const response = await fetchJson("/api/sdk/ftp-config", sdkPayload);
-        if (!response?.ok) throw new Error(response?.error || "SDK通用FTP配置获取失败");
+        if (!isSdkApiSuccess(response)) throw new Error(response?.error || "SDK通用FTP配置获取失败");
         values = schema.mapLoadResult(response.ftpConfig || response.result || {}, device);
       } else if (preset.schema === "sdkNamingRules") {
         const response = await fetchJson("/api/sdk/naming-rules", sdkPayload);
-        if (!response?.ok) throw new Error(response?.error || "SDK智能交通FTP命名获取失败");
+        if (!isSdkApiSuccess(response)) throw new Error(response?.error || "SDK智能交通FTP命名获取失败");
         values = schema.mapLoadResult(response.namingRules || response.pictureNamingRule || response.result || {}, device);
       } else if (preset.schema === "sdkCurrentTriggerMode") {
         const response = await fetchJson("/api/sdk/current-trigger-mode", sdkPayload);
-        if (!response?.ok) throw new Error(response?.error || "SDK当前触发模式获取失败");
+        if (!isSdkApiSuccess(response)) throw new Error(response?.error || "SDK当前触发模式获取失败");
         values = schema.mapLoadResult(response.currentTriggerMode || {}, device);
       } else if (preset.schema === "sdkTriggerConfig") {
         const response = await fetchJson("/api/sdk/trigger-config", sdkPayload);
-        if (!response?.ok) throw new Error(response?.error || "SDK触发模式配置获取失败");
+        if (!isSdkApiSuccess(response)) throw new Error(response?.error || "SDK触发模式配置获取失败");
         values = schema.mapLoadResult(response.triggerConfig || {}, device);
       } else {
         throw new Error(`当前海康参数面板不支持旧分类：${preset.schema}`);
@@ -7378,4 +7382,5 @@ if (els.previewSnapshotBtn) {
     }
   });
 }
+
 
