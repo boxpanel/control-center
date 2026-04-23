@@ -840,9 +840,9 @@ const DEVICE_PREVIEW_ISAPI_SCHEMAS = {
   // 命名规则schema - ISAPI方式（从FTP配置中提取）
   namingRules: {
     readOnly: true,
-    method: "GET",
-    contentType: "application/xml; charset=utf-8",
-    path: "/ISAPI/System/Network/Ftp/channels/1",
+    method: "SDK",
+    contentType: "application/json; charset=utf-8",
+    apiPath: "/api/sdk/naming-rules",
     fields: [
       { key: "fileNameFormat", label: "文件名格式", type: "text", readOnly: true },
       { key: "namingRuleEnabled", label: "命名规则启用状态", type: "text", readOnly: true },
@@ -859,107 +859,8 @@ const DEVICE_PREVIEW_ISAPI_SCHEMAS = {
       { key: "namingElements", label: "命名元素", type: "text", readOnly: true },
       { key: "example", label: "示例文件名", type: "text", readOnly: true }
     ],
-    mapLoadResult(xmlText = "", device = null) {
-      // 从XML中提取命名规则信息
-      const extract = (tag) => {
-        const match = xmlText.match(new RegExp(`<${tag}>([\\s\\S]*?)</${tag}>`, "i"));
-        return match ? match[1].trim() : "";
-      };
-      
-      // 解析FTP配置中的命名规则
-      const fileNameFormat = extract("fileNameFormat") || extract("FileNameFormat") || "";
-      const namingRuleEnabled = fileNameFormat ? "已启用" : "未配置";
-      
-      // 从fileNameFormat解析命名元素
-      let prefix = "";
-      let dateFormat = "YYYYMMDD";
-      let timeFormat = "HHmmss";
-      let includeChannelNumber = false;
-      let includeSequenceNumber = false;
-      let includeCameraName = false;
-      let includePlateNumber = false;
-      let includeTimestamp = false;
-      let includeEventType = false;
-      let fileExtension = ".jpg";
-      let namingElements = "";
-      
-      if (fileNameFormat) {
-        // 分析文件名格式，提取命名元素
-        if (fileNameFormat.includes("%Y") || fileNameFormat.includes("%M") || fileNameFormat.includes("%D")) {
-          dateFormat = "YYYYMMDD";
-          includeTimestamp = true;
-        }
-        if (fileNameFormat.includes("%h") || fileNameFormat.includes("%m") || fileNameFormat.includes("%s")) {
-          timeFormat = "HHmmss";
-          includeTimestamp = true;
-        }
-        if (fileNameFormat.includes("%C") || fileNameFormat.includes("channel")) {
-          includeChannelNumber = true;
-        }
-        if (fileNameFormat.includes("%N") || fileNameFormat.includes("seq")) {
-          includeSequenceNumber = true;
-        }
-        if (fileNameFormat.includes("%N") || fileNameFormat.includes("camera")) {
-          includeCameraName = true;
-        }
-        if (fileNameFormat.includes("%P") || fileNameFormat.includes("plate")) {
-          includePlateNumber = true;
-        }
-        if (fileNameFormat.includes("%E") || fileNameFormat.includes("event")) {
-          includeEventType = true;
-        }
-        if (fileNameFormat.includes(".jpg") || fileNameFormat.includes(".jpeg")) {
-          fileExtension = ".jpg";
-        } else if (fileNameFormat.includes(".png")) {
-          fileExtension = ".png";
-        } else if (fileNameFormat.includes(".bmp")) {
-          fileExtension = ".bmp";
-        }
-        
-        // 提取前缀（第一个非变量部分）
-        const prefixMatch = fileNameFormat.match(/^([^%]+)/);
-        if (prefixMatch) {
-          prefix = prefixMatch[1].replace(/[_-]/g, "").trim();
-        }
-        
-        namingElements = fileNameFormat;
-      }
-      
-      // 生成示例文件名
-      let example = "";
-      if (fileNameFormat) {
-        example = fileNameFormat
-          .replace(/%Y/g, "2024")
-          .replace(/%M/g, "01")
-          .replace(/%D/g, "01")
-          .replace(/%h/g, "12")
-          .replace(/%m/g, "00")
-          .replace(/%s/g, "00")
-          .replace(/%C/g, "CH01")
-          .replace(/%N/g, "001")
-          .replace(/%P/g, "京A12345")
-          .replace(/%E/g, "车辆检测")
-          .replace(/%c/g, "摄像头01");
-      } else {
-        example = "CAM_20240101_120000_摄像头01_京A12345_车辆检测_CH01_001.jpg";
-      }
-      
-      return {
-        fileNameFormat: fileNameFormat || "未配置",
-        namingRuleEnabled: namingRuleEnabled,
-        prefix: prefix,
-        dateFormat: dateFormat,
-        timeFormat: timeFormat,
-        includeChannelNumber: includeChannelNumber ? "是" : "否",
-        includeSequenceNumber: includeSequenceNumber ? "是" : "否",
-        includeCameraName: includeCameraName ? "是" : "否",
-        includePlateNumber: includePlateNumber ? "是" : "否",
-        includeTimestamp: includeTimestamp ? "是" : "否",
-        includeEventType: includeEventType ? "是" : "否",
-        fileExtension: fileExtension,
-        namingElements: namingElements || "未配置",
-        example: example
-      };
+    mapLoadResult(result = {}, device = null) {
+      return result && typeof result === "object" ? result : {};
     }
   },
 
@@ -6879,61 +6780,36 @@ async function runDevicePreviewIsapiSchemaRequest(schemaKey, device) {
     
     // 根据schema类型调用不同的API
     if (schemaKey === "ftpConfig") {
-      // 获取FTP配置（根据schema.method决定使用ISAPI还是SDK）
-      if (schema.method === "SDK") {
-        // 使用SDK方式获取FTP配置
-        response = await fetchJson("/api/sdk/ftp-config/get", {
-          connection: {
-            host: String(device.host || "").trim(),
-            port: Number(device.port || 80) || 80,
-            username: String(device.username || "").trim(),
-            password: String(device.password || "")
-          },
-          channel: 1
-        });
-        
-        // 解析SDK返回的FTP配置数据
-        if (response && response.ok) {
-          values = schema.mapLoadResult(response.ftpConfig || response, device);
-        } else {
-          throw new Error(response?.error || "SDK FTP配置获取失败");
-        }
-      } else {
-        // 使用ISAPI方式获取FTP配置
-        response = await fetchJson("/api/device/ftp-config", {
-          connection: {
-            host: String(device.host || "").trim(),
-            port: Number(device.port || 80) || 80,
-            username: String(device.username || "").trim(),
-            password: String(device.password || "")
-          }
-        });
-        
-        // 解析FTP配置数据
-        if (response && response.ok) {
-          const ftpData = response.ftpConfig || response.rawText || "";
-          values = schema.mapLoadResult(ftpData, device);
-        } else {
-          throw new Error(response?.error || "FTP配置获取失败");
-        }
-      }
-    } else if (schemaKey === "namingRules") {
-      // 获取命名规则（ISAPI方式 - 从FTP配置中提取）
-      response = await fetchJson("/api/device/ftp-config", {
+      response = await fetchJson("/api/sdk/ftp-config/get", {
         connection: {
           host: String(device.host || "").trim(),
           port: Number(device.port || 80) || 80,
           username: String(device.username || "").trim(),
           password: String(device.password || "")
-        }
+        },
+        channel: 1
       });
-      
-      // 解析命名规则数据
+
       if (response && response.ok) {
-        const ftpData = response.ftpConfig || response.rawText || "";
-        values = schema.mapLoadResult(ftpData, device);
+        values = schema.mapLoadResult(response.ftpConfig || response, device);
       } else {
-        throw new Error(response?.error || "命名规则获取失败");
+        throw new Error(response?.error || "SDK FTP配置获取失败");
+      }
+    } else if (schemaKey === "namingRules") {
+      response = await fetchJson("/api/sdk/naming-rules", {
+        connection: {
+          host: String(device.host || "").trim(),
+          port: Number(device.port || 80) || 80,
+          username: String(device.username || "").trim(),
+          password: String(device.password || "")
+        },
+        channel: 1
+      });
+
+      if (response && (response.ok || response.success)) {
+        values = schema.mapLoadResult(response.namingRules || response.pictureNamingRule || response.result || {}, device);
+      } else {
+        throw new Error(response?.error || "SDK 命名规则获取失败");
       }
     } else if (schemaKey === "triggerConfig") {
       // 获取事件触发配置（ISAPI方式）
