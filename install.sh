@@ -2,6 +2,7 @@
 set -Eeuo pipefail
 
 REPO_URL="${REPO_URL:-https://github.com/boxpanel/control-center.git}"
+REPO_BRANCH="${REPO_BRANCH:-sdk}"
 INSTALL_DIR="${INSTALL_DIR:-$HOME/control-center}"
 
 START_APP=0
@@ -54,6 +55,10 @@ while [[ $# -gt 0 ]]; do
       shift
       REPO_URL="${1:-$REPO_URL}"
       ;;
+    --repo-branch)
+      shift
+      REPO_BRANCH="${1:-$REPO_BRANCH}"
+      ;;
     --install-dir)
       shift
       INSTALL_DIR="${1:-$INSTALL_DIR}"
@@ -84,13 +89,14 @@ Bootstrap options (for one-click installs / running outside repo dir):
   --bootstrap             Force clone/update repo then run installer
   --repo-url URL          Repo git URL (default: https://github.com/boxpanel/control-center.git)
   --install-dir PATH      Install directory (default: $HOME/control-center)
+  --repo-branch NAME      Repo branch to install (default: sdk)
 
 Examples:
   ./install.sh
   ./install.sh --start
   ./install.sh --enable-service --service-port 3000
   ./install.sh --enable-service --service-port 3001 --admin-user boxpanel --admin-pass 'change-me'
-  curl -fsSL https://raw.githubusercontent.com/boxpanel/control-center/main/install.sh | bash
+  curl -fsSL https://raw.githubusercontent.com/boxpanel/control-center/sdk/install.sh | bash
 EOF
       exit 0
       ;;
@@ -468,7 +474,7 @@ bootstrap_repo_then_run() {
 
   if [[ ! -d "$INSTALL_DIR/.git" ]]; then
     step "Cloning repository into ${INSTALL_DIR}"
-    git clone "$REPO_URL" "$INSTALL_DIR"
+    git clone --branch "$REPO_BRANCH" --single-branch "$REPO_URL" "$INSTALL_DIR"
     CLONED_FRESH=1
   else
     step "Updating repository in ${INSTALL_DIR}"
@@ -482,8 +488,8 @@ bootstrap_repo_then_run() {
       git -C "$INSTALL_DIR" status --short >"$BACKUP_DIR/status.txt" || true
     fi
     repair_git_index_if_needed "$INSTALL_DIR"
-    git -C "$INSTALL_DIR" fetch origin main
-    git -C "$INSTALL_DIR" reset --hard origin/main
+    git -C "$INSTALL_DIR" fetch origin "$REPO_BRANCH"
+    git -C "$INSTALL_DIR" reset --hard "origin/$REPO_BRANCH"
     git -C "$INSTALL_DIR" clean -fd
   fi
 
