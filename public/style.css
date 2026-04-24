@@ -1144,12 +1144,12 @@ canvas {
   display: flex;
   flex-direction: column;
   gap: 12px;
-  max-width: 430px;
+  max-width: 600px;
 }
 
 .devicePreviewParamItem {
   display: grid;
-  grid-template-columns: 96px minmax(0, 300px);
+  grid-template-columns: 132px minmax(0, 1fr);
   gap: 12px;
   align-items: center;
   padding: 10px 12px;
@@ -1169,14 +1169,15 @@ canvas {
 .devicePreviewParamValue {
   font-size: 13px;
   color: #0f172a;
-  word-break: break-all;
-  white-space: pre-line;
+  word-break: normal;
+  overflow-wrap: anywhere;
+  white-space: normal;
 }
 
 .devicePreviewParamInput,
 .devicePreviewParamSelect {
   width: 100%;
-  max-width: 300px;
+  max-width: 100%;
   min-width: 0;
   height: 36px;
   padding: 0 10px;
@@ -1200,7 +1201,7 @@ canvas {
   }
 
   .devicePreviewParamItem {
-    grid-template-columns: 96px minmax(0, 1fr);
+    grid-template-columns: 132px minmax(0, 1fr);
   }
 
   .devicePreviewParamInput,

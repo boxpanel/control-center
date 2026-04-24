@@ -6409,6 +6409,43 @@ function setPreviewControlValue(field, value) {
     field.checked = Boolean(value);
     return;
   }
+  if (field.tagName === "SELECT") {
+    const raw = value == null ? "" : String(value);
+    const normalized = raw.trim();
+    const booleanValue = (() => {
+      const lower = normalized.toLowerCase();
+      if (lower === "true" || lower === "yes" || lower === "enabled" || lower === "on" || normalized === "1") return "1";
+      if (lower === "false" || lower === "no" || lower === "disabled" || lower === "off" || normalized === "0") return "0";
+      return null;
+    })();
+    const candidates = [
+      normalized,
+      booleanValue,
+      normalized === "" ? "" : String(Number(normalized)),
+      normalized.toLowerCase()
+    ].filter((item, index, arr) => item != null && arr.indexOf(item) === index);
+
+    const options = Array.from(field.options || []);
+    const exactMatch = options.find((option) => candidates.includes(String(option.value).trim()));
+    if (exactMatch) {
+      field.value = exactMatch.value;
+      return;
+    }
+
+    const labelMatch = options.find((option) => {
+      const optionLabel = String(option.textContent || "").trim();
+      return candidates.includes(optionLabel)
+        || candidates.includes(optionLabel.toLowerCase())
+        || optionLabel.includes(normalized);
+    });
+    if (labelMatch) {
+      field.value = labelMatch.value;
+      return;
+    }
+
+    field.value = normalized;
+    return;
+  }
   if ("value" in field) {
     field.value = value == null ? "" : String(value);
     return;
@@ -6518,102 +6555,112 @@ async function runDevicePreviewOnvifPresetAction(action = "load") {
   if (!operation) {
     throw new Error(action === "save" ? "当前分类不支持保存" : "当前分类不支持读取");
   }
+  const useLoadingOverlay = action === "save";
   if (els.devicePreviewIsapiResponse) {
     els.devicePreviewIsapiResponse.value = "正在请求，请稍候...";
   }
-  const payload = action === "save"
-    ? (typeof schema.buildSavePayload === "function" ? schema.buildSavePayload(values) : values)
-    : (typeof schema.buildLoadPayload === "function" ? schema.buildLoadPayload(values) : values);
-  const response = await fetchJson("/api/onvif/request", {
-    connection: {
-      host: String(device.host || "").trim(),
-      port: Number(device.port || 80) || 80,
-      username: String(device.username || "").trim(),
-      password: String(device.password || "")
-    },
-    operation,
-    method: action === "save" ? "PUT" : "GET",
-    body: JSON.stringify(payload || {}, null, 2)
-  });
-  
-  // 如果是读取操作，还需要获取主机名和网络接口信息
-  let deviceInfo = {};
-  if (action === "load") {
-    const raw = JSON.parse(String(response?.rawText || "{}"));
-    deviceInfo = schema.mapLoadResult(raw?.result || {});
+  if (useLoadingOverlay) {
+    showLoading("保存参数中...");
+  }
+  try {
+    const payload = action === "save"
+      ? (typeof schema.buildSavePayload === "function" ? schema.buildSavePayload(values) : values)
+      : (typeof schema.buildLoadPayload === "function" ? schema.buildLoadPayload(values) : values);
+    const response = await fetchJson("/api/onvif/request", {
+      connection: {
+        host: String(device.host || "").trim(),
+        port: Number(device.port || 80) || 80,
+        username: String(device.username || "").trim(),
+        password: String(device.password || "")
+      },
+      operation,
+      method: action === "save" ? "PUT" : "GET",
+      body: JSON.stringify(payload || {}, null, 2)
+    });
     
-    // 获取主机名（作为设备名称）
-    try {
-      const hostnameResponse = await fetchJson("/api/onvif/request", {
-        connection: {
-          host: String(device.host || "").trim(),
-          port: Number(device.port || 80) || 80,
-          username: String(device.username || "").trim(),
-          password: String(device.password || "")
-        },
-        operation: "getHostname",
-        method: "GET",
-        body: JSON.stringify({}, null, 2)
-      });
-      const hostnameRaw = JSON.parse(String(hostnameResponse?.rawText || "{}"));
-      deviceInfo.deviceName = hostnameRaw?.result?.name || "";
-    } catch (e) {
-      deviceInfo.deviceName = "";
+    // 如果是读取操作，还需要获取主机名和网络接口信息
+    let deviceInfo = {};
+    if (action === "load") {
+      const raw = JSON.parse(String(response?.rawText || "{}"));
+      deviceInfo = schema.mapLoadResult(raw?.result || {});
+      
+      // 获取主机名（作为设备名称）
+      try {
+        const hostnameResponse = await fetchJson("/api/onvif/request", {
+          connection: {
+            host: String(device.host || "").trim(),
+            port: Number(device.port || 80) || 80,
+            username: String(device.username || "").trim(),
+            password: String(device.password || "")
+          },
+          operation: "getHostname",
+          method: "GET",
+          body: JSON.stringify({}, null, 2)
+        });
+        const hostnameRaw = JSON.parse(String(hostnameResponse?.rawText || "{}"));
+        deviceInfo.deviceName = hostnameRaw?.result?.name || "";
+      } catch (e) {
+        deviceInfo.deviceName = "";
+      }
+      
+      // 获取网络接口信息
+      try {
+        const networkResponse = await fetchJson("/api/onvif/request", {
+          connection: {
+            host: String(device.host || "").trim(),
+            port: Number(device.port || 80) || 80,
+            username: String(device.username || "").trim(),
+            password: String(device.password || "")
+          },
+          operation: "getNetworkInterfaces",
+          method: "GET",
+          body: JSON.stringify({}, null, 2)
+        });
+        const networkRaw = JSON.parse(String(networkResponse?.rawText || "{}"));
+        const networkResult = networkRaw?.result || {};
+        
+        // 提取第一个网络接口的信息
+        const interfaces = Array.isArray(networkResult) ? networkResult : [networkResult];
+        const firstInterface = interfaces[0] || {};
+        
+        // 提取IP地址和MAC地址
+        const ipv4 = firstInterface?.ipv4 || firstInterface?.IPv4 || {};
+        const config = ipv4?.config || ipv4?.manual || {};
+        const manual = Array.isArray(config?.manual) ? config.manual[0] || {} : config?.manual || config || {};
+        
+        // 优先使用从网络接口获取的IP地址，如果没有则使用设备本身的IP地址
+        const networkIp = manual?.address || manual?.ipv4Address || "";
+        const host = String(device.host || "").trim();
+        const deviceIp = host.match(/^([^:]+)/)?.[1] || host;
+        
+        deviceInfo.ipAddress = networkIp || deviceIp;
+        deviceInfo.macAddress = firstInterface?.info?.hwAddress || firstInterface?.hwAddress || firstInterface?.mac || "";
+      } catch (e) {
+        // 如果获取网络接口失败，使用设备本身的IP地址作为备用
+        const host = String(device.host || "").trim();
+        // 从host中提取IP地址（可能包含端口号）
+        const ipMatch = host.match(/^([^:]+)/);
+        deviceInfo.ipAddress = ipMatch ? ipMatch[1] : host;
+        deviceInfo.macAddress = "";
+      }
+      
+      // 填充控件
+      fillDevicePreviewOnvifControls(deviceInfo);
     }
     
-    // 获取网络接口信息
-    try {
-      const networkResponse = await fetchJson("/api/onvif/request", {
-        connection: {
-          host: String(device.host || "").trim(),
-          port: Number(device.port || 80) || 80,
-          username: String(device.username || "").trim(),
-          password: String(device.password || "")
-        },
-        operation: "getNetworkInterfaces",
-        method: "GET",
-        body: JSON.stringify({}, null, 2)
-      });
-      const networkRaw = JSON.parse(String(networkResponse?.rawText || "{}"));
-      const networkResult = networkRaw?.result || {};
-      
-      // 提取第一个网络接口的信息
-      const interfaces = Array.isArray(networkResult) ? networkResult : [networkResult];
-      const firstInterface = interfaces[0] || {};
-      
-      // 提取IP地址和MAC地址
-      const ipv4 = firstInterface?.ipv4 || firstInterface?.IPv4 || {};
-      const config = ipv4?.config || ipv4?.manual || {};
-      const manual = Array.isArray(config?.manual) ? config.manual[0] || {} : config?.manual || config || {};
-      
-      // 优先使用从网络接口获取的IP地址，如果没有则使用设备本身的IP地址
-      const networkIp = manual?.address || manual?.ipv4Address || "";
-      const host = String(device.host || "").trim();
-      const deviceIp = host.match(/^([^:]+)/)?.[1] || host;
-      
-      deviceInfo.ipAddress = networkIp || deviceIp;
-      deviceInfo.macAddress = firstInterface?.info?.hwAddress || firstInterface?.hwAddress || firstInterface?.mac || "";
-    } catch (e) {
-      // 如果获取网络接口失败，使用设备本身的IP地址作为备用
-      const host = String(device.host || "").trim();
-      // 从host中提取IP地址（可能包含端口号）
-      const ipMatch = host.match(/^([^:]+)/);
-      deviceInfo.ipAddress = ipMatch ? ipMatch[1] : host;
-      deviceInfo.macAddress = "";
+    if (els.devicePreviewIsapiResponse) {
+      els.devicePreviewIsapiResponse.value = String(response?.rawText || "");
     }
     
-    // 填充控件
-    fillDevicePreviewOnvifControls(deviceInfo);
+    if (els.devicePreviewIsapiHint) {
+      els.devicePreviewIsapiHint.textContent = `${action === "save" ? "保存" : "读取"}成功：${(DEVICE_PREVIEW_ONVIF_PRESETS[presetKey] || {}).label || presetKey}`;
+    }
+    return response;
+  } finally {
+    if (useLoadingOverlay) {
+      hideLoading();
+    }
   }
-  
-  if (els.devicePreviewIsapiResponse) {
-    els.devicePreviewIsapiResponse.value = String(response?.rawText || "");
-  }
-  
-  if (els.devicePreviewIsapiHint) {
-    els.devicePreviewIsapiHint.textContent = `${action === "save" ? "保存" : "读取"}成功：${(DEVICE_PREVIEW_ONVIF_PRESETS[presetKey] || {}).label || presetKey}`;
-  }
-  return response;
 }
 
 function setDevicePreviewIsapiInputsDisabled(disabled) {
@@ -6773,15 +6820,20 @@ async function saveDevicePreviewSdkPreset() {
   if (els.devicePreviewIsapiHint) {
     els.devicePreviewIsapiHint.textContent = "正在保存参数...";
   }
-  const response = await fetchJson(schema.saveApiPath, sdkPayload);
-  if (!isSdkApiSuccess(response)) {
-    throw new Error(response?.error || response?.message || "SDK参数保存失败");
+  showLoading("保存参数中...");
+  try {
+    const response = await fetchJson(schema.saveApiPath, sdkPayload);
+    if (!isSdkApiSuccess(response)) {
+      throw new Error(response?.error || response?.message || "SDK参数保存失败");
+    }
+    if (els.devicePreviewIsapiHint) {
+      els.devicePreviewIsapiHint.textContent = "保存成功，正在刷新参数...";
+    }
+    await autoLoadDevicePreviewPreset(presetKey);
+    return response;
+  } finally {
+    hideLoading();
   }
-  if (els.devicePreviewIsapiHint) {
-    els.devicePreviewIsapiHint.textContent = "保存成功，正在刷新参数...";
-  }
-  await autoLoadDevicePreviewPreset(presetKey);
-  return response;
 }
 
 function resetDevicePreviewIsapiPanel(device) {
