@@ -410,11 +410,11 @@ const SDK_PLATE_RECOG_MODE_OPTIONS = [
 ];
 
 const SDK_RADAR_TYPE_OPTIONS = [
-  { value: 0, label: "无雷达" },
+  { value: 0, label: "无" },
   { value: 1, label: "安德列" },
   { value: 2, label: "奥利维亚" },
   { value: 3, label: "川速微波" },
-  { value: 4, label: "雷达IO扩展器" },
+  { value: 4, label: "安道雷达(无雷达控制器)" },
   { value: 5, label: "安德列(无控制器)" },
   { value: 255, label: "自定义" }
 ];
@@ -428,36 +428,41 @@ const SDK_TRIGGER_LANE_COUNT_OPTIONS = [
 
 const SDK_LANE_DIRECTION_OPTIONS = [
   { value: 0, label: "未知" },
-  { value: 1, label: "直行" },
-  { value: 2, label: "左转" },
-  { value: 3, label: "右转" },
-  { value: 4, label: "掉头" }
+  { value: 1, label: "从东向西" },
+  { value: 2, label: "从西向东" },
+  { value: 3, label: "从南向北" },
+  { value: 4, label: "从北向南" },
+  { value: 5, label: "从东南向西北" },
+  { value: 6, label: "从西北向东南" },
+  { value: 7, label: "从东北向西南" },
+  { value: 8, label: "从西南向东北" }
 ];
 
 const SDK_LANE_USAGE_OPTIONS = [
   { value: 0, label: "普通车道" },
-  { value: 1, label: "应急车道" },
-  { value: 2, label: "公交车道" },
-  { value: 3, label: "潮汐车道" }
+  { value: 1, label: "吉停车道" },
+  { value: 2, label: "高过底变车道" }
 ];
 
 const SDK_LANE_PROPERTY_OPTIONS = [
-  { value: 0, label: "城市快速路" },
-  { value: 1, label: "城市普通道路" },
-  { value: 2, label: "高速公路" },
-  { value: 3, label: "园区道路" }
+  { value: 0, label: "未知型" },
+  { value: 1, label: "高速公路" },
+  { value: 2, label: "城市快速路" },
+  { value: 3, label: "其他道路" }
 ];
 
 const SDK_SNAP_TIMES_OPTIONS = [
+  { value: 0, label: "0" },
   { value: 1, label: "1" },
   { value: 2, label: "2" },
   { value: 3, label: "3" },
-  { value: 4, label: "4" }
+  { value: 4, label: "4" },
+  { value: 5, label: "5" }
 ];
 
 const SDK_FLASH_MODE_OPTIONS = [
   { value: 0, label: "同时闪" },
-  { value: 1, label: "交替闪" }
+  { value: 1, label: "轮流闪" }
 ];
 
 const SDK_FTP_DIR_LEVEL_OPTIONS = [
@@ -486,10 +491,16 @@ const SDK_FTP_DIR_MODE_OPTIONS = [
 
 const SDK_FTP_DELIMITER_OPTIONS = [
   { value: 0, label: "_" },
-  { value: 45, label: "-" },
   { value: 46, label: "." },
-  { value: 44, label: "," },
-  { value: 32, label: "空格" }
+  { value: 43, label: "+" },
+  { value: 45, label: "-" },
+  { value: 61, label: "=" }
+];
+
+const SDK_FTP_ENABLE_MODE_OPTIONS = [
+  { value: 0, label: "不启用" },
+  { value: 1, label: "启用一个" },
+  { value: 2, label: "启用两个" }
 ];
 
 const SDK_FTP_PICTURE_ITEM_OPTIONS = [
@@ -559,11 +570,22 @@ function normalizeSdkFtpConfigResult(result = {}) {
   const ftp = legacy || {};
   const naming = wrapper.namingRules && typeof wrapper.namingRules === "object" ? wrapper.namingRules : {};
   const meta = wrapper.itcFtpMeta && typeof wrapper.itcFtpMeta === "object" ? wrapper.itcFtpMeta : {};
+  const enabled = String(ftp.ftpEnabled || "").includes("启用") ? 1 : 0;
+  const ftpIndex = Number(meta.ftpIndex ?? ftp.ftpIndex ?? 1) || 1;
+  const uploadAdditionalInfo = Boolean(
+    meta.uploadAdditionalInfo
+    ?? meta.isUploadAdditionalInfo
+    ?? ftp.uploadAdditionalInfo
+    ?? ftp.isUploadAdditionalInfo
+    ?? false
+  );
 
   return {
-    enable: String(ftp.ftpEnabled || "").includes("启用") ? 1 : 0,
+    enable: enabled,
     addressType: String(meta.addressTypeLabel || "").includes("域名") ? 1 : 0,
-    ftpIndex: 1,
+    ftpIndex,
+    ftpEnableMode: enabled ? (ftpIndex >= 2 ? 2 : 1) : 0,
+    uploadAdditionalInfo: uploadAdditionalInfo ? 1 : 0,
     host: ftp.ftpServer || "",
     port: Number(ftp.ftpPort || 21) || 21,
     username: ftp.ftpUsername || "",
@@ -699,6 +721,8 @@ const DEVICE_PREVIEW_ISAPI_SCHEMAS = {
       const data = normalizeSdkFtpConfigResult(result);
       const items = Array.isArray(data.picNameRule?.items) ? data.picNameRule.items : [];
       const values = {
+        ftpEnableMode: data.ftpEnableMode == null ? "0" : String(data.ftpEnableMode),
+        uploadAdditionalInfo: Boolean(data.uploadAdditionalInfo),
         ftpServer: data.host || "",
         ftpPort: data.port == null ? "" : String(data.port),
         ftpUsername: data.username || "",
@@ -743,6 +767,14 @@ const DEVICE_PREVIEW_ISAPI_SCHEMAS = {
         },
         picNameCustom: String(values.picNameCustom || "").trim()
       };
+      if (Object.prototype.hasOwnProperty.call(values, "ftpEnableMode")) {
+        const ftpEnableMode = Number(values.ftpEnableMode || 0) || 0;
+        ftpConfig.enable = ftpEnableMode > 0;
+        ftpConfig.ftpIndex = ftpEnableMode >= 2 ? 2 : 1;
+      }
+      if (Object.prototype.hasOwnProperty.call(values, "uploadAdditionalInfo")) {
+        ftpConfig.uploadAdditionalInfo = values.uploadAdditionalInfo ? 1 : 0;
+      }
       if (Object.prototype.hasOwnProperty.call(values, "dirLevel")) {
         ftpConfig.dirLevel = Number(values.dirLevel || 0) || 0;
       }
@@ -761,7 +793,7 @@ const DEVICE_PREVIEW_ISAPI_SCHEMAS = {
       if (Object.prototype.hasOwnProperty.call(values, "fourDirMode")) {
         ftpConfig.fourDirMode = Number(values.fourDirMode || 0) || 0;
       }
-      if (Object.prototype.hasOwnProperty.call(values, "ftpEnabledRaw")) {
+      if (!Object.prototype.hasOwnProperty.call(values, "ftpEnableMode") && Object.prototype.hasOwnProperty.call(values, "ftpEnabledRaw")) {
         ftpConfig.enable = String(values.ftpEnabledRaw || "0") === "1";
       }
       if (Object.prototype.hasOwnProperty.call(values, "ftpAddressTypeRaw") && values.ftpAddressTypeRaw !== "") {
@@ -779,7 +811,7 @@ const DEVICE_PREVIEW_ISAPI_SCHEMAS = {
       if (Object.prototype.hasOwnProperty.call(values, "ftpPassword")) {
         ftpConfig.password = password;
       }
-      if (Object.prototype.hasOwnProperty.call(values, "ftpIndexRaw") && values.ftpIndexRaw !== "") {
+      if (!Object.prototype.hasOwnProperty.call(values, "ftpEnableMode") && Object.prototype.hasOwnProperty.call(values, "ftpIndexRaw") && values.ftpIndexRaw !== "") {
         ftpConfig.ftpIndex = Number(values.ftpIndexRaw || 0) || 0;
       }
       if (Object.prototype.hasOwnProperty.call(values, "topCustomDirRaw")) {
@@ -6766,6 +6798,11 @@ function renderDevicePreviewSdkFtpNamingRows() {
 function renderDevicePreviewSdkFtpTopForm() {
   return [
     '<div class="devicePreviewFtpSection">',
+    '<div class="devicePreviewFtpHeader">FTP上传</div>',
+    '<label class="devicePreviewFtpCheck devicePreviewFtpHeaderCheck"><input type="checkbox" data-isapi-field="uploadAdditionalInfo" /><span>上传附加信息</span></label>',
+    '<div class="devicePreviewFtpModeRow">',
+    `<label class="devicePreviewFtpModeField"><span>启用FTP</span><select class="devicePreviewParamSelect" data-isapi-field="ftpEnableMode">${renderPreviewSelectOptions(SDK_FTP_ENABLE_MODE_OPTIONS)}</select></label>`,
+    '</div>',
     '<div class="devicePreviewFtpSectionTitle">FTP1</div>',
     '<div class="devicePreviewFtpTopGrid">',
     '<div class="devicePreviewFtpColumn">',

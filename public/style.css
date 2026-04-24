@@ -1166,6 +1166,31 @@ canvas {
   color: #1f2937;
 }
 
+.devicePreviewFtpHeader {
+  padding: 10px 12px;
+  background: #f3f4f6;
+  font-size: 14px;
+  font-weight: 700;
+  color: #111827;
+}
+
+.devicePreviewFtpHeaderCheck {
+  padding: 12px 12px 4px;
+}
+
+.devicePreviewFtpModeRow {
+  padding: 0 12px 8px;
+}
+
+.devicePreviewFtpModeField {
+  display: grid;
+  grid-template-columns: 96px minmax(180px, 220px);
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+  color: #374151;
+}
+
 .devicePreviewFtpTopGrid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1316,6 +1341,7 @@ canvas {
 
 .devicePreviewTriggerLaneCount {
   justify-self: end;
+  grid-template-columns: 108px minmax(92px, 120px);
 }
 
 .devicePreviewTriggerSection {
