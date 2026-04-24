@@ -521,7 +521,14 @@ const SDK_FTP_PICTURE_ITEM_OPTIONS = [
 function findSdkOptionValueByLabel(options = [], label = "", fallback = 0) {
   const text = String(label || "").trim();
   if (!text) return fallback;
-  const matched = options.find((option) => String(option.label || "").trim() === text);
+  const aliasMap = {
+    "监测点": "监测点1",
+    "限速值": "限速标志",
+    "车身颜色": "车辆颜色",
+    "违章类型": "违规类型"
+  };
+  const normalizedText = aliasMap[text] || text;
+  const matched = options.find((option) => String(option.label || "").trim() === normalizedText);
   return matched ? matched.value : fallback;
 }
 

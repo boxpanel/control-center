@@ -1680,14 +1680,14 @@ public class HikvisionTrafficConfigTool {
             case 9: return "车牌颜色";
             case 10: return "车道号";
             case 11: return "车辆速度";
-            case 12: return "监测点";
+            case 12: return "监测点1";
             case 13: return "图片序号";
             case 14: return "车辆序号";
-            case 15: return "限速值";
+            case 15: return "限速标志";
             case 16: return "国标违法代码";
             case 17: return "路口编号";
             case 18: return "方向编号";
-            case 19: return "车身颜色";
+            case 19: return "车辆颜色";
             case 20: return "车牌坐标";
             case 21: return "车辆类型";
             case 22: return "违规类型";
