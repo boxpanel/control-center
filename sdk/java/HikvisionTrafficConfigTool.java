@@ -27,6 +27,7 @@ public class HikvisionTrafficConfigTool {
     private static final int NET_ITC_GET_FTPCFG = 3121;
     private static final int NET_ITC_GET_TRIGGERCFG = 3003;
     private static final int NET_ITC_SET_TRIGGERCFG = 3004;
+    private static final int NET_DVR_GET_SNAPENABLECFG = 1086;
     private static final int NET_DVR_GET_CURTRIGGERMODE = 3130;
     private static final int NET_DVR_SET_CURTRIGGERMODE = 3140;
     private static final Charset DEVICE_CHARSET = StandardCharsets.UTF_8;
