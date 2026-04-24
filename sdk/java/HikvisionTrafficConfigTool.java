@@ -572,6 +572,33 @@ public class HikvisionTrafficConfigTool {
         }
     }
 
+    public static class NET_DVR_SNAPENABLECFG extends Structure {
+        public int dwSize;
+        public byte byPlateEnable;
+        public byte[] byRes1 = new byte[2];
+        public byte byFrameFlip;
+        public short wFlipAngle;
+        public short wLightPhase;
+        public byte byLightSyncPower;
+        public byte byFrequency;
+        public byte byUploadSDEnable;
+        public byte byPlateMode;
+        public byte byUploadInfoFTP;
+        public byte byAutoFormatSD;
+        public short wJpegPicSize;
+        public byte bySnapPicResolution;
+        public byte[] byRes = new byte[55];
+
+        @Override
+        protected List<String> getFieldOrder() {
+            return Arrays.asList(
+                    "dwSize", "byPlateEnable", "byRes1", "byFrameFlip", "wFlipAngle", "wLightPhase",
+                    "byLightSyncPower", "byFrequency", "byUploadSDEnable", "byPlateMode", "byUploadInfoFTP",
+                    "byAutoFormatSD", "wJpegPicSize", "bySnapPicResolution", "byRes"
+            );
+        }
+    }
+
     private static HCNetSDK sdk;
 
     public static void main(String[] args) {
@@ -836,6 +863,8 @@ public class HikvisionTrafficConfigTool {
         int uploadDataType = unsignedByte(config.byUploadDataType);
         int ftpServerType = unsignedByte(config.byRes4);
         boolean filterCarPic = unsignedByte(config.byIsFilterCarPic) == 1;
+        NET_DVR_SNAPENABLECFG snapEnableCfg = loadSnapEnableConfigStruct(userId);
+        boolean uploadAdditionalInfo = snapEnableCfg != null && unsignedByte(snapEnableCfg.byUploadInfoFTP) == 1;
 
         String namingElements = buildPictureNameRule(config.struPicNameRule, trimZero(config.szPicNameCustom));
         String fileNameFormat = buildPictureNameFormat(config.struPicNameRule, trimZero(config.szPicNameCustom));
@@ -856,6 +885,7 @@ public class HikvisionTrafficConfigTool {
                 + "\"ftpUploadInterval\":\"" + json("0") + "\","
                 + "\"ftpImageQuality\":\"" + json("") + "\","
                 + "\"ftpImageResolution\":\"" + json("") + "\","
+                + "\"uploadAdditionalInfo\":\"" + json(uploadAdditionalInfo ? "已启用" : "未启用") + "\","
                 + "\"ftpUploadType\":\"" + json(uploadDataTypeLabel(uploadDataType)) + "\","
                 + "\"ftpFileNameFormat\":\"" + json(fileNameFormat) + "\","
                 + "\"ftpImageFormat\":\"" + json("JPEG") + "\""
@@ -880,6 +910,8 @@ public class HikvisionTrafficConfigTool {
                 + "\"serverTypeLabel\":\"" + json(ftpServerTypeLabel(ftpServerType)) + "\","
                 + "\"addressTypeLabel\":\"" + json(useDomain ? "域名" : "IP地址") + "\","
                 + "\"isFilterCarPicLabel\":\"" + json(filterCarPic ? "不上传" : "上传") + "\","
+                + "\"uploadAdditionalInfo\":" + (uploadAdditionalInfo ? "true" : "false") + ","
+                + "\"uploadAdditionalInfoLabel\":\"" + json(uploadAdditionalInfo ? "启用" : "未启用") + "\","
                 + "\"topDirModeLabel\":\"" + json(dirModeLabel(unsignedByte(config.byTopDirMode))) + "\","
                 + "\"subDirModeLabel\":\"" + json(dirModeLabel(unsignedByte(config.bySubDirMode))) + "\","
                 + "\"threeDirModeLabel\":\"" + json(dirModeLabel(unsignedByte(config.byThreeDirMode))) + "\","
@@ -1421,6 +1453,19 @@ public class HikvisionTrafficConfigTool {
         }
         if (!ok) {
             fail("NET_DVR_GetDVRConfig(TRIGGERCFG) failed, currentTriggerType=" + currentTriggerType, sdk.NET_DVR_GetLastError());
+            return null;
+        }
+        config.read();
+        return config;
+    }
+
+    private static NET_DVR_SNAPENABLECFG loadSnapEnableConfigStruct(int userId) {
+        NET_DVR_SNAPENABLECFG config = new NET_DVR_SNAPENABLECFG();
+        config.dwSize = config.size();
+        config.write();
+        IntByReference bytesReturned = new IntByReference();
+        boolean ok = sdk.NET_DVR_GetDVRConfig(userId, NET_DVR_GET_SNAPENABLECFG, 1, config.getPointer(), config.size(), bytesReturned);
+        if (!ok) {
             return null;
         }
         config.read();
