@@ -1116,6 +1116,54 @@ public class HikvisionTrafficConfigTool {
             rs485.byFaultToleranceTime = (byte) parseInt(arg(args, 9, String.valueOf(unsignedByte(rs485.byFaultToleranceTime))), unsignedByte(rs485.byFaultToleranceTime));
             rs485.write();
             writeStructureToUnion(trigger.uTriggerParam, rs485);
+        } else if (nextType == 0x8) {
+            NET_ITC_POST_RS485_RADAR_PARAM radar = (nextType == originalType) ? trigger.uTriggerParam.asRadar() : new NET_ITC_POST_RS485_RADAR_PARAM();
+            radar.byRelatedLaneNum = (byte) parseInt(arg(args, 7, String.valueOf(unsignedByte(radar.byRelatedLaneNum))), unsignedByte(radar.byRelatedLaneNum));
+            radar.struRadar.byRadarType = (byte) parseInt(arg(args, 17, String.valueOf(unsignedByte(radar.struRadar.byRadarType))), unsignedByte(radar.struRadar.byRadarType));
+            radar.struRadar.byLevelAngle = (byte) parseInt(arg(args, 18, String.valueOf(unsignedByte(radar.struRadar.byLevelAngle))), unsignedByte(radar.struRadar.byLevelAngle));
+            radar.struRadar.wRadarSensitivity = (short) parseInt(arg(args, 19, String.valueOf(unsignedShort(radar.struRadar.wRadarSensitivity))), unsignedShort(radar.struRadar.wRadarSensitivity));
+            radar.struRadar.wRadarSpeedValidTime = (short) parseInt(arg(args, 20, String.valueOf(unsignedShort(radar.struRadar.wRadarSpeedValidTime))), unsignedShort(radar.struRadar.wRadarSpeedValidTime));
+            radar.struRadar.fLineCorrectParam = parseFloat(arg(args, 21, String.valueOf(radar.struRadar.fLineCorrectParam)), radar.struRadar.fLineCorrectParam);
+            radar.struRadar.iConstCorrectParam = parseInt(arg(args, 22, String.valueOf(radar.struRadar.iConstCorrectParam)), radar.struRadar.iConstCorrectParam);
+
+            radar.struPlateRecog.byEnable = (byte) (parseBooleanFlag(arg(args, 23, unsignedByte(radar.struPlateRecog.byEnable) == 1 ? "1" : "0")) ? 1 : 0);
+            radar.struPlateRecog.dwRecogMode = parseInt(arg(args, 24, String.valueOf(radar.struPlateRecog.dwRecogMode)), radar.struPlateRecog.dwRecogMode);
+            radar.struPlateRecog.byVehicleLogoRecog = (byte) (parseBooleanFlag(arg(args, 25, unsignedByte(radar.struPlateRecog.byVehicleLogoRecog) == 1 ? "1" : "0")) ? 1 : 0);
+            radar.struPlateRecog.byProvince = (byte) parseInt(arg(args, 26, String.valueOf(unsignedByte(radar.struPlateRecog.byProvince))), unsignedByte(radar.struPlateRecog.byProvince));
+            radar.struPlateRecog.byRegion = (byte) parseInt(arg(args, 27, String.valueOf(unsignedByte(radar.struPlateRecog.byRegion))), unsignedByte(radar.struPlateRecog.byRegion));
+            radar.struPlateRecog.byCountry = (byte) parseInt(arg(args, 28, String.valueOf(unsignedByte(radar.struPlateRecog.byCountry))), unsignedByte(radar.struPlateRecog.byCountry));
+            radar.struPlateRecog.wPlatePixelWidthMin = (short) parseInt(arg(args, 29, String.valueOf(unsignedShort(radar.struPlateRecog.wPlatePixelWidthMin))), unsignedShort(radar.struPlateRecog.wPlatePixelWidthMin));
+            radar.struPlateRecog.wPlatePixelWidthMax = (short) parseInt(arg(args, 30, String.valueOf(unsignedShort(radar.struPlateRecog.wPlatePixelWidthMax))), unsignedShort(radar.struPlateRecog.wPlatePixelWidthMax));
+
+            NET_ITC_LANE_PARAM firstLane = radar.struLane[0];
+            firstLane.byEnable = (byte) (parseBooleanFlag(arg(args, 31, unsignedByte(firstLane.byEnable) == 1 ? "1" : "0")) ? 1 : 0);
+            firstLane.byRelatedDriveWay = (byte) parseInt(arg(args, 32, String.valueOf(unsignedByte(firstLane.byRelatedDriveWay))), unsignedByte(firstLane.byRelatedDriveWay));
+            firstLane.wDistance = (short) parseInt(arg(args, 33, String.valueOf(unsignedShort(firstLane.wDistance))), unsignedShort(firstLane.wDistance));
+            firstLane.wTrigDelayTime = (short) parseInt(arg(args, 34, String.valueOf(unsignedShort(firstLane.wTrigDelayTime))), unsignedShort(firstLane.wTrigDelayTime));
+            firstLane.byTrigDelayDistance = (byte) parseInt(arg(args, 35, String.valueOf(unsignedByte(firstLane.byTrigDelayDistance))), unsignedByte(firstLane.byTrigDelayDistance));
+            firstLane.bySpeedCapEn = (byte) (parseBooleanFlag(arg(args, 36, unsignedByte(firstLane.bySpeedCapEn) == 1 ? "1" : "0")) ? 1 : 0);
+            firstLane.bySignSpeed = (byte) parseInt(arg(args, 37, String.valueOf(unsignedByte(firstLane.bySignSpeed))), unsignedByte(firstLane.bySignSpeed));
+            firstLane.bySpeedLimit = (byte) parseInt(arg(args, 38, String.valueOf(unsignedByte(firstLane.bySpeedLimit))), unsignedByte(firstLane.bySpeedLimit));
+            firstLane.bySnapTimes = (byte) parseInt(arg(args, 39, String.valueOf(unsignedByte(firstLane.bySnapTimes))), unsignedByte(firstLane.bySnapTimes));
+            firstLane.byOverlayDriveWay = (byte) parseInt(arg(args, 40, String.valueOf(unsignedByte(firstLane.byOverlayDriveWay))), unsignedByte(firstLane.byOverlayDriveWay));
+            firstLane.byFlashMode = (byte) parseInt(arg(args, 41, String.valueOf(unsignedByte(firstLane.byFlashMode))), unsignedByte(firstLane.byFlashMode));
+            firstLane.byCartSignSpeed = (byte) parseInt(arg(args, 42, String.valueOf(unsignedByte(firstLane.byCartSignSpeed))), unsignedByte(firstLane.byCartSignSpeed));
+            firstLane.byCartSpeedLimit = (byte) parseInt(arg(args, 43, String.valueOf(unsignedByte(firstLane.byCartSpeedLimit))), unsignedByte(firstLane.byCartSpeedLimit));
+            firstLane.byRelatedIOOutEx = (byte) parseInt(arg(args, 44, String.valueOf(unsignedByte(firstLane.byRelatedIOOutEx))), unsignedByte(firstLane.byRelatedIOOutEx));
+            firstLane.byLaneType = (byte) parseInt(arg(args, 45, String.valueOf(unsignedByte(firstLane.byLaneType))), unsignedByte(firstLane.byLaneType));
+            firstLane.byUseageType = (byte) parseInt(arg(args, 46, String.valueOf(unsignedByte(firstLane.byUseageType))), unsignedByte(firstLane.byUseageType));
+            firstLane.byRelaLaneDirectionType = (byte) parseInt(arg(args, 47, String.valueOf(unsignedByte(firstLane.byRelaLaneDirectionType))), unsignedByte(firstLane.byRelaLaneDirectionType));
+            firstLane.byLowSpeedLimit = (byte) parseInt(arg(args, 48, String.valueOf(unsignedByte(firstLane.byLowSpeedLimit))), unsignedByte(firstLane.byLowSpeedLimit));
+            firstLane.byBigCarLowSpeedLimit = (byte) parseInt(arg(args, 49, String.valueOf(unsignedByte(firstLane.byBigCarLowSpeedLimit))), unsignedByte(firstLane.byBigCarLowSpeedLimit));
+            firstLane.byLowSpeedCapEn = (byte) (parseBooleanFlag(arg(args, 50, unsignedByte(firstLane.byLowSpeedCapEn) == 1 ? "1" : "0")) ? 1 : 0);
+            firstLane.byEmergencyCapEn = (byte) (parseBooleanFlag(arg(args, 51, unsignedByte(firstLane.byEmergencyCapEn) == 1 ? "1" : "0")) ? 1 : 0);
+            firstLane.write();
+            radar.struLane[0] = firstLane;
+
+            radar.struPlateRecog.write();
+            radar.struRadar.write();
+            radar.write();
+            writeStructureToUnion(trigger.uTriggerParam, radar);
         } else if (nextType == 0x10) {
             NET_ITC_POST_VTCOIL_PARAM vt = (nextType == originalType) ? trigger.uTriggerParam.asVtCoil() : new NET_ITC_POST_VTCOIL_PARAM();
             vt.byRelatedLaneNum = (byte) parseInt(arg(args, 7, String.valueOf(unsignedByte(vt.byRelatedLaneNum))), unsignedByte(vt.byRelatedLaneNum));
@@ -1156,6 +1204,14 @@ public class HikvisionTrafficConfigTool {
     private static int parseInt(String value, int fallback) {
         try {
             return Integer.parseInt(value);
+        } catch (Exception error) {
+            return fallback;
+        }
+    }
+
+    private static float parseFloat(String value, float fallback) {
+        try {
+            return Float.parseFloat(value);
         } catch (Exception error) {
             return fallback;
         }

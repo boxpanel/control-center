@@ -305,8 +305,8 @@ const devicePreviewModalState = {
 const DEVICE_PREVIEW_ISAPI_PRESETS = {
   deviceInfo: { label: "设备信息", schema: "deviceInfo" },
   sdkNetworkConfig: { label: "网络参数", schema: "sdkNetworkConfig" },
-  sdkFtpConfig: { label: "通用FTP配置", schema: "sdkFtpConfig" },
-  sdkNamingRules: { label: "智能交通FTP命名", schema: "sdkNamingRules" },
+  sdkFtpConfig: { label: "FTP参数配置", schema: "sdkFtpConfig" },
+  sdkNamingRules: { label: "FTP命名规则配置", schema: "sdkNamingRules" },
   sdkCurrentTriggerMode: { label: "当前触发模式", schema: "sdkCurrentTriggerMode" },
   sdkTriggerConfig: { label: "触发模式配置", schema: "sdkTriggerConfig" }
   };
@@ -342,39 +342,44 @@ const DEVICE_PREVIEW_ONVIF_SCHEMAS = {
 };
 
 const SDK_TRIGGER_TYPE_OPTIONS = [
-  { value: 1, label: "IO测速" },
-  { value: 2, label: "单IO" },
-  { value: 4, label: "RS485车检器" },
-  { value: 8, label: "RS485雷达" },
+  { value: 1, label: "卡口IO测速" },
+  { value: 2, label: "卡口单IO" },
+  { value: 4, label: "卡口RS485车检器" },
+  { value: 8, label: "卡口RS485雷达" },
   { value: 16, label: "虚拟线圈" },
-  { value: 32, label: "HVT抓拍" },
-  { value: 256, label: "雷达视频" },
-  { value: 4096, label: "IPC HVT" },
+  { value: 32, label: "视频测速" },
+  { value: 256, label: "一体机车检器" },
+  { value: 4096, label: "智能设备车检器" },
   { value: 1048576, label: "HVT V50" }
+];
+
+const SDK_BOOLEAN_OPTIONS = [
+  { value: "1", label: "开启" },
+  { value: "0", label: "关闭" }
 ];
 
 const SDK_TRIGGER_SPARE_MODE_OPTIONS = [
   { value: 0, label: "默认" },
-  { value: 1, label: "虚拟线圈备用" },
+  { value: 1, label: "虚拟线圈备用模式" },
   { value: 2, label: "手动雷达模式" }
 ];
 
 const SDK_SNAP_MODE_OPTIONS = [
-  { value: 0, label: "频闪" },
-  { value: 1, label: "爆闪" },
-  { value: 2, label: "手动" }
+  { value: 0, label: "频闪抓拍" },
+  { value: 1, label: "爆闪抓拍" },
+  { value: 2, label: "手动抓拍" }
 ];
 
 const SDK_SPEED_DETECTOR_OPTIONS = [
   { value: 0, label: "关闭" },
-  { value: 1, label: "雷达" },
-  { value: 2, label: "线圈" },
-  { value: 3, label: "视频" }
+  { value: 1, label: "雷达测速" },
+  { value: 2, label: "线圈测速" },
+  { value: 3, label: "视频测速" }
 ];
 
 const SDK_SCENE_MODE_OPTIONS = [
   { value: 0, label: "城市道路" },
-  { value: 1, label: "小区出入口" },
+  { value: 1, label: "园区出入口" },
   { value: 2, label: "高速公路" },
   { value: 3, label: "隧道" },
   { value: 4, label: "卡口" }
@@ -388,7 +393,7 @@ const SDK_CAP_TYPE_OPTIONS = [
 ];
 
 const SDK_CAP_MODE_OPTIONS = [
-  { value: 0, label: "视频帧抓拍" },
+  { value: 0, label: "视频流抓拍" },
   { value: 1, label: "间隔抓拍" },
   { value: 2, label: "连续抓拍" }
 ];
@@ -398,6 +403,22 @@ const SDK_SPEED_MODE_OPTIONS = [
   { value: 1, label: "雷达测速" },
   { value: 2, label: "线圈测速" },
   { value: 3, label: "视频测速" }
+];
+
+const SDK_PLATE_RECOG_MODE_OPTIONS = [
+  { value: 0, label: "关闭" },
+  { value: 1, label: "仅车牌识别" },
+  { value: 2, label: "车型和车牌识别" }
+];
+
+const SDK_RADAR_TYPE_OPTIONS = [
+  { value: 0, label: "无雷达" },
+  { value: 1, label: "安德列" },
+  { value: 2, label: "奥利维亚" },
+  { value: 3, label: "川速微波" },
+  { value: 4, label: "雷达IO扩展器" },
+  { value: 5, label: "安德列(无控制器)" },
+  { value: 255, label: "自定义" }
 ];
 
 // ISAPI协议的字段定义 - 修改为只显示设备基本信息
@@ -449,19 +470,19 @@ const DEVICE_PREVIEW_ISAPI_SCHEMAS = {
     saveApiPath: "/api/sdk/network-config/set",
     fields: [
       { key: "ipAddress", label: "IP地址", type: "text" },
-      { key: "subnetMask", label: "子网掩码", type: "text" },
-      { key: "gateway", label: "网关", type: "text" },
-      { key: "dns1", label: "DNS1", type: "text" },
-      { key: "dns2", label: "DNS2", type: "text" },
-      { key: "dhcpEnabled", label: "DHCP启用", type: "checkbox" },
-      { key: "sdkPort", label: "SDK端口", type: "number" },
+      { key: "subnetMask", label: "IP地址掩码", type: "text" },
+      { key: "gateway", label: "网关地址", type: "text" },
+      { key: "dns1", label: "首选DNS", type: "text" },
+      { key: "dns2", label: "备用DNS", type: "text" },
+      { key: "dhcpEnabled", label: "自动源IP地址", type: "select", options: SDK_BOOLEAN_OPTIONS },
+      { key: "sdkPort", label: "设备通讯端口号", type: "number" },
       { key: "httpPort", label: "HTTP端口", type: "number" },
-      { key: "mtu", label: "MTU", type: "number" },
-      { key: "netInterfaceLabel", label: "网卡模式", type: "text", readOnly: true },
-      { key: "macAddress", label: "MAC地址", type: "text", readOnly: true },
+      { key: "mtu", label: "MTU大小", type: "number" },
+      { key: "netInterfaceLabel", label: "网路层属性", type: "text", readOnly: true },
+      { key: "macAddress", label: "物理地址", type: "text", readOnly: true },
       { key: "alarmHostIp", label: "告警主机IP", type: "text" },
       { key: "alarmHostPort", label: "告警主机端口", type: "number" },
-      { key: "dhcpEnabledLabel", label: "DHCP状态", type: "text", readOnly: true }
+      { key: "dhcpEnabledLabel", label: "自动源IP状态", type: "text", readOnly: true }
     ],
     mapLoadResult(result = {}) {
       return result && typeof result === "object" ? result : {};
@@ -473,7 +494,7 @@ const DEVICE_PREVIEW_ISAPI_SCHEMAS = {
         gateway: String(values.gateway || "").trim(),
         dns1: String(values.dns1 || "").trim(),
         dns2: String(values.dns2 || "").trim(),
-        dhcpEnabled: Boolean(values.dhcpEnabled),
+        dhcpEnabled: String(values.dhcpEnabled || "") === "1" || values.dhcpEnabled === true,
         sdkPort: Number(values.sdkPort || 0) || 0,
         httpPort: Number(values.httpPort || 0) || 0,
         mtu: Number(values.mtu || 0) || 0,
@@ -485,18 +506,18 @@ const DEVICE_PREVIEW_ISAPI_SCHEMAS = {
   sdkFtpConfig: {
     readOnly: true,
     fields: [
-      { key: "ftpEnabled", label: "FTP启用状态", type: "text", readOnly: true },
-      { key: "ftpServer", label: "FTP服务器地址", type: "text", readOnly: true },
+      { key: "ftpEnabled", label: "启用FTP上传", type: "text", readOnly: true },
+      { key: "ftpServer", label: "FTP服务器IP地址", type: "text", readOnly: true },
       { key: "ftpPort", label: "FTP端口", type: "text", readOnly: true },
-      { key: "ftpUsername", label: "FTP用户名", type: "text", readOnly: true },
-      { key: "ftpPassword", label: "FTP密码", type: "text", readOnly: true },
-      { key: "ftpDirectory", label: "FTP目录", type: "text", readOnly: true },
+      { key: "ftpUsername", label: "用户名", type: "text", readOnly: true },
+      { key: "ftpPassword", label: "密码", type: "text", readOnly: true },
+      { key: "ftpDirectory", label: "目录结构", type: "text", readOnly: true },
       { key: "ftpUploadMode", label: "上传模式", type: "text", readOnly: true },
-      { key: "ftpUploadInterval", label: "上传间隔(秒)", type: "text", readOnly: true },
+      { key: "ftpUploadInterval", label: "上传数据类型", type: "text", readOnly: true },
       { key: "ftpImageQuality", label: "图片质量", type: "text", readOnly: true },
       { key: "ftpImageResolution", label: "图片分辨率", type: "text", readOnly: true },
-      { key: "ftpUploadType", label: "上传类型", type: "text", readOnly: true },
-      { key: "ftpFileNameFormat", label: "文件名格式", type: "text", readOnly: true },
+      { key: "ftpUploadType", label: "车牌小图不上传", type: "text", readOnly: true },
+      { key: "ftpFileNameFormat", label: "图片命名规则", type: "text", readOnly: true },
       { key: "ftpImageFormat", label: "图片格式", type: "text", readOnly: true }
     ],
     mapLoadResult(result = {}) {
@@ -506,20 +527,20 @@ const DEVICE_PREVIEW_ISAPI_SCHEMAS = {
   sdkNamingRules: {
     readOnly: true,
     fields: [
-      { key: "fileNameFormat", label: "文件名格式", type: "text", readOnly: true },
-      { key: "namingRuleEnabled", label: "命名规则启用状态", type: "text", readOnly: true },
-      { key: "prefix", label: "文件名前缀", type: "text", readOnly: true },
-      { key: "dateFormat", label: "日期格式", type: "text", readOnly: true },
-      { key: "timeFormat", label: "时间格式", type: "text", readOnly: true },
-      { key: "includeChannelNumber", label: "包含通道号", type: "text", readOnly: true },
-      { key: "includeSequenceNumber", label: "包含序列号", type: "text", readOnly: true },
-      { key: "includeCameraName", label: "包含摄像头名称", type: "text", readOnly: true },
-      { key: "includePlateNumber", label: "包含车牌号码", type: "text", readOnly: true },
-      { key: "includeTimestamp", label: "包含时间戳", type: "text", readOnly: true },
-      { key: "includeEventType", label: "包含事件类型", type: "text", readOnly: true },
-      { key: "fileExtension", label: "文件扩展名", type: "text", readOnly: true },
+      { key: "fileNameFormat", label: "图片命名规则", type: "text", readOnly: true },
+      { key: "namingRuleEnabled", label: "使用命名元素", type: "text", readOnly: true },
+      { key: "prefix", label: "自定义信息", type: "text", readOnly: true },
+      { key: "dateFormat", label: "命名项一", type: "text", readOnly: true },
+      { key: "timeFormat", label: "命名项二", type: "text", readOnly: true },
+      { key: "includeChannelNumber", label: "一级目录", type: "text", readOnly: true },
+      { key: "includeSequenceNumber", label: "二级目录", type: "text", readOnly: true },
+      { key: "includeCameraName", label: "三级目录", type: "text", readOnly: true },
+      { key: "includePlateNumber", label: "四级目录", type: "text", readOnly: true },
+      { key: "includeTimestamp", label: "命名项三", type: "text", readOnly: true },
+      { key: "includeEventType", label: "命名项四", type: "text", readOnly: true },
+      { key: "fileExtension", label: "图片扩展名", type: "text", readOnly: true },
       { key: "namingElements", label: "命名元素", type: "text", readOnly: true },
-      { key: "example", label: "示例文件名", type: "text", readOnly: true }
+      { key: "example", label: "示例命名", type: "text", readOnly: true }
     ],
     mapLoadResult(result = {}) {
       return result && typeof result === "object" ? result : {};
@@ -547,18 +568,18 @@ const DEVICE_PREVIEW_ISAPI_SCHEMAS = {
     readOnly: false,
     saveApiPath: "/api/sdk/trigger-config/set",
     fields: [
-      { key: "enabled", label: "启用状态", type: "checkbox" },
-      { key: "triggerTypeCode", label: "触发类型代码", type: "select", options: SDK_TRIGGER_TYPE_OPTIONS },
-      { key: "laneCount", label: "关联车道数", type: "number" },
-      { key: "triggerSpareMode", label: "备用模式代码", type: "select", options: SDK_TRIGGER_SPARE_MODE_OPTIONS },
+      { key: "enabled", label: "启用状态", type: "select", options: SDK_BOOLEAN_OPTIONS },
+      { key: "triggerTypeCode", label: "触发模式类型", type: "select", options: SDK_TRIGGER_TYPE_OPTIONS },
+      { key: "laneCount", label: "关联车道总数", type: "number" },
+      { key: "triggerSpareMode", label: "备用模式", type: "select", options: SDK_TRIGGER_SPARE_MODE_OPTIONS },
       { key: "faultToleranceMinutes", label: "容错时间(分钟)", type: "number" },
-      { key: "displayEnabled", label: "显示辅助线", type: "checkbox" },
-      { key: "snapMode", label: "抓拍模式代码", type: "select", options: SDK_SNAP_MODE_OPTIONS },
-      { key: "speedDetector", label: "测速方式代码", type: "select", options: SDK_SPEED_DETECTOR_OPTIONS },
-      { key: "sceneMode", label: "场景模式代码", type: "select", options: SDK_SCENE_MODE_OPTIONS },
-      { key: "capType", label: "抓拍类型代码", type: "select", options: SDK_CAP_TYPE_OPTIONS },
-      { key: "capMode", label: "抓拍方式代码", type: "select", options: SDK_CAP_MODE_OPTIONS },
-      { key: "speedMode", label: "速度模式代码", type: "select", options: SDK_SPEED_MODE_OPTIONS },
+      { key: "displayEnabled", label: "显示辅助线", type: "select", options: SDK_BOOLEAN_OPTIONS },
+      { key: "snapMode", label: "抓拍模式", type: "select", options: SDK_SNAP_MODE_OPTIONS },
+      { key: "speedDetector", label: "测速方式", type: "select", options: SDK_SPEED_DETECTOR_OPTIONS },
+      { key: "sceneMode", label: "场景模式", type: "select", options: SDK_SCENE_MODE_OPTIONS },
+      { key: "capType", label: "抓拍类型", type: "select", options: SDK_CAP_TYPE_OPTIONS },
+      { key: "capMode", label: "抓拍方式", type: "select", options: SDK_CAP_MODE_OPTIONS },
+      { key: "speedMode", label: "速度模式", type: "select", options: SDK_SPEED_MODE_OPTIONS },
       { key: "enabledLabel", label: "启用状态文本", type: "text", readOnly: true },
       { key: "triggerTypeLabel", label: "触发模式", type: "text", readOnly: true },
       { key: "triggerTypeHex", label: "触发类型HEX", type: "text", readOnly: true },
@@ -570,47 +591,47 @@ const DEVICE_PREVIEW_ISAPI_SCHEMAS = {
       { key: "capTypeLabel", label: "抓拍类型", type: "text", readOnly: true },
       { key: "capModeLabel", label: "抓拍方式", type: "text", readOnly: true },
       { key: "speedModeLabel", label: "速度模式", type: "text", readOnly: true },
-      { key: "radarType", label: "雷达类型代码", type: "number", readOnly: true },
+      { key: "radarType", label: "雷达类型", type: "select", options: SDK_RADAR_TYPE_OPTIONS },
       { key: "radarTypeLabel", label: "雷达类型", type: "text", readOnly: true },
-      { key: "levelAngle", label: "水平夹角", type: "number", readOnly: true },
-      { key: "radarSensitivity", label: "雷达灵敏度", type: "number", readOnly: true },
-      { key: "radarSpeedValidTime", label: "速度有效时间", type: "number", readOnly: true },
-      { key: "lineCorrectParam", label: "线性矫正参数", type: "text", readOnly: true },
-      { key: "constCorrectParam", label: "常量矫正参数", type: "number", readOnly: true },
-      { key: "plateRecogEnabled", label: "牌识启用", type: "checkbox", readOnly: true },
+      { key: "levelAngle", label: "水平夹角", type: "number" },
+      { key: "radarSensitivity", label: "灵敏度", type: "number" },
+      { key: "radarSpeedValidTime", label: "雷达速度有效时间", type: "number" },
+      { key: "lineCorrectParam", label: "线性矫正参数", type: "text" },
+      { key: "constCorrectParam", label: "常量矫正参数", type: "number" },
+      { key: "plateRecogEnabled", label: "启用车牌识别", type: "select", options: SDK_BOOLEAN_OPTIONS },
       { key: "plateRecogEnabledLabel", label: "牌识启用文本", type: "text", readOnly: true },
-      { key: "plateRecogMode", label: "牌识模式值", type: "number", readOnly: true },
-      { key: "vehicleLogoRecogEnabled", label: "车标识别启用", type: "checkbox", readOnly: true },
+      { key: "plateRecogMode", label: "车牌识别模式", type: "select", options: SDK_PLATE_RECOG_MODE_OPTIONS },
+      { key: "vehicleLogoRecogEnabled", label: "启用车标识别", type: "select", options: SDK_BOOLEAN_OPTIONS },
       { key: "vehicleLogoRecogEnabledLabel", label: "车标识别文本", type: "text", readOnly: true },
-      { key: "plateProvince", label: "省份代码", type: "number", readOnly: true },
-      { key: "plateRegion", label: "区域代码", type: "number", readOnly: true },
-      { key: "plateCountry", label: "国家代码", type: "number", readOnly: true },
-      { key: "platePixelWidthMin", label: "车牌最小像素宽", type: "number", readOnly: true },
-      { key: "platePixelWidthMax", label: "车牌最大像素宽", type: "number", readOnly: true },
-      { key: "firstLaneEnabled", label: "首车道启用", type: "checkbox", readOnly: true },
+      { key: "plateProvince", label: "省份代码", type: "number" },
+      { key: "plateRegion", label: "区域代码", type: "number" },
+      { key: "plateCountry", label: "国家代码", type: "number" },
+      { key: "platePixelWidthMin", label: "车牌最小像素宽", type: "number" },
+      { key: "platePixelWidthMax", label: "车牌最大像素宽", type: "number" },
+      { key: "firstLaneEnabled", label: "启用单车道参数", type: "select", options: SDK_BOOLEAN_OPTIONS },
       { key: "firstLaneEnabledLabel", label: "首车道启用文本", type: "text", readOnly: true },
-      { key: "firstLaneRelatedDriveWay", label: "首车道关联车道号", type: "number", readOnly: true },
-      { key: "firstLaneDistance", label: "首车道距离", type: "number", readOnly: true },
-      { key: "firstLaneTrigDelayTime", label: "首车道延迟时间", type: "number", readOnly: true },
-      { key: "firstLaneTrigDelayDistance", label: "首车道延迟距离", type: "number", readOnly: true },
-      { key: "firstLaneSpeedCapEnabled", label: "首车道超速抓拍", type: "checkbox", readOnly: true },
+      { key: "firstLaneRelatedDriveWay", label: "关联车道号", type: "number" },
+      { key: "firstLaneDistance", label: "线圈距离(m)", type: "number" },
+      { key: "firstLaneTrigDelayTime", label: "触发延迟时间(s)", type: "number" },
+      { key: "firstLaneTrigDelayDistance", label: "触发延迟距离(m)", type: "number" },
+      { key: "firstLaneSpeedCapEnabled", label: "是否启用超速抓拍", type: "select", options: SDK_BOOLEAN_OPTIONS },
       { key: "firstLaneSpeedCapEnabledLabel", label: "首车道超速抓拍文本", type: "text", readOnly: true },
-      { key: "firstLaneSignSpeed", label: "首车道标志限速", type: "number", readOnly: true },
-      { key: "firstLaneSpeedLimit", label: "首车道限速值", type: "number", readOnly: true },
-      { key: "firstLaneSnapTimes", label: "首车道抓拍次数", type: "number", readOnly: true },
-      { key: "firstLaneOverlayDriveWay", label: "首车道OSD车道号", type: "number", readOnly: true },
-      { key: "firstLaneFlashMode", label: "首车道闪光模式", type: "number", readOnly: true },
-      { key: "firstLaneCartSignSpeed", label: "首车道大车标志限速", type: "number", readOnly: true },
-      { key: "firstLaneCartSpeedLimit", label: "首车道大车限速值", type: "number", readOnly: true },
-      { key: "firstLaneRelatedIOOutEx", label: "首车道关联IO输出", type: "number", readOnly: true },
-      { key: "firstLaneLaneType", label: "首车道类型代码", type: "number", readOnly: true },
-      { key: "firstLaneUseageType", label: "首车道用途代码", type: "number", readOnly: true },
-      { key: "firstLaneDirectionType", label: "首车道方向代码", type: "number", readOnly: true },
-      { key: "firstLaneLowSpeedLimit", label: "首车道低速限值", type: "number", readOnly: true },
-      { key: "firstLaneBigCarLowSpeedLimit", label: "首车道大车低速限值", type: "number", readOnly: true },
-      { key: "firstLaneLowSpeedCapEnabled", label: "首车道低速抓拍", type: "checkbox", readOnly: true },
+      { key: "firstLaneSignSpeed", label: "限速(km/h)", type: "number" },
+      { key: "firstLaneSpeedLimit", label: "车速阈值(km/h)", type: "number" },
+      { key: "firstLaneSnapTimes", label: "抓拍次数", type: "number" },
+      { key: "firstLaneOverlayDriveWay", label: "车道编号", type: "number" },
+      { key: "firstLaneFlashMode", label: "闪光灯闪烁模式", type: "number" },
+      { key: "firstLaneCartSignSpeed", label: "大车限速(km/h)", type: "number" },
+      { key: "firstLaneCartSpeedLimit", label: "大车速度阈值(km/h)", type: "number" },
+      { key: "firstLaneRelatedIOOutEx", label: "关联IO输出", type: "number" },
+      { key: "firstLaneLaneType", label: "车道类型", type: "number" },
+      { key: "firstLaneUseageType", label: "车道用途", type: "number" },
+      { key: "firstLaneDirectionType", label: "车道方向", type: "number" },
+      { key: "firstLaneLowSpeedLimit", label: "最低限速(km/h)", type: "number" },
+      { key: "firstLaneBigCarLowSpeedLimit", label: "大车最低限速(km/h)", type: "number" },
+      { key: "firstLaneLowSpeedCapEnabled", label: "低速抓拍", type: "select", options: SDK_BOOLEAN_OPTIONS },
       { key: "firstLaneLowSpeedCapEnabledLabel", label: "首车道低速抓拍文本", type: "text", readOnly: true },
-      { key: "firstLaneEmergencyCapEnabled", label: "首车道应急车道抓拍", type: "checkbox", readOnly: true },
+      { key: "firstLaneEmergencyCapEnabled", label: "应急车道抓拍", type: "select", options: SDK_BOOLEAN_OPTIONS },
       { key: "firstLaneEmergencyCapEnabledLabel", label: "首车道应急车道抓拍文本", type: "text", readOnly: true },
       { key: "summary", label: "摘要", type: "text", readOnly: true }
     ],
@@ -619,18 +640,53 @@ const DEVICE_PREVIEW_ISAPI_SCHEMAS = {
     },
     buildSavePayload(values = {}) {
       return {
-        enabled: Boolean(values.enabled),
+        enabled: String(values.enabled || "") === "1" || values.enabled === true,
         triggerTypeCode: Number(values.triggerTypeCode || 0) || 0,
         laneCount: Number(values.laneCount || 0) || 0,
         triggerSpareMode: Number(values.triggerSpareMode || 0) || 0,
         faultToleranceMinutes: Number(values.faultToleranceMinutes || 0) || 0,
-        displayEnabled: Boolean(values.displayEnabled),
+        displayEnabled: String(values.displayEnabled || "") === "1" || values.displayEnabled === true,
         snapMode: Number(values.snapMode || 0) || 0,
         speedDetector: Number(values.speedDetector || 0) || 0,
         sceneMode: Number(values.sceneMode || 0) || 0,
         capType: Number(values.capType || 0) || 0,
         capMode: Number(values.capMode || 0) || 0,
-        speedMode: Number(values.speedMode || 0) || 0
+        speedMode: Number(values.speedMode || 0) || 0,
+        radarType: Number(values.radarType || 0) || 0,
+        levelAngle: Number(values.levelAngle || 0) || 0,
+        radarSensitivity: Number(values.radarSensitivity || 0) || 0,
+        radarSpeedValidTime: Number(values.radarSpeedValidTime || 0) || 0,
+        lineCorrectParam: String(values.lineCorrectParam || "").trim(),
+        constCorrectParam: Number(values.constCorrectParam || 0) || 0,
+        plateRecogEnabled: String(values.plateRecogEnabled || "") === "1" || values.plateRecogEnabled === true,
+        plateRecogMode: Number(values.plateRecogMode || 0) || 0,
+        vehicleLogoRecogEnabled: String(values.vehicleLogoRecogEnabled || "") === "1" || values.vehicleLogoRecogEnabled === true,
+        plateProvince: Number(values.plateProvince || 0) || 0,
+        plateRegion: Number(values.plateRegion || 0) || 0,
+        plateCountry: Number(values.plateCountry || 0) || 0,
+        platePixelWidthMin: Number(values.platePixelWidthMin || 0) || 0,
+        platePixelWidthMax: Number(values.platePixelWidthMax || 0) || 0,
+        firstLaneEnabled: String(values.firstLaneEnabled || "") === "1" || values.firstLaneEnabled === true,
+        firstLaneRelatedDriveWay: Number(values.firstLaneRelatedDriveWay || 0) || 0,
+        firstLaneDistance: Number(values.firstLaneDistance || 0) || 0,
+        firstLaneTrigDelayTime: Number(values.firstLaneTrigDelayTime || 0) || 0,
+        firstLaneTrigDelayDistance: Number(values.firstLaneTrigDelayDistance || 0) || 0,
+        firstLaneSpeedCapEnabled: String(values.firstLaneSpeedCapEnabled || "") === "1" || values.firstLaneSpeedCapEnabled === true,
+        firstLaneSignSpeed: Number(values.firstLaneSignSpeed || 0) || 0,
+        firstLaneSpeedLimit: Number(values.firstLaneSpeedLimit || 0) || 0,
+        firstLaneSnapTimes: Number(values.firstLaneSnapTimes || 0) || 0,
+        firstLaneOverlayDriveWay: Number(values.firstLaneOverlayDriveWay || 0) || 0,
+        firstLaneFlashMode: Number(values.firstLaneFlashMode || 0) || 0,
+        firstLaneCartSignSpeed: Number(values.firstLaneCartSignSpeed || 0) || 0,
+        firstLaneCartSpeedLimit: Number(values.firstLaneCartSpeedLimit || 0) || 0,
+        firstLaneRelatedIOOutEx: Number(values.firstLaneRelatedIOOutEx || 0) || 0,
+        firstLaneLaneType: Number(values.firstLaneLaneType || 0) || 0,
+        firstLaneUseageType: Number(values.firstLaneUseageType || 0) || 0,
+        firstLaneDirectionType: Number(values.firstLaneDirectionType || 0) || 0,
+        firstLaneLowSpeedLimit: Number(values.firstLaneLowSpeedLimit || 0) || 0,
+        firstLaneBigCarLowSpeedLimit: Number(values.firstLaneBigCarLowSpeedLimit || 0) || 0,
+        firstLaneLowSpeedCapEnabled: String(values.firstLaneLowSpeedCapEnabled || "") === "1" || values.firstLaneLowSpeedCapEnabled === true,
+        firstLaneEmergencyCapEnabled: String(values.firstLaneEmergencyCapEnabled || "") === "1" || values.firstLaneEmergencyCapEnabled === true
       };
     }
   },
