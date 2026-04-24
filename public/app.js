@@ -421,6 +421,64 @@ const SDK_RADAR_TYPE_OPTIONS = [
   { value: 255, label: "自定义" }
 ];
 
+const SDK_FTP_DIR_LEVEL_OPTIONS = [
+  { value: 0, label: "保存在根目录" },
+  { value: 1, label: "一级目录" },
+  { value: 2, label: "二级目录" },
+  { value: 3, label: "三级目录" },
+  { value: 4, label: "四级目录" }
+];
+
+const SDK_FTP_DIR_MODE_OPTIONS = [
+  { value: 0, label: "空" },
+  { value: 1, label: "设备名" },
+  { value: 2, label: "设备号" },
+  { value: 3, label: "设备IP" },
+  { value: 4, label: "监测点1" },
+  { value: 5, label: "时间(年月)" },
+  { value: 6, label: "时间(年月日)" },
+  { value: 7, label: "违法类型" },
+  { value: 8, label: "方向" },
+  { value: 9, label: "地点" },
+  { value: 10, label: "通道名" },
+  { value: 11, label: "通道号" },
+  { value: 12, label: "车道号" }
+];
+
+const SDK_FTP_DELIMITER_OPTIONS = [
+  { value: 0, label: "_" },
+  { value: 45, label: "-" },
+  { value: 46, label: "." },
+  { value: 44, label: "," },
+  { value: 32, label: "空格" }
+];
+
+const SDK_FTP_PICTURE_ITEM_OPTIONS = [
+  { value: 0, label: "空" },
+  { value: 1, label: "设备名" },
+  { value: 2, label: "设备号" },
+  { value: 3, label: "设备IP" },
+  { value: 4, label: "通道名" },
+  { value: 5, label: "通道号" },
+  { value: 6, label: "时间" },
+  { value: 8, label: "车牌号码" },
+  { value: 9, label: "车牌颜色" },
+  { value: 10, label: "车道号" },
+  { value: 11, label: "车辆速度" },
+  { value: 12, label: "监测点1" },
+  { value: 13, label: "图片序号" },
+  { value: 14, label: "车辆序号" },
+  { value: 15, label: "限速标志" },
+  { value: 16, label: "国标违法代码" },
+  { value: 17, label: "路口编号" },
+  { value: 18, label: "方向编号" },
+  { value: 19, label: "车辆颜色" },
+  { value: 20, label: "车牌坐标" },
+  { value: 21, label: "车辆类型" },
+  { value: 22, label: "违规类型" },
+  { value: 255, label: "自定义" }
+];
+
 // ISAPI协议的字段定义 - 修改为只显示设备基本信息
 const DEVICE_PREVIEW_ISAPI_SCHEMAS = {
   deviceInfo: {
@@ -504,46 +562,129 @@ const DEVICE_PREVIEW_ISAPI_SCHEMAS = {
     }
   },
   sdkFtpConfig: {
-    readOnly: true,
-    fields: [
-      { key: "ftpEnabled", label: "启用FTP上传", type: "text", readOnly: true },
-      { key: "ftpServer", label: "FTP服务器IP地址", type: "text", readOnly: true },
-      { key: "ftpPort", label: "FTP端口", type: "text", readOnly: true },
-      { key: "ftpUsername", label: "用户名", type: "text", readOnly: true },
-      { key: "ftpPassword", label: "密码", type: "text", readOnly: true },
-      { key: "ftpDirectory", label: "目录结构", type: "text", readOnly: true },
-      { key: "ftpUploadMode", label: "上传模式", type: "text", readOnly: true },
-      { key: "ftpUploadInterval", label: "上传数据类型", type: "text", readOnly: true },
-      { key: "ftpImageQuality", label: "图片质量", type: "text", readOnly: true },
-      { key: "ftpImageResolution", label: "图片分辨率", type: "text", readOnly: true },
-      { key: "ftpUploadType", label: "车牌小图不上传", type: "text", readOnly: true },
-      { key: "ftpFileNameFormat", label: "图片命名规则", type: "text", readOnly: true },
-      { key: "ftpImageFormat", label: "图片格式", type: "text", readOnly: true }
-    ],
+    readOnly: false,
+    saveApiPath: "/api/sdk/ftp-config/set",
+    fields: [],
     mapLoadResult(result = {}) {
-      return result && typeof result === "object" ? result : {};
+      const data = result && typeof result === "object" ? result : {};
+      const items = Array.isArray(data.picNameRule?.items) ? data.picNameRule.items : [];
+      const values = {
+        ftpServer: data.host || "",
+        ftpPort: data.port == null ? "" : String(data.port),
+        ftpUsername: data.username || "",
+        ftpPassword: data.password || "",
+        ftpPasswordConfirm: data.password || "",
+        dirLevel: data.dirLevel == null ? "0" : String(data.dirLevel),
+        topDirMode: data.topDirMode == null ? "0" : String(data.topDirMode),
+        subDirMode: data.subDirMode == null ? "0" : String(data.subDirMode),
+        threeDirMode: data.threeDirMode == null ? "0" : String(data.threeDirMode),
+        fourDirMode: data.fourDirMode == null ? "0" : String(data.fourDirMode),
+        filterCarPic: Boolean(data.filterCarPic),
+        picNameDelimiter: data.picNameRule?.delimiter == null ? "0" : String(data.picNameRule.delimiter),
+        picNameCustom: data.picNameCustom || "",
+        ftpEnabledRaw: data.enable == null ? "1" : String(data.enable),
+        ftpAddressTypeRaw: data.addressType == null ? "" : String(data.addressType),
+        ftpIndexRaw: data.ftpIndex == null ? "" : String(data.ftpIndex),
+        topCustomDirRaw: data.topCustomDir || "",
+        subCustomDirRaw: data.subCustomDir || "",
+        threeCustomDirRaw: data.threeCustomDir || "",
+        fourCustomDirRaw: data.fourCustomDir || ""
+      };
+      for (let i = 0; i < 15; i += 1) {
+        values[`picNameItem${i + 1}`] = items[i] == null ? "0" : String(items[i]);
+      }
+      return values;
+    },
+    buildSaveRequest(device, values = {}) {
+      const password = String(values.ftpPassword || "").trim();
+      const passwordConfirm = String(values.ftpPasswordConfirm || "").trim();
+      if (Object.prototype.hasOwnProperty.call(values, "ftpPassword") && password !== passwordConfirm) {
+        throw new Error("两次输入的 FTP 密码不一致");
+      }
+      const items = [];
+      for (let i = 1; i <= 15; i += 1) {
+        const raw = Number(values[`picNameItem${i}`] || 0) || 0;
+        if (raw > 0) items.push(raw);
+      }
+      const ftpConfig = {
+        picNameRule: {
+          delimiter: Number(values.picNameDelimiter || 0) || 0,
+          items
+        },
+        picNameCustom: String(values.picNameCustom || "").trim()
+      };
+      if (Object.prototype.hasOwnProperty.call(values, "dirLevel")) {
+        ftpConfig.dirLevel = Number(values.dirLevel || 0) || 0;
+      }
+      if (Object.prototype.hasOwnProperty.call(values, "filterCarPic")) {
+        ftpConfig.filterCarPic = values.filterCarPic ? 1 : 0;
+      }
+      if (Object.prototype.hasOwnProperty.call(values, "topDirMode")) {
+        ftpConfig.topDirMode = Number(values.topDirMode || 0) || 0;
+      }
+      if (Object.prototype.hasOwnProperty.call(values, "subDirMode")) {
+        ftpConfig.subDirMode = Number(values.subDirMode || 0) || 0;
+      }
+      if (Object.prototype.hasOwnProperty.call(values, "threeDirMode")) {
+        ftpConfig.threeDirMode = Number(values.threeDirMode || 0) || 0;
+      }
+      if (Object.prototype.hasOwnProperty.call(values, "fourDirMode")) {
+        ftpConfig.fourDirMode = Number(values.fourDirMode || 0) || 0;
+      }
+      if (Object.prototype.hasOwnProperty.call(values, "ftpEnabledRaw")) {
+        ftpConfig.enable = String(values.ftpEnabledRaw || "0") === "1";
+      }
+      if (Object.prototype.hasOwnProperty.call(values, "ftpAddressTypeRaw") && values.ftpAddressTypeRaw !== "") {
+        ftpConfig.addressType = Number(values.ftpAddressTypeRaw || 0) || 0;
+      }
+      if (Object.prototype.hasOwnProperty.call(values, "ftpServer")) {
+        ftpConfig.host = String(values.ftpServer || "").trim();
+      }
+      if (Object.prototype.hasOwnProperty.call(values, "ftpPort")) {
+        ftpConfig.port = Number(values.ftpPort || 0) || 0;
+      }
+      if (Object.prototype.hasOwnProperty.call(values, "ftpUsername")) {
+        ftpConfig.username = String(values.ftpUsername || "").trim();
+      }
+      if (Object.prototype.hasOwnProperty.call(values, "ftpPassword")) {
+        ftpConfig.password = password;
+      }
+      if (Object.prototype.hasOwnProperty.call(values, "ftpIndexRaw") && values.ftpIndexRaw !== "") {
+        ftpConfig.ftpIndex = Number(values.ftpIndexRaw || 0) || 0;
+      }
+      if (Object.prototype.hasOwnProperty.call(values, "topCustomDirRaw")) {
+        ftpConfig.topCustomDir = String(values.topCustomDirRaw || "").trim();
+      }
+      if (Object.prototype.hasOwnProperty.call(values, "subCustomDirRaw")) {
+        ftpConfig.subCustomDir = String(values.subCustomDirRaw || "").trim();
+      }
+      if (Object.prototype.hasOwnProperty.call(values, "threeCustomDirRaw")) {
+        ftpConfig.threeCustomDir = String(values.threeCustomDirRaw || "").trim();
+      }
+      if (Object.prototype.hasOwnProperty.call(values, "fourCustomDirRaw")) {
+        ftpConfig.fourCustomDir = String(values.fourCustomDirRaw || "").trim();
+      }
+      return {
+        connection: {
+          host: String(device.host || "").trim(),
+          port: getDevicePreviewSdkPort(device),
+          username: String(device.username || "").trim(),
+          password: String(device.password || "")
+        },
+        channel: 1,
+        ftpConfig
+      };
     }
   },
   sdkNamingRules: {
-    readOnly: true,
-    fields: [
-      { key: "fileNameFormat", label: "图片命名规则", type: "text", readOnly: true },
-      { key: "namingRuleEnabled", label: "使用命名元素", type: "text", readOnly: true },
-      { key: "prefix", label: "自定义信息", type: "text", readOnly: true },
-      { key: "dateFormat", label: "命名项一", type: "text", readOnly: true },
-      { key: "timeFormat", label: "命名项二", type: "text", readOnly: true },
-      { key: "includeChannelNumber", label: "一级目录", type: "text", readOnly: true },
-      { key: "includeSequenceNumber", label: "二级目录", type: "text", readOnly: true },
-      { key: "includeCameraName", label: "三级目录", type: "text", readOnly: true },
-      { key: "includePlateNumber", label: "四级目录", type: "text", readOnly: true },
-      { key: "includeTimestamp", label: "命名项三", type: "text", readOnly: true },
-      { key: "includeEventType", label: "命名项四", type: "text", readOnly: true },
-      { key: "fileExtension", label: "图片扩展名", type: "text", readOnly: true },
-      { key: "namingElements", label: "命名元素", type: "text", readOnly: true },
-      { key: "example", label: "示例命名", type: "text", readOnly: true }
-    ],
+    readOnly: false,
+    saveApiPath: "/api/sdk/ftp-config/set",
+    fields: [],
     mapLoadResult(result = {}) {
-      return result && typeof result === "object" ? result : {};
+      return DEVICE_PREVIEW_ISAPI_SCHEMAS.sdkFtpConfig.mapLoadResult(result);
+    },
+    buildSaveRequest(device, values = {}) {
+      return DEVICE_PREVIEW_ISAPI_SCHEMAS.sdkFtpConfig.buildSaveRequest(device, values);
     }
   },
   sdkCurrentTriggerMode: {
@@ -6477,6 +6618,111 @@ function renderPreviewParamField(field = {}, dataAttr = "data-isapi-field") {
   return `<div class="devicePreviewParamItem"><span class="devicePreviewParamLabel">${label}:</span><input class="devicePreviewParamInput" type="${inputType}" ${dataAttr}="${key}" /></div>`;
 }
 
+function renderPreviewSelectOptions(options = []) {
+  return options
+    .map((option) => {
+      if (option && typeof option === "object") {
+        return `<option value="${option.value ?? ""}">${option.label ?? option.value ?? ""}</option>`;
+      }
+      return `<option value="${option ?? ""}">${option ?? ""}</option>`;
+    })
+    .join("");
+}
+
+function renderDevicePreviewSdkFtpNamingRows() {
+  const selectOptions = renderPreviewSelectOptions(SDK_FTP_PICTURE_ITEM_OPTIONS);
+  const rows = [];
+  for (let index = 1; index <= 15; index += 1) {
+    rows.push(
+      `<tr>
+        <td>${index}</td>
+        <td>命名项${index}</td>
+        <td><select class="devicePreviewParamSelect devicePreviewFtpTableSelect" data-isapi-field="picNameItem${index}">${selectOptions}</select></td>
+      </tr>`
+    );
+  }
+  return rows.join("");
+}
+
+function renderDevicePreviewSdkFtpTopForm() {
+  return [
+    '<div class="devicePreviewFtpSection">',
+    '<div class="devicePreviewFtpSectionTitle">FTP1</div>',
+    '<div class="devicePreviewFtpTopGrid">',
+    '<div class="devicePreviewFtpColumn">',
+    '<label class="devicePreviewFtpField"><span>服务器地址</span><input class="devicePreviewParamInput" type="text" data-isapi-field="ftpServer" /></label>',
+    '<label class="devicePreviewFtpField"><span>端口</span><input class="devicePreviewParamInput" type="number" data-isapi-field="ftpPort" /></label>',
+    '<label class="devicePreviewFtpField"><span>用户名</span><input class="devicePreviewParamInput" type="text" data-isapi-field="ftpUsername" /></label>',
+    '<label class="devicePreviewFtpField"><span>密码</span><input class="devicePreviewParamInput" type="password" data-isapi-field="ftpPassword" /></label>',
+    '<label class="devicePreviewFtpField"><span>密码确认</span><input class="devicePreviewParamInput" type="password" data-isapi-field="ftpPasswordConfirm" /></label>',
+    '<label class="devicePreviewFtpCheck"><input type="checkbox" data-isapi-field="filterCarPic" /><span>车牌小图不上载</span></label>',
+    '</div>',
+    '<div class="devicePreviewFtpColumn">',
+    `<label class="devicePreviewFtpField"><span>目录结构</span><select class="devicePreviewParamSelect" data-isapi-field="dirLevel">${renderPreviewSelectOptions(SDK_FTP_DIR_LEVEL_OPTIONS)}</select></label>`,
+    `<label class="devicePreviewFtpField"><span>一级目录</span><select class="devicePreviewParamSelect" data-isapi-field="topDirMode">${renderPreviewSelectOptions(SDK_FTP_DIR_MODE_OPTIONS)}</select></label>`,
+    `<label class="devicePreviewFtpField"><span>二级目录</span><select class="devicePreviewParamSelect" data-isapi-field="subDirMode">${renderPreviewSelectOptions(SDK_FTP_DIR_MODE_OPTIONS)}</select></label>`,
+    `<label class="devicePreviewFtpField"><span>三级目录</span><select class="devicePreviewParamSelect" data-isapi-field="threeDirMode">${renderPreviewSelectOptions(SDK_FTP_DIR_MODE_OPTIONS)}</select></label>`,
+    `<label class="devicePreviewFtpField"><span>四级目录</span><select class="devicePreviewParamSelect" data-isapi-field="fourDirMode">${renderPreviewSelectOptions(SDK_FTP_DIR_MODE_OPTIONS)}</select></label>`,
+    '</div>',
+    '</div>',
+    '<input type="hidden" data-isapi-field="ftpEnabledRaw" />',
+    '<input type="hidden" data-isapi-field="ftpAddressTypeRaw" />',
+    '<input type="hidden" data-isapi-field="ftpIndexRaw" />',
+    '<input type="hidden" data-isapi-field="topCustomDirRaw" />',
+    '<input type="hidden" data-isapi-field="subCustomDirRaw" />',
+    '<input type="hidden" data-isapi-field="threeCustomDirRaw" />',
+    '<input type="hidden" data-isapi-field="fourCustomDirRaw" />',
+    '</div>'
+  ].join("");
+}
+
+function renderDevicePreviewSdkNamingSection(includeOsd = false) {
+  const html = [
+    '<div class="devicePreviewFtpSection">',
+    '<div class="devicePreviewFtpSectionBar"><span>图片命名规则</span>',
+    `<label class="devicePreviewFtpInlineField"><span>分隔符：</span><select class="devicePreviewParamSelect" data-isapi-field="picNameDelimiter">${renderPreviewSelectOptions(SDK_FTP_DELIMITER_OPTIONS)}</select></label>`,
+    '</div>',
+    '<div class="devicePreviewFtpTableWrap">',
+    '<table class="devicePreviewFtpTable">',
+    '<thead><tr><th>序号</th><th>命名项</th><th>命名元素</th></tr></thead>',
+    `<tbody>${renderDevicePreviewSdkFtpNamingRows()}</tbody>`,
+    '</table>',
+    '</div>',
+    '<label class="devicePreviewFtpField devicePreviewFtpCustomField"><span>自定义信息</span><input class="devicePreviewParamInput" type="text" data-isapi-field="picNameCustom" /></label>',
+    '</div>'
+  ];
+
+  if (includeOsd) {
+    html.push(
+      '<div class="devicePreviewFtpSection">',
+      '<div class="devicePreviewFtpSectionBar"><span>OSD相关信息</span></div>',
+      '<div class="devicePreviewFtpTopGrid devicePreviewFtpOsdGrid">',
+      '<div class="devicePreviewFtpColumn">',
+      '<label class="devicePreviewFtpField"><span>地点</span><input class="devicePreviewParamInput" type="text" data-isapi-field="osdLocation" readonly /></label>',
+      '<label class="devicePreviewFtpField"><span>设备编号</span><input class="devicePreviewParamInput" type="text" data-isapi-field="osdDeviceNo" readonly /></label>',
+      '<label class="devicePreviewFtpField"><span>方向编号</span><input class="devicePreviewParamInput" type="text" data-isapi-field="osdDirectionNo" readonly /></label>',
+      '</div>',
+      '<div class="devicePreviewFtpColumn">',
+      '<label class="devicePreviewFtpField"><span>路口编号</span><input class="devicePreviewParamInput" type="text" data-isapi-field="osdIntersectionNo" readonly /></label>',
+      '<label class="devicePreviewFtpField"><span>监测点1</span><input class="devicePreviewParamInput" type="text" data-isapi-field="osdMonitoringSite1" readonly /></label>',
+      '<label class="devicePreviewFtpField"><span>方向描述</span><input class="devicePreviewParamInput" type="text" data-isapi-field="osdDirectionDesc" readonly /></label>',
+      '</div>',
+      '</div>',
+      '<div class="devicePreviewFtpNote">当前SDK尚未返回 OSD 相关信息，先保留与摄像头页面一致的显示区域。</div>',
+      '</div>'
+    );
+  }
+
+  return html.join("");
+}
+
+function renderDevicePreviewSdkFtpControls(schemaKey = "") {
+  if (schemaKey === "sdkNamingRules") {
+    return `<div class="devicePreviewFtpPanel">${renderDevicePreviewSdkNamingSection(true)}</div>`;
+  }
+  return `<div class="devicePreviewFtpPanel">${renderDevicePreviewSdkFtpTopForm()}${renderDevicePreviewSdkNamingSection(false)}</div>`;
+}
+
 function fillDevicePreviewOnvifControls(values = {}) {
   const host = ensureDevicePreviewOnvifControlsHost();
   if (!host) return;
@@ -6534,6 +6780,10 @@ function renderDevicePreviewOnvifControls(presetKey = "") {
 function renderDevicePreviewIsapiControls(schemaKey = "") {
   const host = ensureDevicePreviewOnvifControlsHost();
   if (!host) return;
+  if (schemaKey === "sdkFtpConfig" || schemaKey === "sdkNamingRules") {
+    host.innerHTML = renderDevicePreviewSdkFtpControls(schemaKey);
+    return;
+  }
   const schema = DEVICE_PREVIEW_ISAPI_SCHEMAS[schemaKey] || DEVICE_PREVIEW_ISAPI_SCHEMAS.deviceInfo;
   const html = [
     '<div class="devicePreviewParamList">'
@@ -6737,7 +6987,7 @@ function applyDevicePreviewIsapiPreset(presetKey, keepBody = false) {
     const schema = DEVICE_PREVIEW_ISAPI_SCHEMAS[preset.schema];
     if (schema) {
       if (els.devicePreviewIsapiHint) {
-        els.devicePreviewIsapiHint.textContent = `已选择：${preset.label} (通过ISAPI获取)`;
+        els.devicePreviewIsapiHint.textContent = `已选择：${preset.label}`;
       }
     }
   } else {
@@ -6809,13 +7059,15 @@ async function saveDevicePreviewSdkPreset() {
 
   const values = collectDevicePreviewIsapiControlValues();
   const payload = typeof schema.buildSavePayload === "function" ? schema.buildSavePayload(values) : values;
-  const sdkPayload = {
-    ip: String(device.host || "").trim(),
-    port: getDevicePreviewSdkPort(device),
-    username: String(device.username || "").trim(),
-    password: String(device.password || ""),
-    values: payload || {}
-  };
+  const sdkPayload = typeof schema.buildSaveRequest === "function"
+    ? schema.buildSaveRequest(device, values, payload)
+    : {
+        ip: String(device.host || "").trim(),
+        port: getDevicePreviewSdkPort(device),
+        username: String(device.username || "").trim(),
+        password: String(device.password || ""),
+        values: payload || {}
+      };
 
   if (els.devicePreviewIsapiHint) {
     els.devicePreviewIsapiHint.textContent = "正在保存参数...";
@@ -6953,13 +7205,29 @@ async function runDevicePreviewIsapiRequest(methodOverride = "") {
         if (!isSdkApiSuccess(response)) throw new Error(response?.error || "SDK网络参数获取失败");
         values = schema.mapLoadResult(response.networkConfig || {}, device);
       } else if (preset.schema === "sdkFtpConfig") {
-        const response = await fetchJson("/api/sdk/ftp-config", sdkPayload);
+        const response = await fetchJson("/api/sdk/ftp-config/get", {
+          connection: {
+            host: String(device.host || "").trim(),
+            port: getDevicePreviewSdkPort(device),
+            username: String(device.username || "").trim(),
+            password: String(device.password || "")
+          },
+          channel: 1
+        });
         if (!isSdkApiSuccess(response)) throw new Error(response?.error || "SDK通用FTP配置获取失败");
-        values = schema.mapLoadResult(response.ftpConfig || response.result || {}, device);
+        values = schema.mapLoadResult(response.ftpConfig || response.result || {}, device, response);
       } else if (preset.schema === "sdkNamingRules") {
-        const response = await fetchJson("/api/sdk/naming-rules", sdkPayload);
+        const response = await fetchJson("/api/sdk/ftp-config/get", {
+          connection: {
+            host: String(device.host || "").trim(),
+            port: getDevicePreviewSdkPort(device),
+            username: String(device.username || "").trim(),
+            password: String(device.password || "")
+          },
+          channel: 1
+        });
         if (!isSdkApiSuccess(response)) throw new Error(response?.error || "SDK智能交通FTP命名获取失败");
-        values = schema.mapLoadResult(response.namingRules || response.pictureNamingRule || response.result || {}, device);
+        values = schema.mapLoadResult(response.ftpConfig || response.result || {}, device, response);
       } else if (preset.schema === "sdkCurrentTriggerMode") {
         const response = await fetchJson("/api/sdk/current-trigger-mode", sdkPayload);
         if (!isSdkApiSuccess(response)) throw new Error(response?.error || "SDK当前触发模式获取失败");
@@ -6974,7 +7242,7 @@ async function runDevicePreviewIsapiRequest(methodOverride = "") {
       fillDevicePreviewIsapiControls(values);
       
       if (els.devicePreviewIsapiHint) {
-        els.devicePreviewIsapiHint.textContent = "设备信息读取成功";
+        els.devicePreviewIsapiHint.textContent = `${preset.label}读取成功`;
       }
     } else {
       throw new Error(`不支持的协议：${protocol}`);

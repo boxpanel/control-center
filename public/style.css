@@ -1147,6 +1147,139 @@ canvas {
   max-width: 600px;
 }
 
+.devicePreviewFtpPanel {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  width: min(100%, 860px);
+}
+
+.devicePreviewFtpSection {
+  border: 1px solid rgba(203, 213, 225, 0.9);
+  background: rgba(255, 255, 255, 0.96);
+}
+
+.devicePreviewFtpSectionTitle {
+  padding: 8px 12px 0;
+  font-size: 15px;
+  font-weight: 700;
+  color: #1f2937;
+}
+
+.devicePreviewFtpTopGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px 28px;
+  padding: 12px;
+}
+
+.devicePreviewFtpColumn {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.devicePreviewFtpField {
+  display: grid;
+  grid-template-columns: 96px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+  color: #374151;
+}
+
+.devicePreviewFtpField > span {
+  white-space: nowrap;
+}
+
+.devicePreviewFtpCheck {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  color: #374151;
+  padding-top: 2px;
+}
+
+.devicePreviewFtpSectionBar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  padding: 10px 12px;
+  background: #f3f4f6;
+  font-size: 14px;
+  font-weight: 700;
+  color: #111827;
+}
+
+.devicePreviewFtpInlineField {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 400;
+}
+
+.devicePreviewFtpInlineField .devicePreviewParamSelect {
+  width: 220px;
+  max-width: 220px;
+}
+
+.devicePreviewFtpTableWrap {
+  padding: 0 12px 12px;
+}
+
+.devicePreviewFtpTable {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.devicePreviewFtpTable th,
+.devicePreviewFtpTable td {
+  border: 1px solid rgba(209, 213, 219, 0.95);
+  padding: 8px 10px;
+  font-size: 14px;
+  color: #1f2937;
+  text-align: left;
+  vertical-align: middle;
+}
+
+.devicePreviewFtpTable th {
+  background: #f9fafb;
+  font-weight: 700;
+}
+
+.devicePreviewFtpTable th:nth-child(1),
+.devicePreviewFtpTable td:nth-child(1) {
+  width: 70px;
+  text-align: center;
+}
+
+.devicePreviewFtpTable th:nth-child(2),
+.devicePreviewFtpTable td:nth-child(2) {
+  width: 140px;
+}
+
+.devicePreviewFtpTableSelect {
+  width: 100%;
+  max-width: none;
+}
+
+.devicePreviewFtpCustomField {
+  padding: 0 12px 12px;
+}
+
+.devicePreviewFtpNote {
+  padding: 0 12px 12px;
+  color: #6b7280;
+  font-size: 13px;
+}
+
+.devicePreviewFtpOsdGrid {
+  padding-top: 12px;
+}
+
 .devicePreviewParamItem {
   display: grid;
   grid-template-columns: 132px minmax(0, 1fr);
@@ -1198,6 +1331,33 @@ canvas {
 @media (max-width: 900px) {
   .devicePreviewParamList {
     max-width: 100%;
+  }
+
+  .devicePreviewFtpPanel {
+    width: 100%;
+  }
+
+  .devicePreviewFtpTopGrid {
+    grid-template-columns: 1fr;
+    gap: 14px;
+  }
+
+  .devicePreviewFtpField {
+    grid-template-columns: 110px minmax(0, 1fr);
+  }
+
+  .devicePreviewFtpSectionBar {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .devicePreviewFtpInlineField {
+    width: 100%;
+  }
+
+  .devicePreviewFtpInlineField .devicePreviewParamSelect {
+    width: 100%;
+    max-width: none;
   }
 
   .devicePreviewParamItem {
