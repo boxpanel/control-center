@@ -306,8 +306,6 @@ const DEVICE_PREVIEW_ISAPI_PRESETS = {
   deviceInfo: { label: "设备信息", schema: "deviceInfo" },
   sdkNetworkConfig: { label: "网络参数", schema: "sdkNetworkConfig" },
   sdkFtpConfig: { label: "FTP参数配置", schema: "sdkFtpConfig" },
-  sdkNamingRules: { label: "FTP命名规则配置", schema: "sdkNamingRules" },
-  sdkCurrentTriggerMode: { label: "当前触发模式", schema: "sdkCurrentTriggerMode" },
   sdkTriggerConfig: { label: "触发模式配置", schema: "sdkTriggerConfig" }
   };
 const DEVICE_PREVIEW_ONVIF_PRESETS = {
@@ -520,6 +518,90 @@ const SDK_FTP_PICTURE_ITEM_OPTIONS = [
   { value: 255, label: "自定义" }
 ];
 
+function findSdkOptionValueByLabel(options = [], label = "", fallback = 0) {
+  const text = String(label || "").trim();
+  if (!text) return fallback;
+  const matched = options.find((option) => String(option.label || "").trim() === text);
+  return matched ? matched.value : fallback;
+}
+
+function parseSdkFtpNamingItemValues(namingElements = "") {
+  const text = String(namingElements || "").trim();
+  if (!text) return [];
+  return text
+    .split("/")
+    .map((item) => String(item || "").trim())
+    .filter(Boolean)
+    .map((label) => findSdkOptionValueByLabel(SDK_FTP_PICTURE_ITEM_OPTIONS, label, 0))
+    .filter((value) => value > 0);
+}
+
+function normalizeSdkFtpConfigResult(result = {}) {
+  const wrapper = result && typeof result === "object" ? result : {};
+  const raw = wrapper.rawFtpConfig && typeof wrapper.rawFtpConfig === "object" ? wrapper.rawFtpConfig : null;
+  if (raw) return raw;
+  const legacy = wrapper.ftpConfig && typeof wrapper.ftpConfig === "object" ? wrapper.ftpConfig : null;
+  if (legacy && ("host" in legacy || "dirLevel" in legacy || "picNameRule" in legacy)) {
+    return legacy;
+  }
+  const direct = wrapper.result && typeof wrapper.result === "object" ? wrapper.result : null;
+  if (direct && ("host" in direct || "dirLevel" in direct || "picNameRule" in direct)) {
+    return direct;
+  }
+
+  const ftp = legacy || {};
+  const naming = wrapper.namingRules && typeof wrapper.namingRules === "object" ? wrapper.namingRules : {};
+  const meta = wrapper.itcFtpMeta && typeof wrapper.itcFtpMeta === "object" ? wrapper.itcFtpMeta : {};
+
+  return {
+    enable: String(ftp.ftpEnabled || "").includes("启用") ? 1 : 0,
+    addressType: String(meta.addressTypeLabel || "").includes("域名") ? 1 : 0,
+    ftpIndex: 1,
+    host: ftp.ftpServer || "",
+    port: Number(ftp.ftpPort || 21) || 21,
+    username: ftp.ftpUsername || "",
+    password: ftp.ftpPassword || "",
+    dirLevel: findSdkOptionValueByLabel(SDK_FTP_DIR_LEVEL_OPTIONS, ftp.ftpUploadMode, 0),
+    filterCarPic: String(meta.isFilterCarPicLabel || "").includes("不上传") ? 1 : 0,
+    uploadDataType: 0,
+    topDirMode: findSdkOptionValueByLabel(SDK_FTP_DIR_MODE_OPTIONS, meta.topDirModeLabel, 0),
+    subDirMode: findSdkOptionValueByLabel(SDK_FTP_DIR_MODE_OPTIONS, meta.subDirModeLabel, 0),
+    threeDirMode: findSdkOptionValueByLabel(SDK_FTP_DIR_MODE_OPTIONS, meta.threeDirModeLabel, 0),
+    fourDirMode: findSdkOptionValueByLabel(SDK_FTP_DIR_MODE_OPTIONS, meta.fourDirModeLabel, 0),
+    picNameCustom: naming.prefix || "",
+    topCustomDir: "",
+    subCustomDir: "",
+    threeCustomDir: "",
+    fourCustomDir: "",
+    picNameRule: {
+      delimiter: findSdkOptionValueByLabel(SDK_FTP_DELIMITER_OPTIONS, meta.delimiter, 0),
+      items: parseSdkFtpNamingItemValues(naming.namingElements)
+    }
+  };
+}
+
+async function fetchSdkFtpPanelData(device, sdkPayload) {
+  try {
+    const response = await fetchJson("/api/sdk/ftp-config", sdkPayload);
+    if (isSdkApiSuccess(response)) return response;
+    throw new Error(response?.error || response?.message || "SDK通用FTP配置获取失败");
+  } catch (primaryError) {
+    const legacyResponse = await fetchJson("/api/sdk/ftp-config/get", {
+      connection: {
+        host: String(device.host || "").trim(),
+        port: getDevicePreviewSdkPort(device),
+        username: String(device.username || "").trim(),
+        password: String(device.password || "")
+      },
+      channel: 1
+    });
+    if (!isSdkApiSuccess(legacyResponse)) {
+      throw primaryError;
+    }
+    return legacyResponse;
+  }
+}
+
 // ISAPI协议的字段定义 - 修改为只显示设备基本信息
 const DEVICE_PREVIEW_ISAPI_SCHEMAS = {
   deviceInfo: {
@@ -607,7 +689,7 @@ const DEVICE_PREVIEW_ISAPI_SCHEMAS = {
     saveApiPath: "/api/sdk/ftp-config/set",
     fields: [],
     mapLoadResult(result = {}) {
-      const data = result && typeof result === "object" ? result : {};
+      const data = normalizeSdkFtpConfigResult(result);
       const items = Array.isArray(data.picNameRule?.items) ? data.picNameRule.items : [];
       const values = {
         ftpServer: data.host || "",
@@ -715,17 +797,6 @@ const DEVICE_PREVIEW_ISAPI_SCHEMAS = {
         channel: 1,
         ftpConfig
       };
-    }
-  },
-  sdkNamingRules: {
-    readOnly: false,
-    saveApiPath: "/api/sdk/ftp-config/set",
-    fields: [],
-    mapLoadResult(result = {}) {
-      return DEVICE_PREVIEW_ISAPI_SCHEMAS.sdkFtpConfig.mapLoadResult(result);
-    },
-    buildSaveRequest(device, values = {}) {
-      return DEVICE_PREVIEW_ISAPI_SCHEMAS.sdkFtpConfig.buildSaveRequest(device, values);
     }
   },
   sdkCurrentTriggerMode: {
@@ -6489,8 +6560,6 @@ function isAllowedHikvisionSchema(schemaName = "") {
   return key === "deviceInfo"
     || key === "sdkNetworkConfig"
     || key === "sdkFtpConfig"
-    || key === "sdkNamingRules"
-    || key === "sdkCurrentTriggerMode"
     || key === "sdkTriggerConfig";
 }
 
@@ -6760,9 +6829,6 @@ function renderDevicePreviewSdkNamingSection(includeOsd = false) {
 }
 
 function renderDevicePreviewSdkFtpControls(schemaKey = "") {
-  if (schemaKey === "sdkNamingRules") {
-    return `<div class="devicePreviewFtpPanel">${renderDevicePreviewSdkNamingSection(true)}</div>`;
-  }
   return `<div class="devicePreviewFtpPanel">${renderDevicePreviewSdkFtpTopForm()}${renderDevicePreviewSdkNamingSection(false)}</div>`;
 }
 
@@ -7171,7 +7237,7 @@ function renderDevicePreviewOnvifControls(presetKey = "") {
 function renderDevicePreviewIsapiControls(schemaKey = "") {
   const host = ensureDevicePreviewOnvifControlsHost();
   if (!host) return;
-  if (schemaKey === "sdkFtpConfig" || schemaKey === "sdkNamingRules") {
+  if (schemaKey === "sdkFtpConfig") {
     host.innerHTML = renderDevicePreviewSdkFtpControls(schemaKey);
     return;
   }
@@ -7604,30 +7670,9 @@ async function runDevicePreviewIsapiRequest(methodOverride = "") {
         const response = await fetchJson("/api/sdk/network-config", sdkPayload);
         if (!isSdkApiSuccess(response)) throw new Error(response?.error || "SDK网络参数获取失败");
         values = schema.mapLoadResult(response.networkConfig || {}, device);
-      } else if (preset.schema === "sdkFtpConfig") {
-        const response = await fetchJson("/api/sdk/ftp-config/get", {
-          connection: {
-            host: String(device.host || "").trim(),
-            port: getDevicePreviewSdkPort(device),
-            username: String(device.username || "").trim(),
-            password: String(device.password || "")
-          },
-          channel: 1
-        });
-        if (!isSdkApiSuccess(response)) throw new Error(response?.error || "SDK通用FTP配置获取失败");
-        values = schema.mapLoadResult(response.ftpConfig || response.result || {}, device, response);
-      } else if (preset.schema === "sdkNamingRules") {
-        const response = await fetchJson("/api/sdk/ftp-config/get", {
-          connection: {
-            host: String(device.host || "").trim(),
-            port: getDevicePreviewSdkPort(device),
-            username: String(device.username || "").trim(),
-            password: String(device.password || "")
-          },
-          channel: 1
-        });
-        if (!isSdkApiSuccess(response)) throw new Error(response?.error || "SDK智能交通FTP命名获取失败");
-        values = schema.mapLoadResult(response.ftpConfig || response.result || {}, device, response);
+    } else if (preset.schema === "sdkFtpConfig") {
+      const response = await fetchSdkFtpPanelData(device, sdkPayload);
+      values = schema.mapLoadResult(response, device, response);
       } else if (preset.schema === "sdkCurrentTriggerMode") {
         const response = await fetchJson("/api/sdk/current-trigger-mode", sdkPayload);
         if (!isSdkApiSuccess(response)) throw new Error(response?.error || "SDK当前触发模式获取失败");
