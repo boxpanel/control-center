@@ -316,6 +316,20 @@ public class HikvisionTrafficConfigTool {
         }
     }
 
+    private static NET_VCA_RECT asRectRegion(NET_ITC_PLATE_RECOG_REGION_PARAM region) {
+        NET_VCA_RECT rect = new NET_VCA_RECT();
+        rect.getPointer().write(0, region.uRegion, 0, Math.min(rect.size(), region.uRegion.length));
+        rect.read();
+        return rect;
+    }
+
+    private static NET_ITC_POLYGON asPolygonRegion(NET_ITC_PLATE_RECOG_REGION_PARAM region) {
+        NET_ITC_POLYGON polygon = new NET_ITC_POLYGON();
+        polygon.getPointer().write(0, region.uRegion, 0, Math.min(polygon.size(), region.uRegion.length));
+        polygon.read();
+        return polygon;
+    }
+
     public static class NET_ITC_LANE_PARAM extends Structure {
         public byte byEnable;
         public byte byRelatedDriveWay;
@@ -941,6 +955,9 @@ public class HikvisionTrafficConfigTool {
         Integer firstLaneBigCarLowSpeedLimit = null;
         Boolean firstLaneLowSpeedCapEnabled = null;
         Boolean firstLaneEmergencyCapEnabled = null;
+        Integer firstLaneRegionMode = null;
+        String firstLaneRegionPoints = "";
+        Integer firstLaneRegionPointCount = null;
 
         if (triggerType == 0x4) {
             NET_ITC_POST_RS485_PARAM rs485 = trigger.uTriggerParam.asRs485();
@@ -989,6 +1006,10 @@ public class HikvisionTrafficConfigTool {
             firstLaneBigCarLowSpeedLimit = unsignedByte(firstLane.byBigCarLowSpeedLimit);
             firstLaneLowSpeedCapEnabled = unsignedByte(firstLane.byLowSpeedCapEn) == 1;
             firstLaneEmergencyCapEnabled = unsignedByte(firstLane.byEmergencyCapEn) == 1;
+            NET_ITC_PLATE_RECOG_REGION_PARAM firstLaneRegion = firstLane.struPlateRecog[0];
+            firstLaneRegionMode = unsignedByte(firstLaneRegion.byMode);
+            firstLaneRegionPoints = buildRegionPointsString(firstLaneRegion);
+            firstLaneRegionPointCount = countRegionPoints(firstLaneRegionPoints);
             detailSource = "rs485Radar";
         } else if (triggerType == 0x10) {
             NET_ITC_POST_VTCOIL_PARAM vt = trigger.uTriggerParam.asVtCoil();
@@ -1092,6 +1113,9 @@ public class HikvisionTrafficConfigTool {
                 + "\"firstLaneLowSpeedCapEnabledLabel\":\"" + json(boolNullableLabel(firstLaneLowSpeedCapEnabled)) + "\","
                 + "\"firstLaneEmergencyCapEnabled\":" + (firstLaneEmergencyCapEnabled == null ? "null" : firstLaneEmergencyCapEnabled) + ","
                 + "\"firstLaneEmergencyCapEnabledLabel\":\"" + json(boolNullableLabel(firstLaneEmergencyCapEnabled)) + "\","
+                + "\"firstLaneRegionMode\":" + (firstLaneRegionMode == null ? "null" : firstLaneRegionMode) + ","
+                + "\"firstLaneRegionPoints\":\"" + json(firstLaneRegionPoints) + "\","
+                + "\"firstLaneRegionPointCount\":" + (firstLaneRegionPointCount == null ? "null" : firstLaneRegionPointCount) + ","
                 + "\"summary\":\"" + json(summary.toString()) + "\""
                 + "}"
                 + "}";
@@ -1157,6 +1181,7 @@ public class HikvisionTrafficConfigTool {
             firstLane.byBigCarLowSpeedLimit = (byte) parseInt(arg(args, 49, String.valueOf(unsignedByte(firstLane.byBigCarLowSpeedLimit))), unsignedByte(firstLane.byBigCarLowSpeedLimit));
             firstLane.byLowSpeedCapEn = (byte) (parseBooleanFlag(arg(args, 50, unsignedByte(firstLane.byLowSpeedCapEn) == 1 ? "1" : "0")) ? 1 : 0);
             firstLane.byEmergencyCapEn = (byte) (parseBooleanFlag(arg(args, 51, unsignedByte(firstLane.byEmergencyCapEn) == 1 ? "1" : "0")) ? 1 : 0);
+            applyPlateRecogRegion(firstLane.struPlateRecog[0], arg(args, 52, String.valueOf(unsignedByte(firstLane.struPlateRecog[0].byMode))), arg(args, 53, buildRegionPointsString(firstLane.struPlateRecog[0])));
             firstLane.write();
             radar.struLane[0] = firstLane;
 
@@ -1193,6 +1218,119 @@ public class HikvisionTrafficConfigTool {
             return "";
         }
         return buildTriggerConfig(userId);
+    }
+
+    private static int countRegionPoints(String raw) {
+        String text = String.valueOf(raw == null ? "" : raw).trim();
+        if (text.isEmpty()) return 0;
+        String[] parts = text.split(";");
+        int count = 0;
+        for (String part : parts) {
+            if (part != null && !part.trim().isEmpty()) count += 1;
+        }
+        return count;
+    }
+
+    private static String buildRegionPointsString(NET_ITC_PLATE_RECOG_REGION_PARAM region) {
+        int mode = unsignedByte(region.byMode);
+        if (mode == 1) {
+            NET_VCA_RECT rect = asRectRegion(region);
+            float x1 = clamp01(rect.fX);
+            float y1 = clamp01(rect.fY);
+            float x2 = clamp01(rect.fX + rect.fWidth);
+            float y2 = clamp01(rect.fY + rect.fHeight);
+            return pointString(x1, y1) + ";" + pointString(x2, y1) + ";" + pointString(x2, y2) + ";" + pointString(x1, y2);
+        }
+        if (mode == 2) {
+            NET_ITC_POLYGON polygon = asPolygonRegion(region);
+            int pointNum = Math.max(0, Math.min(polygon.dwPointNum, polygon.struPos.length));
+            StringBuilder sb = new StringBuilder();
+            for (int i = 0; i < pointNum; i += 1) {
+                if (i > 0) sb.append(';');
+                sb.append(pointString(clamp01(polygon.struPos[i].fX), clamp01(polygon.struPos[i].fY)));
+            }
+            return sb.toString();
+        }
+        return "";
+    }
+
+    private static void applyPlateRecogRegion(NET_ITC_PLATE_RECOG_REGION_PARAM region, String modeRaw, String pointsRaw) {
+        float[][] points = parseRegionPoints(pointsRaw);
+        if (points.length == 0) {
+            region.byMode = 0;
+            Arrays.fill(region.uRegion, (byte) 0);
+            region.write();
+            return;
+        }
+
+        int requestedMode = parseInt(modeRaw, points.length >= 3 ? 2 : 1);
+        if (requestedMode == 1 && points.length >= 2) {
+            float minX = 1f;
+            float minY = 1f;
+            float maxX = 0f;
+            float maxY = 0f;
+            for (float[] point : points) {
+                minX = Math.min(minX, point[0]);
+                minY = Math.min(minY, point[1]);
+                maxX = Math.max(maxX, point[0]);
+                maxY = Math.max(maxY, point[1]);
+            }
+            NET_VCA_RECT rect = new NET_VCA_RECT();
+            rect.fX = clamp01(minX);
+            rect.fY = clamp01(minY);
+            rect.fWidth = clamp01(maxX - minX);
+            rect.fHeight = clamp01(maxY - minY);
+            rect.write();
+            region.byMode = 1;
+            Arrays.fill(region.uRegion, (byte) 0);
+            byte[] raw = rect.getPointer().getByteArray(0, rect.size());
+            System.arraycopy(raw, 0, region.uRegion, 0, Math.min(raw.length, region.uRegion.length));
+            region.write();
+            return;
+        }
+
+        NET_ITC_POLYGON polygon = new NET_ITC_POLYGON();
+        polygon.dwPointNum = Math.min(points.length, polygon.struPos.length);
+        for (int i = 0; i < polygon.dwPointNum; i += 1) {
+            polygon.struPos[i].fX = clamp01(points[i][0]);
+            polygon.struPos[i].fY = clamp01(points[i][1]);
+            polygon.struPos[i].write();
+        }
+        polygon.write();
+        region.byMode = 2;
+        Arrays.fill(region.uRegion, (byte) 0);
+        byte[] raw = polygon.getPointer().getByteArray(0, polygon.size());
+        System.arraycopy(raw, 0, region.uRegion, 0, Math.min(raw.length, region.uRegion.length));
+        region.write();
+    }
+
+    private static float[][] parseRegionPoints(String raw) {
+        String text = String.valueOf(raw == null ? "" : raw).trim();
+        if (text.isEmpty()) return new float[0][];
+        String[] parts = text.split(";");
+        float[][] points = new float[Math.min(parts.length, 20)][];
+        int count = 0;
+        for (String part : parts) {
+            String item = String.valueOf(part == null ? "" : part).trim();
+            if (item.isEmpty()) continue;
+            String[] xy = item.split(",");
+            if (xy.length != 2) continue;
+            float x = parseFloat(xy[0], Float.NaN);
+            float y = parseFloat(xy[1], Float.NaN);
+            if (!Float.isFinite(x) || !Float.isFinite(y)) continue;
+            points[count++] = new float[]{ clamp01(x), clamp01(y) };
+        }
+        return Arrays.copyOf(points, count);
+    }
+
+    private static String pointString(float x, float y) {
+        return floatString(clamp01(x)) + "," + floatString(clamp01(y));
+    }
+
+    private static float clamp01(float value) {
+        if (value < 0f) return 0f;
+        if (value > 1f) return 1f;
+        return value;
     }
 
     private static String arg(String[] args, int index, String fallback) {

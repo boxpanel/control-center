@@ -421,6 +421,47 @@ const SDK_RADAR_TYPE_OPTIONS = [
   { value: 255, label: "自定义" }
 ];
 
+const SDK_TRIGGER_LANE_COUNT_OPTIONS = [
+  { value: 1, label: "1" },
+  { value: 2, label: "2" },
+  { value: 3, label: "3" },
+  { value: 4, label: "4" }
+];
+
+const SDK_LANE_DIRECTION_OPTIONS = [
+  { value: 0, label: "未知" },
+  { value: 1, label: "直行" },
+  { value: 2, label: "左转" },
+  { value: 3, label: "右转" },
+  { value: 4, label: "掉头" }
+];
+
+const SDK_LANE_USAGE_OPTIONS = [
+  { value: 0, label: "普通车道" },
+  { value: 1, label: "应急车道" },
+  { value: 2, label: "公交车道" },
+  { value: 3, label: "潮汐车道" }
+];
+
+const SDK_LANE_PROPERTY_OPTIONS = [
+  { value: 0, label: "城市快速路" },
+  { value: 1, label: "城市普通道路" },
+  { value: 2, label: "高速公路" },
+  { value: 3, label: "园区道路" }
+];
+
+const SDK_SNAP_TIMES_OPTIONS = [
+  { value: 1, label: "1" },
+  { value: 2, label: "2" },
+  { value: 3, label: "3" },
+  { value: 4, label: "4" }
+];
+
+const SDK_FLASH_MODE_OPTIONS = [
+  { value: 0, label: "同时闪" },
+  { value: 1, label: "交替闪" }
+];
+
 const SDK_FTP_DIR_LEVEL_OPTIONS = [
   { value: 0, label: "保存在根目录" },
   { value: 1, label: "一级目录" },
@@ -711,7 +752,7 @@ const DEVICE_PREVIEW_ISAPI_SCHEMAS = {
     fields: [
       { key: "enabled", label: "启用状态", type: "select", options: SDK_BOOLEAN_OPTIONS },
       { key: "triggerTypeCode", label: "触发模式类型", type: "select", options: SDK_TRIGGER_TYPE_OPTIONS },
-      { key: "laneCount", label: "关联车道总数", type: "number" },
+      { key: "laneCount", label: "关联车道总数", type: "select", options: SDK_TRIGGER_LANE_COUNT_OPTIONS },
       { key: "triggerSpareMode", label: "备用模式", type: "select", options: SDK_TRIGGER_SPARE_MODE_OPTIONS },
       { key: "faultToleranceMinutes", label: "容错时间(分钟)", type: "number" },
       { key: "displayEnabled", label: "显示辅助线", type: "select", options: SDK_BOOLEAN_OPTIONS },
@@ -759,15 +800,15 @@ const DEVICE_PREVIEW_ISAPI_SCHEMAS = {
       { key: "firstLaneSpeedCapEnabledLabel", label: "首车道超速抓拍文本", type: "text", readOnly: true },
       { key: "firstLaneSignSpeed", label: "限速(km/h)", type: "number" },
       { key: "firstLaneSpeedLimit", label: "车速阈值(km/h)", type: "number" },
-      { key: "firstLaneSnapTimes", label: "抓拍次数", type: "number" },
+      { key: "firstLaneSnapTimes", label: "抓拍次数", type: "select", options: SDK_SNAP_TIMES_OPTIONS },
       { key: "firstLaneOverlayDriveWay", label: "车道编号", type: "number" },
-      { key: "firstLaneFlashMode", label: "闪光灯闪烁模式", type: "number" },
+      { key: "firstLaneFlashMode", label: "闪光灯闪烁模式", type: "select", options: SDK_FLASH_MODE_OPTIONS },
       { key: "firstLaneCartSignSpeed", label: "大车限速(km/h)", type: "number" },
       { key: "firstLaneCartSpeedLimit", label: "大车速度阈值(km/h)", type: "number" },
       { key: "firstLaneRelatedIOOutEx", label: "关联IO输出", type: "number" },
-      { key: "firstLaneLaneType", label: "车道类型", type: "number" },
-      { key: "firstLaneUseageType", label: "车道用途", type: "number" },
-      { key: "firstLaneDirectionType", label: "车道方向", type: "number" },
+      { key: "firstLaneLaneType", label: "车道类型", type: "select", options: SDK_LANE_PROPERTY_OPTIONS },
+      { key: "firstLaneUseageType", label: "车道用途", type: "select", options: SDK_LANE_USAGE_OPTIONS },
+      { key: "firstLaneDirectionType", label: "车道方向", type: "select", options: SDK_LANE_DIRECTION_OPTIONS },
       { key: "firstLaneLowSpeedLimit", label: "最低限速(km/h)", type: "number" },
       { key: "firstLaneBigCarLowSpeedLimit", label: "大车最低限速(km/h)", type: "number" },
       { key: "firstLaneLowSpeedCapEnabled", label: "低速抓拍", type: "select", options: SDK_BOOLEAN_OPTIONS },
@@ -827,7 +868,9 @@ const DEVICE_PREVIEW_ISAPI_SCHEMAS = {
         firstLaneLowSpeedLimit: Number(values.firstLaneLowSpeedLimit || 0) || 0,
         firstLaneBigCarLowSpeedLimit: Number(values.firstLaneBigCarLowSpeedLimit || 0) || 0,
         firstLaneLowSpeedCapEnabled: String(values.firstLaneLowSpeedCapEnabled || "") === "1" || values.firstLaneLowSpeedCapEnabled === true,
-        firstLaneEmergencyCapEnabled: String(values.firstLaneEmergencyCapEnabled || "") === "1" || values.firstLaneEmergencyCapEnabled === true
+        firstLaneEmergencyCapEnabled: String(values.firstLaneEmergencyCapEnabled || "") === "1" || values.firstLaneEmergencyCapEnabled === true,
+        firstLaneRegionMode: Number(values.firstLaneRegionMode || 0) || 0,
+        firstLaneRegionPoints: String(values.firstLaneRegionPoints || "").trim()
       };
     }
   },
@@ -6723,6 +6766,332 @@ function renderDevicePreviewSdkFtpControls(schemaKey = "") {
   return `<div class="devicePreviewFtpPanel">${renderDevicePreviewSdkFtpTopForm()}${renderDevicePreviewSdkNamingSection(false)}</div>`;
 }
 
+const devicePreviewTriggerEditorState = {
+  drawing: false,
+  draggingIndex: -1,
+  points: [],
+  mode: 2
+};
+
+function parseTriggerRegionPoints(rawValue) {
+  if (Array.isArray(rawValue)) {
+    return rawValue
+      .map((point) => ({
+        x: Math.max(0, Math.min(1, Number(point?.x || 0) || 0)),
+        y: Math.max(0, Math.min(1, Number(point?.y || 0) || 0))
+      }))
+      .filter((point) => Number.isFinite(point.x) && Number.isFinite(point.y));
+  }
+  const raw = String(rawValue || "").trim();
+  if (!raw) return [];
+  return raw
+    .split(";")
+    .map((item) => item.trim())
+    .filter(Boolean)
+    .map((item) => {
+      const [xRaw, yRaw] = item.split(",");
+      return {
+        x: Math.max(0, Math.min(1, Number(xRaw || 0) || 0)),
+        y: Math.max(0, Math.min(1, Number(yRaw || 0) || 0))
+      };
+    })
+    .filter((point) => Number.isFinite(point.x) && Number.isFinite(point.y));
+}
+
+function formatTriggerRegionPoints(points = []) {
+  return (Array.isArray(points) ? points : [])
+    .map((point) => `${Number(point.x || 0).toFixed(4)},${Number(point.y || 0).toFixed(4)}`)
+    .join(";");
+}
+
+function getDevicePreviewTriggerRegionField() {
+  const host = ensureDevicePreviewOnvifControlsHost();
+  return host?.querySelector('[data-isapi-field="firstLaneRegionPoints"]') || null;
+}
+
+function getDevicePreviewTriggerRegionModeField() {
+  const host = ensureDevicePreviewOnvifControlsHost();
+  return host?.querySelector('[data-isapi-field="firstLaneRegionMode"]') || null;
+}
+
+function getDevicePreviewTriggerCanvas() {
+  const host = ensureDevicePreviewOnvifControlsHost();
+  return host?.querySelector(".devicePreviewTriggerCanvas") || null;
+}
+
+function getDevicePreviewTriggerStatus() {
+  const host = ensureDevicePreviewOnvifControlsHost();
+  return host?.querySelector(".devicePreviewTriggerRegionStatus") || null;
+}
+
+function updateDevicePreviewTriggerRegionHiddenFields() {
+  const field = getDevicePreviewTriggerRegionField();
+  if (field) {
+    field.value = formatTriggerRegionPoints(devicePreviewTriggerEditorState.points);
+  }
+  const modeField = getDevicePreviewTriggerRegionModeField();
+  if (modeField) {
+    modeField.value = devicePreviewTriggerEditorState.points.length >= 3 ? "2" : devicePreviewTriggerEditorState.points.length >= 2 ? "1" : String(devicePreviewTriggerEditorState.mode || 0);
+  }
+}
+
+function updateDevicePreviewTriggerStatusText() {
+  const status = getDevicePreviewTriggerStatus();
+  if (!status) return;
+  const pointCount = devicePreviewTriggerEditorState.points.length;
+  if (devicePreviewTriggerEditorState.drawing) {
+    status.textContent = pointCount > 0 ? `绘制中：已添加 ${pointCount} 个点，双击完成` : "绘制中：单击添加点，双击完成";
+    return;
+  }
+  if (pointCount >= 3) {
+    status.textContent = `识别区域已加载，共 ${pointCount} 个顶点`;
+    return;
+  }
+  if (pointCount === 2) {
+    status.textContent = "识别区域为矩形模式";
+    return;
+  }
+  status.textContent = "尚未绘制识别区域";
+}
+
+function renderDevicePreviewTriggerRegionCanvas() {
+  const svg = getDevicePreviewTriggerCanvas();
+  if (!svg) return;
+  const points = devicePreviewTriggerEditorState.points;
+  const pointAttr = points.map((point) => `${(point.x * 100).toFixed(2)},${(point.y * 100).toFixed(2)}`).join(" ");
+  const polygonHtml = points.length >= 2
+    ? `<polygon class="devicePreviewTriggerPolygon" points="${pointAttr}"></polygon>`
+    : "";
+  const pointHtml = points.map((point, index) => `
+    <circle
+      class="devicePreviewTriggerPoint"
+      data-point-index="${index}"
+      cx="${(point.x * 100).toFixed(2)}"
+      cy="${(point.y * 100).toFixed(2)}"
+      r="1.6"
+    ></circle>
+  `).join("");
+  svg.innerHTML = `
+    <rect class="devicePreviewTriggerCanvasBg" x="0" y="0" width="100" height="100"></rect>
+    ${polygonHtml}
+    ${pointHtml}
+  `;
+  updateDevicePreviewTriggerStatusText();
+}
+
+function syncDevicePreviewTriggerRegionFromFields() {
+  const field = getDevicePreviewTriggerRegionField();
+  const modeField = getDevicePreviewTriggerRegionModeField();
+  devicePreviewTriggerEditorState.points = parseTriggerRegionPoints(field?.value || "");
+  devicePreviewTriggerEditorState.mode = Number(modeField?.value || 0) || 0;
+  devicePreviewTriggerEditorState.drawing = false;
+  devicePreviewTriggerEditorState.draggingIndex = -1;
+  renderDevicePreviewTriggerRegionCanvas();
+}
+
+function getTriggerCanvasPointFromEvent(event, svg) {
+  if (!svg) return null;
+  const rect = svg.getBoundingClientRect();
+  if (!rect.width || !rect.height) return null;
+  const x = (event.clientX - rect.left) / rect.width;
+  const y = (event.clientY - rect.top) / rect.height;
+  return {
+    x: Math.max(0, Math.min(1, x)),
+    y: Math.max(0, Math.min(1, y))
+  };
+}
+
+function bindDevicePreviewTriggerRegionEditor() {
+  const host = ensureDevicePreviewOnvifControlsHost();
+  if (!host) return;
+  const svg = host.querySelector(".devicePreviewTriggerCanvas");
+  const drawBtn = host.querySelector(".devicePreviewTriggerDrawBtn");
+  const clearBtn = host.querySelector(".devicePreviewTriggerClearBtn");
+  if (!svg || !drawBtn || !clearBtn) return;
+
+  const finishDrawing = () => {
+    devicePreviewTriggerEditorState.drawing = false;
+    drawBtn.textContent = "绘制区域";
+    updateDevicePreviewTriggerRegionHiddenFields();
+    renderDevicePreviewTriggerRegionCanvas();
+  };
+
+  drawBtn.onclick = () => {
+    devicePreviewTriggerEditorState.drawing = !devicePreviewTriggerEditorState.drawing;
+    drawBtn.textContent = devicePreviewTriggerEditorState.drawing ? "完成绘制" : "绘制区域";
+    updateDevicePreviewTriggerStatusText();
+  };
+
+  clearBtn.onclick = () => {
+    devicePreviewTriggerEditorState.points = [];
+    devicePreviewTriggerEditorState.mode = 0;
+    devicePreviewTriggerEditorState.drawing = false;
+    drawBtn.textContent = "绘制区域";
+    updateDevicePreviewTriggerRegionHiddenFields();
+    renderDevicePreviewTriggerRegionCanvas();
+  };
+
+  svg.onmousedown = (event) => {
+    const target = event.target;
+    if (target instanceof SVGCircleElement) {
+      const index = Number(target.getAttribute("data-point-index") || -1);
+      if (index >= 0) {
+        devicePreviewTriggerEditorState.draggingIndex = index;
+        event.preventDefault();
+      }
+    }
+  };
+
+  svg.onmousemove = (event) => {
+    if (devicePreviewTriggerEditorState.draggingIndex < 0) return;
+    const point = getTriggerCanvasPointFromEvent(event, svg);
+    if (!point) return;
+    devicePreviewTriggerEditorState.points[devicePreviewTriggerEditorState.draggingIndex] = point;
+    updateDevicePreviewTriggerRegionHiddenFields();
+    renderDevicePreviewTriggerRegionCanvas();
+  };
+
+  svg.onmouseup = () => {
+    devicePreviewTriggerEditorState.draggingIndex = -1;
+  };
+  svg.onmouseleave = () => {
+    devicePreviewTriggerEditorState.draggingIndex = -1;
+  };
+
+  svg.onclick = (event) => {
+    if (!devicePreviewTriggerEditorState.drawing) return;
+    if (event.target instanceof SVGCircleElement) return;
+    const point = getTriggerCanvasPointFromEvent(event, svg);
+    if (!point) return;
+    if (devicePreviewTriggerEditorState.points.length >= 20) return;
+    devicePreviewTriggerEditorState.points.push(point);
+    devicePreviewTriggerEditorState.mode = devicePreviewTriggerEditorState.points.length >= 3 ? 2 : 1;
+    updateDevicePreviewTriggerRegionHiddenFields();
+    renderDevicePreviewTriggerRegionCanvas();
+  };
+
+  svg.ondblclick = (event) => {
+    if (!devicePreviewTriggerEditorState.drawing) return;
+    event.preventDefault();
+    finishDrawing();
+  };
+
+  syncDevicePreviewTriggerRegionFromFields();
+}
+
+function renderTriggerFieldRow(label, fieldKey, options = {}) {
+  const {
+    type = "text",
+    selectOptions = [],
+    unit = "",
+    readOnly = false,
+    className = ""
+  } = options;
+  const controlClass = className ? ` ${className}` : "";
+  let controlHtml = "";
+  if (type === "select") {
+    controlHtml = `<select class="devicePreviewParamSelect${controlClass}" data-isapi-field="${fieldKey}"${readOnly ? " disabled" : ""}>${renderPreviewSelectOptions(selectOptions)}</select>`;
+  } else if (type === "checkbox") {
+    controlHtml = `<input type="checkbox" data-isapi-field="${fieldKey}"${readOnly ? " disabled" : ""} />`;
+  } else {
+    const inputType = type === "number" ? "number" : "text";
+    controlHtml = `<input class="devicePreviewParamInput${controlClass}" type="${inputType}" data-isapi-field="${fieldKey}"${readOnly ? " readonly" : ""} />`;
+  }
+  return `<label class="devicePreviewTriggerField"><span>${label}</span><span class="devicePreviewTriggerControl">${controlHtml}${unit ? `<em>${unit}</em>` : ""}</span></label>`;
+}
+
+function renderTriggerCheckboxField(label, fieldKey) {
+  return `<label class="devicePreviewTriggerCheck"><input type="checkbox" data-isapi-field="${fieldKey}" /><span>${label}</span></label>`;
+}
+
+function renderTriggerIoOutputGroup() {
+  const items = [];
+  for (let bit = 1; bit <= 7; bit += 1) {
+    items.push(`<label class="devicePreviewTriggerIoItem"><input type="checkbox" data-isapi-bitmask-item="${bit}" /><span>F${bit}</span></label>`);
+  }
+  return `<div class="devicePreviewTriggerIoGroup" data-isapi-bitmask-field="firstLaneRelatedIOOutEx">${items.join("")}</div>`;
+}
+
+function renderDevicePreviewSdkCurrentTriggerModeControls() {
+  return [
+    '<div class="devicePreviewTriggerPanel">',
+    '<div class="devicePreviewTriggerTopBar">',
+    `<label class="devicePreviewTriggerTopField"><span>触发模式</span><select class="devicePreviewParamSelect" data-isapi-field="triggerTypeCode">${renderPreviewSelectOptions(SDK_TRIGGER_TYPE_OPTIONS)}</select></label>`,
+    '<div class="devicePreviewTriggerCurrent">当前生效模式：<strong data-isapi-field="triggerTypeLabel"></strong></div>',
+    '</div>',
+    '<div class="devicePreviewTriggerSummary">',
+    '<label class="devicePreviewTriggerField"><span>触发类型HEX</span><span class="devicePreviewTriggerControl"><input class="devicePreviewParamInput" type="text" data-isapi-field="triggerTypeHex" readonly /></span></label>',
+    '<label class="devicePreviewTriggerField"><span>摘要</span><span class="devicePreviewTriggerControl"><input class="devicePreviewParamInput" type="text" data-isapi-field="summary" readonly /></span></label>',
+    '</div>',
+    '</div>'
+  ].join("");
+}
+
+function renderDevicePreviewSdkTriggerConfigControls() {
+  return [
+    '<div class="devicePreviewTriggerPanel">',
+    '<div class="devicePreviewTriggerTopBar">',
+    `<label class="devicePreviewTriggerTopField"><span>触发模式</span><select class="devicePreviewParamSelect" data-isapi-field="triggerTypeCode">${renderPreviewSelectOptions(SDK_TRIGGER_TYPE_OPTIONS)}</select></label>`,
+    '<div class="devicePreviewTriggerCurrent">当前生效模式：<strong data-isapi-field="triggerTypeLabel"></strong></div>',
+    `<label class="devicePreviewTriggerTopField devicePreviewTriggerLaneCount"><span>关联车道总数</span><select class="devicePreviewParamSelect" data-isapi-field="laneCount">${renderPreviewSelectOptions(SDK_TRIGGER_LANE_COUNT_OPTIONS)}</select></label>`,
+    '</div>',
+    '<div class="devicePreviewTriggerSection">',
+    '<div class="devicePreviewTriggerSectionTitle">车道参数及识别区域设置</div>',
+    '<div class="devicePreviewTriggerGrid">',
+    '<div class="devicePreviewTriggerLeft">',
+    '<div class="devicePreviewTriggerSubTitle">车道1</div>',
+    renderTriggerFieldRow("关联车道号(也做叠加用)", "firstLaneRelatedDriveWay", { type: "number" }),
+    renderTriggerFieldRow("车道方向类型", "firstLaneDirectionType", { type: "select", selectOptions: SDK_LANE_DIRECTION_OPTIONS }),
+    renderTriggerFieldRow("车道用途", "firstLaneUseageType", { type: "select", selectOptions: SDK_LANE_USAGE_OPTIONS }),
+    renderTriggerFieldRow("线圈距离", "firstLaneDistance", { type: "number", unit: "cm" }),
+    renderTriggerFieldRow("触发延迟时间", "firstLaneTrigDelayTime", { type: "number", unit: "ms" }),
+    renderTriggerFieldRow("触发延迟距离", "firstLaneTrigDelayDistance", { type: "number", unit: "dm" }),
+    renderTriggerFieldRow("车道属性", "firstLaneLaneType", { type: "select", selectOptions: SDK_LANE_PROPERTY_OPTIONS }),
+    renderTriggerFieldRow("连拍张数", "firstLaneSnapTimes", { type: "select", selectOptions: SDK_SNAP_TIMES_OPTIONS }),
+    renderTriggerCheckboxField("应急车道抓拍", "firstLaneEmergencyCapEnabled"),
+    renderTriggerCheckboxField("超速抓拍(超速多抓一张)", "firstLaneSpeedCapEnabled"),
+    renderTriggerCheckboxField("启用低速抓拍", "firstLaneLowSpeedCapEnabled"),
+    renderTriggerFieldRow("限速值", "firstLaneSpeedLimit", { type: "number", unit: "km/h" }),
+    renderTriggerFieldRow("标志限速", "firstLaneSignSpeed", { type: "number", unit: "km/h" }),
+    renderTriggerFieldRow("大车限高速", "firstLaneCartSpeedLimit", { type: "number", unit: "km/h" }),
+    renderTriggerFieldRow("大车标志限速", "firstLaneCartSignSpeed", { type: "number", unit: "km/h" }),
+    renderTriggerFieldRow("小车限低速", "firstLaneLowSpeedLimit", { type: "number", unit: "km/h" }),
+    renderTriggerFieldRow("大车限低速", "firstLaneBigCarLowSpeedLimit", { type: "number", unit: "km/h" }),
+    '<div class="devicePreviewTriggerIoRow"><span>关联同步输出</span>' + renderTriggerIoOutputGroup() + '</div>',
+    renderTriggerFieldRow("补光灯闪烁模式", "firstLaneFlashMode", { type: "select", selectOptions: SDK_FLASH_MODE_OPTIONS }),
+    '</div>',
+    '<div class="devicePreviewTriggerRight">',
+    '<div class="devicePreviewTriggerPreviewBox"><svg class="devicePreviewTriggerCanvas" viewBox="0 0 100 100" preserveAspectRatio="none" aria-label="识别区域绘制画布"></svg><div class="devicePreviewTriggerPreviewLabel">识别区域1</div></div>',
+    '<div class="devicePreviewTriggerPreviewToolbar"><div class="devicePreviewTriggerPreviewButtons"><button type="button" class="devicePreviewTriggerGhostBtn devicePreviewTriggerDrawBtn">绘制区域</button><button type="button" class="devicePreviewTriggerGhostBtn devicePreviewTriggerClearBtn">清除区域</button></div><label class="devicePreviewTriggerCheck devicePreviewTriggerInlineCheck"><input type="checkbox" disabled /><span>显示全部绘图</span></label></div>',
+    '<div class="devicePreviewTriggerRegionStatus">尚未绘制识别区域</div>',
+    renderTriggerFieldRow("异常超速", "firstLaneSpeedLimit", { type: "number", unit: "km/h" }),
+    renderTriggerFieldRow("异常低速", "firstLaneLowSpeedLimit", { type: "number", unit: "km/h" }),
+    renderTriggerFieldRow("大车异常超速", "firstLaneCartSpeedLimit", { type: "number", unit: "km/h" }),
+    renderTriggerFieldRow("大车异常低速", "firstLaneBigCarLowSpeedLimit", { type: "number", unit: "km/h" }),
+    '</div>',
+    '</div>',
+    '</div>',
+    '<div class="devicePreviewTriggerSection">',
+    '<div class="devicePreviewTriggerSectionTitle">雷达参数</div>',
+    '<div class="devicePreviewTriggerRadarGrid">',
+    renderTriggerFieldRow("雷达类型", "radarType", { type: "select", selectOptions: SDK_RADAR_TYPE_OPTIONS }),
+    renderTriggerFieldRow("灵敏度", "radarSensitivity", { type: "number" }),
+    renderTriggerFieldRow("雷达与水平方向角度", "levelAngle", { type: "number" }),
+    renderTriggerFieldRow("线性矫正系数", "lineCorrectParam", { type: "text", unit: "[0.001-2]" }),
+    renderTriggerFieldRow("常量矫正系数", "constCorrectParam", { type: "number" }),
+    renderTriggerFieldRow("雷达速度有效时间", "radarSpeedValidTime", { type: "number", unit: "s" }),
+    '</div>',
+    '</div>',
+    '<input type="hidden" data-isapi-field="enabled" />',
+    '<input type="hidden" data-isapi-field="triggerTypeHex" />',
+    '<input type="hidden" data-isapi-field="detailSource" />',
+    '<input type="hidden" data-isapi-field="firstLaneRegionMode" />',
+    '<input type="hidden" data-isapi-field="firstLaneRegionPoints" />',
+    '<input type="hidden" data-isapi-field="summary" />',
+    '</div>'
+  ].join("");
+}
+
 function fillDevicePreviewOnvifControls(values = {}) {
   const host = ensureDevicePreviewOnvifControlsHost();
   if (!host) return;
@@ -6750,6 +7119,17 @@ function collectDevicePreviewIsapiControlValues() {
   host.querySelectorAll("[data-isapi-field]").forEach((field) => {
     values[field.getAttribute("data-isapi-field")] = getOnvifControlValue(field);
   });
+  host.querySelectorAll("[data-isapi-bitmask-field]").forEach((group) => {
+    const key = group.getAttribute("data-isapi-bitmask-field");
+    if (!key) return;
+    let total = 0;
+    group.querySelectorAll("[data-isapi-bitmask-item]").forEach((item) => {
+      if (!item.checked) return;
+      const bit = Number(item.getAttribute("data-isapi-bitmask-item") || 0) || 0;
+      if (bit > 0) total |= (1 << (bit - 1));
+    });
+    values[key] = total;
+  });
   return values;
 }
 
@@ -6761,6 +7141,17 @@ function fillDevicePreviewIsapiControls(values = {}) {
     if (!field) return;
     setPreviewControlValue(field, value);
   });
+  host.querySelectorAll("[data-isapi-bitmask-field]").forEach((group) => {
+    const key = group.getAttribute("data-isapi-bitmask-field");
+    const raw = Number(values?.[key] || 0) || 0;
+    group.querySelectorAll("[data-isapi-bitmask-item]").forEach((item) => {
+      const bit = Number(item.getAttribute("data-isapi-bitmask-item") || 0) || 0;
+      item.checked = bit > 0 ? Boolean(raw & (1 << (bit - 1))) : false;
+    });
+  });
+  if (host.querySelector(".devicePreviewTriggerCanvas")) {
+    syncDevicePreviewTriggerRegionFromFields();
+  }
 }
 
 function renderDevicePreviewOnvifControls(presetKey = "") {
@@ -6782,6 +7173,15 @@ function renderDevicePreviewIsapiControls(schemaKey = "") {
   if (!host) return;
   if (schemaKey === "sdkFtpConfig" || schemaKey === "sdkNamingRules") {
     host.innerHTML = renderDevicePreviewSdkFtpControls(schemaKey);
+    return;
+  }
+  if (schemaKey === "sdkCurrentTriggerMode") {
+    host.innerHTML = renderDevicePreviewSdkCurrentTriggerModeControls();
+    return;
+  }
+  if (schemaKey === "sdkTriggerConfig") {
+    host.innerHTML = renderDevicePreviewSdkTriggerConfigControls();
+    bindDevicePreviewTriggerRegionEditor();
     return;
   }
   const schema = DEVICE_PREVIEW_ISAPI_SCHEMAS[schemaKey] || DEVICE_PREVIEW_ISAPI_SCHEMAS.deviceInfo;

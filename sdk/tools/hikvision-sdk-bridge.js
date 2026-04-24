@@ -359,7 +359,9 @@ class HikvisionSdkBridge {
       String(Number(values.firstLaneLowSpeedLimit || 0) || 0),
       String(Number(values.firstLaneBigCarLowSpeedLimit || 0) || 0),
       values.firstLaneLowSpeedCapEnabled ? "1" : "0",
-      values.firstLaneEmergencyCapEnabled ? "1" : "0"
+      values.firstLaneEmergencyCapEnabled ? "1" : "0",
+      String(Number(values.firstLaneRegionMode || 0) || 0),
+      withDefault(values.firstLaneRegionPoints)
     ]);
   }
 
