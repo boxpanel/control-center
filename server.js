@@ -5032,51 +5032,45 @@ app.post("/api/device/ftp-config", async (req, res, next) => {
 });
 
 // SDK FTP配置相关API
-app.post("/api/sdk/ftp-config/get", async (req, res, next) => {
+app.post("/api/sdk/ftp-config/get", async (req, res) => {
   try {
-    const cfg = await getClientConfig();
-    const baseConn = normalizeConnectionConfig(cfg?.connection);
-    const reqConn = req.body?.connection && typeof req.body.connection === "object" ? normalizeConnectionConfig(req.body.connection) : {};
-    const connection = normalizeConnectionConfig({
-      host: reqConn.host || baseConn.host,
-      port: reqConn.port || baseConn.port,
-      username: reqConn.username || baseConn.username,
-      password: reqConn.password || baseConn.password
-    });
+    const { connection: conn } = req.body;
     
-    // 调用SDK桥接器获取FTP配置
-    const { execFile } = await import('node:child_process');
-    const { promisify } = await import('node:util');
-    const execFileAsync = promisify(execFile);
-    
-    const sdkBridgePath = path.join(__dirname, "sdk", "sdk-bridge");
-    const channel = req.body.channel || 1;
-    
-    const { stdout, stderr } = await execFileAsync(sdkBridgePath, [
-      "get-ftp",
-      connection.host,
-      connection.username,
-      connection.password,
-      connection.port.toString(),
-      channel.toString()
-    ]);
-    
-    const result = JSON.parse(stdout);
-    if (result.error) {
-      throw new Error(result.message || "SDK获取FTP配置失败");
+    if (!conn || !conn.host) {
+      return res.status(400).json({ error: "缺少设备连接信息" });
     }
+    
+    if (!hikvisionSdkBridge) {
+      return res.status(503).json({
+        success: false,
+        error: "SDK功能不可用",
+        message: "SDK桥接器未加载或初始化失败",
+        sdkAvailable: false
+      });
+    }
+    
+    console.log(`[SDK API] 获取设备FTP配置: ${conn.host}:${conn.port}`);
+    
+    const result = await hikvisionSdkBridge.getFtpConfig({
+      ip: conn.host,
+      port: Number(conn.port) || 8000,
+      username: String(conn.username || "admin").trim(),
+      password: String(conn.password || "").trim()
+    });
     
     res.json({
       ok: true,
-      connection: {
-        host: connection.host,
-        port: connection.port,
-        username: connection.username
-      },
-      ftpConfig: result.data
+      sdkAvailable: hikvisionSdkBridge.sdkAvailable,
+      ...result
     });
-  } catch (err) {
-    next(err);
+  } catch (error) {
+    console.error("[SDK API] 获取FTP配置失败:", error);
+    res.status(500).json({
+      success: false,
+      error: "获取FTP配置失败",
+      message: error.message,
+      sdkAvailable: hikvisionSdkBridge ? hikvisionSdkBridge.sdkAvailable : false
+    });
   }
 });
 
