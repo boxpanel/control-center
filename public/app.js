@@ -608,7 +608,6 @@ function normalizeSdkFtpConfigResult(result = {}) {
     password: ftp.ftpPassword || "",
     dirLevel: findSdkOptionValueByLabel(SDK_FTP_DIR_LEVEL_OPTIONS, ftp.ftpUploadMode, 0),
     filterCarPic: String(meta.isFilterCarPicLabel || "").includes("不上传") ? 1 : 0,
-    uploadDataType: 0,
     topDirMode: findSdkOptionValueByLabel(SDK_FTP_DIR_MODE_OPTIONS, meta.topDirModeLabel, 0),
     subDirMode: findSdkOptionValueByLabel(SDK_FTP_DIR_MODE_OPTIONS, meta.subDirModeLabel, 0),
     threeDirMode: findSdkOptionValueByLabel(SDK_FTP_DIR_MODE_OPTIONS, meta.threeDirModeLabel, 0),
@@ -636,19 +635,30 @@ async function fetchSdkFtpPanelData(device, sdkPayload, channel = 1) {
     summaryResponse = null;
   }
 
-  const legacyResponse = await fetchJson("/api/sdk/ftp-config/get", {
-    connection: {
-      host: String(device.host || "").trim(),
-      port: getDevicePreviewSdkPort(device),
-      username: String(device.username || "").trim(),
-      password: String(device.password || "")
-    },
-    channel
-  });
+  let legacyResponse = null;
+  let legacyError = null;
+  try {
+    legacyResponse = await fetchJson("/api/sdk/ftp-config/get", {
+      connection: {
+        host: String(device.host || "").trim(),
+        port: getDevicePreviewSdkPort(device),
+        username: String(device.username || "").trim(),
+        password: String(device.password || "")
+      },
+      channel
+    });
+  } catch (error) {
+    legacyError = error;
+  }
 
-  if (!isSdkApiSuccess(legacyResponse)) {
+  if (!legacyResponse || !isSdkApiSuccess(legacyResponse)) {
     if (summaryResponse) return summaryResponse;
-    throw new Error(legacyResponse?.error || legacyResponse?.message || "SDK通用FTP配置获取失败");
+    throw new Error(
+      legacyResponse?.error
+      || legacyResponse?.message
+      || legacyError?.message
+      || "SDK通用FTP配置获取失败"
+    );
   }
 
   const mergedRaw = {
@@ -4983,8 +4993,7 @@ async function updateManagedDevice() {
   try {
     await fetchJson(`/api/devices/${encodeURIComponent(selected.id)}`, { device }, "PUT");
   } catch (err) {
-    const msg = String(err?.message || err || "");
-    if (!msg.includes("404")) throw err;
+    if (!isManagedDeviceMissingError(err)) throw err;
       const nextItems = managedDeviceState.items.map((item) => (item.id === selected.id ? device : item));
       await persistManagedDevicesFallback(nextItems);
     }
@@ -5005,15 +5014,13 @@ async function deleteManagedDevice() {
   try {
     await fetchJson(`/api/devices/${encodeURIComponent(selected.id)}`, null, "DELETE");
   } catch (err) {
-    const msg = String(err?.message || err || "");
-    if (!msg.includes("404")) throw err;
-      const nextItems = managedDeviceState.items.filter((item) => item.id !== selected.id);
-      await persistManagedDevicesFallback(nextItems);
-    }
-    removeManagedDeviceShadow(selected.id);
-    managedDeviceState.selectedId = "";
-    await refreshManagedDevices({ keepSelection: false });
-    setManagedDeviceHint("设备已删除");
+    if (!isManagedDeviceMissingError(err)) throw err;
+  }
+  removeManagedDeviceShadow(selected.id);
+  managedDeviceState.items = managedDeviceState.items.filter((item) => String(item?.id || "") !== String(selected.id || ""));
+  managedDeviceState.selectedId = "";
+  await refreshManagedDevices({ keepSelection: false });
+  setManagedDeviceHint("设备已删除");
 }
 
 async function checkManagedDevice() {
@@ -5052,7 +5059,7 @@ async function checkManagedDevice() {
       await fetchJson(`/api/devices/${encodeURIComponent(item.id)}`, { device: item }, "PUT");
     } catch (err) {
       const msg = String(err?.message || err || "");
-      if (!msg.includes("404")) {
+      if (!isManagedDeviceMissingError(err)) {
         logLine(`设备状态写回失败：${item.name} - ${msg}`);
       } else {
         const nextItems = managedDeviceState.items.map((entry) => (entry.id === item.id ? item : entry));
@@ -6960,6 +6967,11 @@ function syncDevicePreviewFtpCustomInputs() {
       input.value = "";
     }
   }
+}
+
+function isManagedDeviceMissingError(error) {
+  const msg = String(error?.message || error || "");
+  return msg.includes("404") || msg.includes("设备不存在");
 }
 
 async function reloadDevicePreviewFtpTabData(channel = 1) {
