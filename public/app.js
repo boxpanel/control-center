@@ -2146,8 +2146,10 @@ async function loadFingerprint() {
 async function fetchJson(url, body, method = "POST") {
   // 为重启请求设置较短的超时时间
   const isRestartRequest = url === "/api/device/restart";
+  const isSdkFtpSaveRequest = url === "/api/sdk/ftp-config/set";
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), isRestartRequest ? 3000 : 30000);
+  const timeoutMs = isRestartRequest ? 3000 : (isSdkFtpSaveRequest ? 120000 : 30000);
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
   
   try {
     const res = await fetch(url, {
@@ -8567,6 +8569,5 @@ if (els.previewSnapshotBtn) {
     }
   });
 }
-
 
 
