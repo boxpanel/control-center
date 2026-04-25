@@ -373,6 +373,31 @@ class HikvisionSdkBridge {
     return this.runJavaTool("itc-ftp-config", connection);
   }
 
+  async setFtpConfig(connection, values = {}) {
+    return this.runJavaTool("set-itc-ftp-config", connection, [
+      values.enable ? "1" : "0",
+      String(Number(values.addressType || 0) || 0),
+      withDefault(values.host),
+      String(Number(values.port || 0) || 0),
+      withDefault(values.username),
+      withDefault(values.password),
+      String(Number(values.dirLevel || 0) || 0),
+      String(Number(values.uploadDataType || 0) || 0),
+      values.filterCarPic ? "1" : "0",
+      String(Number(values.topDirMode || 0) || 0),
+      String(Number(values.subDirMode || 0) || 0),
+      String(Number(values.threeDirMode || 0) || 0),
+      String(Number(values.fourDirMode || 0) || 0),
+      withDefault(values.picNameCustom),
+      withDefault(values.topCustomDir),
+      withDefault(values.subCustomDir),
+      withDefault(values.threeCustomDir),
+      withDefault(values.fourCustomDir),
+      String(Number(values.picNameRule?.delimiter || 0) || 0),
+      Array.isArray(values.picNameRule?.items) ? values.picNameRule.items.join(",") : ""
+    ]);
+  }
+
   async getPictureNamingRule(connection) {
     return this.runJavaTool("itc-ftp-config", connection);
   }

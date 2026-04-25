@@ -1,4 +1,4 @@
-﻿function updatePageTitle(systemName) {
+function updatePageTitle(systemName) {
   const baseTitle = "管理平台";
   const titleElement = document.querySelector("title");
   const headerTitleElement = document.querySelector(".app-header-title");
