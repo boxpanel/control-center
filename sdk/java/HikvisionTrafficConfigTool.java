@@ -25,7 +25,6 @@ public class HikvisionTrafficConfigTool {
     private static final int NET_DVR_GET_NETCFG_V30 = 1000;
     private static final int NET_DVR_SET_NETCFG_V30 = 1001;
     private static final int NET_ITC_GET_FTPCFG = 3121;
-    private static final int NET_ITC_SET_FTPCFG = 3122;
     private static final int NET_ITC_GET_TRIGGERCFG = 3003;
     private static final int NET_ITC_SET_TRIGGERCFG = 3004;
     private static final int NET_DVR_GET_SNAPENABLECFG = 1086;
@@ -654,9 +653,6 @@ public class HikvisionTrafficConfigTool {
                     case "itc-ftp-config":
                         success(buildItcFtpConfig(userId));
                         break;
-                    case "set-itc-ftp-config":
-                        success(applyItcFtpConfig(userId, args));
-                        break;
                     case "current-trigger-mode":
                         success(buildCurrentTriggerMode(userId));
                         break;
@@ -924,145 +920,6 @@ public class HikvisionTrafficConfigTool {
                 + "\"delimiter\":\"" + json(delimiter) + "\""
                 + "}"
                 + "}";
-    }
-
-    private static String applyItcFtpConfig(int userId, String[] args) {
-        NET_ITC_FTP_TYPE_COND condition = new NET_ITC_FTP_TYPE_COND();
-        condition.dwChannel = 1;
-        condition.byWorkMode = 0;
-        condition.write();
-
-        NET_ITC_FTP_CFG config = new NET_ITC_FTP_CFG();
-        config.dwSize = config.size();
-        config.write();
-        IntByReference statusList = new IntByReference(0);
-        boolean ok = sdk.NET_DVR_GetDeviceConfig(
-                userId,
-                NET_ITC_GET_FTPCFG,
-                1,
-                condition.getPointer(),
-                condition.size(),
-                statusList.getPointer(),
-                config.getPointer(),
-                config.size()
-        );
-        if (!ok) {
-            fail("NET_DVR_GetDeviceConfig(ITC_FTP_CFG) failed", sdk.NET_DVR_GetLastError());
-            return "";
-        }
-        int status = statusList.getValue();
-        if (status != 0 && status != 1) {
-            fail("NET_DVR_GetDeviceConfig(ITC_FTP_CFG) returned status=" + status, status);
-            return "";
-        }
-        config.read();
-
-        String enable = arg(args, 5, "");
-        if (!enable.isEmpty()) {
-            config.byEnable = (byte) ("1".equals(enable) || "true".equalsIgnoreCase(enable) ? 1 : 0);
-        }
-        String addressType = arg(args, 6, "");
-        if (!addressType.isEmpty()) {
-            config.byAddressType = (byte) (parseInt(addressType, 0) & 0xFF);
-        }
-        String host = arg(args, 7, "");
-        if (!host.isEmpty()) {
-            fillBytes(config.unionServer, host);
-        }
-        String ftpPort = arg(args, 8, "");
-        if (!ftpPort.isEmpty()) {
-            config.wFTPPort = (short) (parseInt(ftpPort, 0) & 0xFFFF);
-        }
-        String ftpUsername = arg(args, 9, "");
-        if (!ftpUsername.isEmpty()) {
-            fillBytes(config.szUserName, ftpUsername);
-        }
-        String ftpPassword = arg(args, 10, "");
-        if (!ftpPassword.isEmpty()) {
-            fillBytes(config.szPassWORD, ftpPassword);
-        }
-        String dirLevel = arg(args, 11, "");
-        if (!dirLevel.isEmpty()) {
-            config.byDirLevel = (byte) (parseInt(dirLevel, 0) & 0xFF);
-        }
-        String uploadDataType = arg(args, 12, "");
-        if (!uploadDataType.isEmpty()) {
-            config.byUploadDataType = (byte) (parseInt(uploadDataType, 0) & 0xFF);
-        }
-        String filterCarPic = arg(args, 13, "");
-        if (!filterCarPic.isEmpty()) {
-            config.byIsFilterCarPic = (byte) ("1".equals(filterCarPic) || "true".equalsIgnoreCase(filterCarPic) ? 1 : 0);
-        }
-        String topDirMode = arg(args, 14, "");
-        if (!topDirMode.isEmpty()) {
-            config.byTopDirMode = (byte) (parseInt(topDirMode, 0) & 0xFF);
-        }
-        String subDirMode = arg(args, 15, "");
-        if (!subDirMode.isEmpty()) {
-            config.bySubDirMode = (byte) (parseInt(subDirMode, 0) & 0xFF);
-        }
-        String threeDirMode = arg(args, 16, "");
-        if (!threeDirMode.isEmpty()) {
-            config.byThreeDirMode = (byte) (parseInt(threeDirMode, 0) & 0xFF);
-        }
-        String fourDirMode = arg(args, 17, "");
-        if (!fourDirMode.isEmpty()) {
-            config.byFourDirMode = (byte) (parseInt(fourDirMode, 0) & 0xFF);
-        }
-        String picNameCustom = arg(args, 18, "");
-        if (!picNameCustom.isEmpty()) {
-            fillBytes(config.szPicNameCustom, picNameCustom);
-        }
-        String topCustomDir = arg(args, 19, "");
-        if (!topCustomDir.isEmpty()) {
-            fillBytes(config.szTopCustomDir, topCustomDir);
-        }
-        String subCustomDir = arg(args, 20, "");
-        if (!subCustomDir.isEmpty()) {
-            fillBytes(config.szSubCustomDir, subCustomDir);
-        }
-        String threeCustomDir = arg(args, 21, "");
-        if (!threeCustomDir.isEmpty()) {
-            fillBytes(config.szThreeCustomDir, threeCustomDir);
-        }
-        String fourCustomDir = arg(args, 22, "");
-        if (!fourCustomDir.isEmpty()) {
-            fillBytes(config.szFourCustomDir, fourCustomDir);
-        }
-        String delimiter = arg(args, 23, "");
-        if (!delimiter.isEmpty()) {
-            config.struPicNameRule.byDelimiter = (byte) (parseInt(delimiter, 0) & 0xFF);
-        }
-        String picNameItems = arg(args, 24, "");
-        if (!picNameItems.isEmpty()) {
-            String[] parts = picNameItems.split(",");
-            for (int i = 0; i < Math.min(parts.length, 15); i++) {
-                config.struPicNameRule.byPicNameItem[i] = (byte) (parseInt(parts[i].trim(), 0) & 0xFF);
-            }
-        }
-
-        config.write();
-        IntByReference setStatusList = new IntByReference(0);
-        ok = sdk.NET_DVR_SetDeviceConfig(
-                userId,
-                NET_ITC_SET_FTPCFG,
-                1,
-                condition.getPointer(),
-                condition.size(),
-                setStatusList.getPointer(),
-                config.getPointer(),
-                config.size()
-        );
-        if (!ok) {
-            fail("NET_DVR_SetDeviceConfig(ITC_FTP_CFG) failed", sdk.NET_DVR_GetLastError());
-            return "";
-        }
-        int setStatus = setStatusList.getValue();
-        if (setStatus != 0 && setStatus != 1) {
-            fail("NET_DVR_SetDeviceConfig(ITC_FTP_CFG) returned status=" + setStatus, setStatus);
-            return "";
-        }
-        return buildItcFtpConfig(userId);
     }
 
     private static String buildTriggerConfig(int userId) {
