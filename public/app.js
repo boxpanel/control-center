@@ -723,19 +723,6 @@ const DEVICE_PREVIEW_ISAPI_SCHEMAS = {
   sdkNetworkConfig: {
     readOnly: false,
     saveApiPath: "/api/sdk/network-config/set",
-    isapiPath: "/ISAPI/System/Network/Interfaces/1",
-    isapiSavePath: "/ISAPI/System/Network/Interfaces/1",
-    isapiSaveContentType: "application/xml; charset=utf-8",
-    buildIsapiSaveBody(values = {}) {
-      const dhcp = String(values.dhcpEnabled || "") === "1" || values.dhcpEnabled === true;
-      return `<?xml version="1.0" encoding="UTF-8"?>
-<NetworkInterface>
-<ipAddress>${escapeXml(String(values.ipAddress || "").trim())}</ipAddress>
-<subnetMask>${escapeXml(String(values.subnetMask || "").trim())}</subnetMask>
-<gateway>${escapeXml(String(values.gateway || "").trim())}</gateway>
-<mtu>${Number(values.mtu || 0) || 0}</mtu>
-</NetworkInterface>`;
-    },
     fields: [
       { key: "ipAddress", label: "IP地址", type: "text" },
       { key: "subnetMask", label: "IP地址掩码", type: "text" },

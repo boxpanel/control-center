@@ -1,7 +1,7 @@
 import { execFile, spawn } from "node:child_process";
 import crypto from "node:crypto";
 import dgram from "node:dgram";
-import { watch as fsWatch } from "node:fs";
+import { watch as fsWatch, existsSync } from "node:fs";
 import fs from "node:fs/promises";
 import net from "node:net";
 import path from "node:path";
@@ -5053,11 +5053,21 @@ app.post("/api/sdk/ftp-config/get", async (req, res, next) => {
       });
     }
     
+    const sdkBridgePath = path.join(__dirname, "sdk", "sdk-bridge");
+    
+    if (!existsSync(sdkBridgePath)) {
+      return res.status(400).json({
+        success: false,
+        error: "FTP配置获取功能不可用",
+        message: "SDK桥接器二进制文件不存在，此设备不支持通过此方式获取FTP配置",
+        sdkAvailable: true
+      });
+    }
+    
     const { execFile } = await import('node:child_process');
     const { promisify } = await import('node:util');
     const execFileAsync = promisify(execFile);
     
-    const sdkBridgePath = path.join(__dirname, "sdk", "sdk-bridge");
     const channel = req.body.channel || 1;
     
     const { stdout, stderr } = await execFileAsync(sdkBridgePath, [
@@ -5109,11 +5119,21 @@ app.post("/api/sdk/ftp-config/set", async (req, res, next) => {
       });
     }
     
+    const sdkBridgePath = path.join(__dirname, "sdk", "sdk-bridge");
+    
+    if (!existsSync(sdkBridgePath)) {
+      return res.status(400).json({
+        success: false,
+        error: "FTP配置保存功能不可用",
+        message: "SDK桥接器二进制文件不存在，此设备不支持通过SDK保存FTP配置。请使用设备Web界面进行FTP配置。",
+        sdkAvailable: true
+      });
+    }
+    
     const { execFile } = await import('node:child_process');
     const { promisify } = await import('node:util');
     const execFileAsync = promisify(execFile);
     
-    const sdkBridgePath = path.join(__dirname, "sdk", "sdk-bridge");
     const channel = req.body.channel || 1;
     const ftpConfig = req.body.ftpConfig;
     
@@ -6321,32 +6341,15 @@ app.get("/api/stream/status/:streamId", async (req, res, next) => {
 });
 
 app.use((err, req, res, next) => {
-  // 检查是否为ISAPI相关错误
-  const isIsapiError = err.message && (
-    err.message.includes("ISAPI") || 
-    err.message.includes("摄像头") ||
-    err.message.includes("设备连接")
-  );
+  console.error(`全局错误处理: ${err.message || "未知错误"}`);
   
-  // 确定状态码
   let statusCode = 500;
   if (err?.statusCode && Number.isFinite(err.statusCode)) {
     statusCode = err.statusCode;
-  } else if (isIsapiError) {
-    // ISAPI相关错误使用400状态码
-    statusCode = 400;
   }
   
-  // 确定错误消息
-  let errorMessage = "Internal error";
-  if (statusCode !== 500) {
-    errorMessage = String(err.message || "Bad request");
-  } else if (isIsapiError) {
-    // 即使是500错误，如果是ISAPI相关，也显示具体消息
-    errorMessage = String(err.message || "ISAPI请求失败");
-  }
+  let errorMessage = String(err.message || "未知错误");
   
-  console.error(`全局错误处理: ${statusCode} - ${errorMessage}`);
   res.status(statusCode).json({
     error: errorMessage
   });
