@@ -773,7 +773,8 @@ const DEVICE_PREVIEW_ISAPI_SCHEMAS = {
   },
   sdkFtpConfig: {
     readOnly: false,
-    saveApiPath: "/api/sdk/ftp-config/set",
+    unsupported: true,
+    unsupportedMessage: "此设备不支持通过ISAPI协议配置FTP。请使用设备Web界面进行FTP配置。",
     fields: [],
     mapLoadResult(result = {}) {
       const data = normalizeSdkFtpConfigResult(result);
@@ -915,7 +916,8 @@ const DEVICE_PREVIEW_ISAPI_SCHEMAS = {
   },
   sdkCurrentTriggerMode: {
     readOnly: false,
-    saveApiPath: "/api/sdk/current-trigger-mode/set",
+    unsupported: true,
+    unsupportedMessage: "此功能(SDK当前触发模式)需要SDK库支持，当前设备不支持",
     fields: [
       { key: "triggerTypeCode", label: "触发类型代码", type: "select", options: SDK_TRIGGER_TYPE_OPTIONS },
       { key: "triggerTypeLabel", label: "当前触发模式", type: "text", readOnly: true },
@@ -933,7 +935,8 @@ const DEVICE_PREVIEW_ISAPI_SCHEMAS = {
   },
   sdkTriggerConfig: {
     readOnly: false,
-    saveApiPath: "/api/sdk/trigger-config/set",
+    unsupported: true,
+    unsupportedMessage: "此功能(SDK触发模式配置)需要SDK库支持，当前设备不支持",
     fields: [
       { key: "enabled", label: "启用状态", type: "select", options: SDK_BOOLEAN_OPTIONS },
       { key: "triggerTypeCode", label: "触发模式类型", type: "select", options: SDK_TRIGGER_TYPE_OPTIONS },
@@ -1323,14 +1326,15 @@ const DEVICE_PREVIEW_ISAPI_SCHEMAS = {
   
   // FTP配置schema - SDK方式
   // 使用海康SDK的NET_DVR_GET_FTPUPLOAD_CFG API获取FTP配置
-  // 设备iDS-2CD9371-KS支持通过SDK配置FTP
+  // 设备需要SDK库支持
   ftpConfig: {
     readOnly: true,
-    method: "SDK", // 使用SDK方式
-    sdkCommand: "get-ftp", // SDK桥接器命令
+    method: "SDK",
+    sdkCommand: "get-ftp",
     contentType: "application/json; charset=utf-8",
-    apiPath: "/api/sdk/ftp-config/get", // 后端API路径
-    unsupported: false, // 现在支持SDK方式
+    apiPath: "/api/sdk/ftp-config/get",
+    unsupported: true,
+    unsupportedMessage: "此设备不支持通过ISAPI协议配置FTP。请使用设备Web界面进行FTP配置。",
     fields: [
       { key: "enable", label: "FTP启用状态", type: "text", readOnly: true },
       { key: "host", label: "FTP服务器地址", type: "text", readOnly: true },
@@ -1363,12 +1367,14 @@ const DEVICE_PREVIEW_ISAPI_SCHEMAS = {
     }
   },
   
-  // 命名规则schema - ISAPI方式（从FTP配置中提取）
+  // 命名规则schema - SDK方式（从SDK FTP配置中提取）
   namingRules: {
     readOnly: true,
     method: "SDK",
     contentType: "application/json; charset=utf-8",
     apiPath: "/api/sdk/naming-rules",
+    unsupported: true,
+    unsupportedMessage: "此设备不支持通过ISAPI获取命名规则。请使用设备Web界面查看。",
     fields: [
       { key: "fileNameFormat", label: "文件名格式", type: "text", readOnly: true },
       { key: "namingRuleEnabled", label: "命名规则启用状态", type: "text", readOnly: true },
