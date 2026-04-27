@@ -760,7 +760,8 @@ const DEVICE_PREVIEW_ISAPI_SCHEMAS = {
   },
   sdkFtpConfig: {
     readOnly: false,
-    saveApiPath: "/api/sdk/ftp-config/set",
+    unsupported: true,
+    unsupportedMessage: "此设备型号不支持通过ISAPI或SDK保存FTP配置。请使用设备Web界面进行FTP配置。",
     fields: [],
     mapLoadResult(result = {}) {
       const data = normalizeSdkFtpConfigResult(result);
@@ -2144,11 +2145,9 @@ async function loadFingerprint() {
 }
 
 async function fetchJson(url, body, method = "POST") {
-  // 为重启请求设置较短的超时时间
   const isRestartRequest = url === "/api/device/restart";
-  const isSdkFtpSaveRequest = url === "/api/sdk/ftp-config/set";
   const controller = new AbortController();
-  const timeoutMs = isRestartRequest ? 3000 : (isSdkFtpSaveRequest ? 120000 : 30000);
+  const timeoutMs = isRestartRequest ? 3000 : 30000;
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
   
   try {
@@ -2169,11 +2168,12 @@ async function fetchJson(url, body, method = "POST") {
   } catch (error) {
     clearTimeout(timeoutId);
     
-    // 如果是重启请求超时，认为是正常的（服务器可能已开始重启）
-    if (isRestartRequest && error.name === "AbortError") {
-      console.log("重启请求超时，服务器可能已开始重启");
-      // 返回一个模拟的成功响应
-      return { ok: true, message: "重启命令已发送" };
+    if (error?.name === "AbortError") {
+      if (isRestartRequest) {
+        console.log("重启请求超时，服务器可能已开始重启");
+        return { ok: true, message: "重启命令已发送" };
+      }
+      throw new Error("请求超时，服务器响应太慢");
     }
     
     throw error;
@@ -2199,6 +2199,9 @@ async function fetchJsonGet(url) {
     return data;
   } catch (error) {
     clearTimeout(timeoutId);
+    if (error?.name === "AbortError") {
+      throw new Error("请求超时，服务器响应太慢");
+    }
     throw error;
   }
 }
@@ -7779,11 +7782,49 @@ async function saveDevicePreviewSdkPreset() {
   const presetKey = String(els.devicePreviewIsapiPreset?.value || "deviceInfo").trim() || "deviceInfo";
   const preset = DEVICE_PREVIEW_ISAPI_PRESETS[presetKey] || DEVICE_PREVIEW_ISAPI_PRESETS.deviceInfo;
   const schema = DEVICE_PREVIEW_ISAPI_SCHEMAS[preset.schema] || DEVICE_PREVIEW_ISAPI_SCHEMAS.deviceInfo;
+
+  if (schema.unsupported) {
+    throw new Error(schema.unsupportedMessage || "此功能在当前设备上不支持");
+  }
+
+  const values = collectDevicePreviewIsapiControlValues();
+
+  if (schema.isapiSavePath) {
+    const connection = {
+      host: String(device.host || "").trim(),
+      port: Number(device.port || 80) || 80,
+      username: String(device.username || "").trim(),
+      password: String(device.password || "")
+    };
+    const xmlBody = typeof schema.buildIsapiSaveBody === "function"
+      ? schema.buildIsapiSaveBody(values)
+      : "";
+    if (els.devicePreviewIsapiHint) {
+      els.devicePreviewIsapiHint.textContent = "正在通过ISAPI保存参数...";
+    }
+    showLoading("保存参数中...");
+    try {
+      const response = await fetchJson("/api/isapi/request", {
+        connection,
+        pathname: schema.isapiSavePath,
+        method: "PUT",
+        contentType: schema.isapiSaveContentType || "application/xml; charset=utf-8",
+        body: xmlBody
+      });
+      if (els.devicePreviewIsapiHint) {
+        els.devicePreviewIsapiHint.textContent = "保存成功，正在刷新参数...";
+      }
+      await autoLoadDevicePreviewPreset(presetKey);
+      return response;
+    } finally {
+      hideLoading();
+    }
+  }
+
   if (!schema?.saveApiPath) {
     throw new Error("当前分类不支持保存");
   }
 
-  const values = collectDevicePreviewIsapiControlValues();
   const payload = typeof schema.buildSavePayload === "function" ? schema.buildSavePayload(values) : values;
   const sdkPayload = typeof schema.buildSaveRequest === "function"
     ? schema.buildSaveRequest(device, values, payload)
@@ -8421,7 +8462,11 @@ if (els.devicePreviewModalCloseBtn) {
         await saveDevicePreviewSdkPreset();
       } catch (error) {
         if (els.devicePreviewIsapiHint) {
-          els.devicePreviewIsapiHint.textContent = `保存失败：${error?.message || error}`;
+          if (error?.name === "AbortError" || String(error?.message || "").includes("aborted")) {
+            els.devicePreviewIsapiHint.textContent = "保存失败：请求超时，设备响应太慢或SDK功能不可用";
+          } else {
+            els.devicePreviewIsapiHint.textContent = `保存失败：${error?.message || error}`;
+          }
         }
       } finally {
         updateDevicePreviewSaveButtonState();

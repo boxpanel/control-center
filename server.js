@@ -5044,7 +5044,15 @@ app.post("/api/sdk/ftp-config/get", async (req, res, next) => {
       password: reqConn.password || baseConn.password
     });
     
-    // 调用SDK桥接器获取FTP配置
+    if (!hikvisionSdkBridge) {
+      return res.status(503).json({
+        success: false,
+        error: "SDK功能不可用",
+        message: "SDK桥接器未加载或初始化失败，无法获取FTP配置",
+        sdkAvailable: false
+      });
+    }
+    
     const { execFile } = await import('node:child_process');
     const { promisify } = await import('node:util');
     const execFileAsync = promisify(execFile);
@@ -5092,7 +5100,15 @@ app.post("/api/sdk/ftp-config/set", async (req, res, next) => {
       password: reqConn.password || baseConn.password
     });
     
-    // 调用SDK桥接器设置FTP配置
+    if (!hikvisionSdkBridge) {
+      return res.status(503).json({
+        success: false,
+        error: "SDK功能不可用",
+        message: "SDK桥接器未加载或初始化失败，无法设置FTP配置",
+        sdkAvailable: false
+      });
+    }
+    
     const { execFile } = await import('node:child_process');
     const { promisify } = await import('node:util');
     const execFileAsync = promisify(execFile);
