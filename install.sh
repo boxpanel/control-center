@@ -489,28 +489,35 @@ compile_java_bridge() {
     return 1
   fi
 
-  # 查找JNA jar
+  # 查找JNA jar - 逐个检查文件，避免glob未匹配导致的语法错误
   local jna_jar=""
-  local jna_candidates=(
-    "$ROOT_DIR/sdk/java/jna.jar"
-    "$ROOT_DIR/sdk/java/jna-"*.jar
-    "/usr/share/java/jna.jar"
-  )
-  local candidate=""
-  for candidate in "${jna_candidates[@]}"; do
-    if [[ -f "$candidate" ]]; then
-      jna_jar="$candidate"
-      break
-    fi
-  done
+
+  if [[ -f "$ROOT_DIR/sdk/java/jna.jar" ]]; then
+    jna_jar="$ROOT_DIR/sdk/java/jna.jar"
+  fi
 
   if [[ -z "$jna_jar" ]]; then
-    # 使用通配符匹配 /usr/share/java/jna-*.jar
-    local jna_files
-    jna_files=(/usr/share/java/jna-*.jar 2>/dev/null || true)
-    if [[ "${#jna_files[@]}" -gt 0 && -f "${jna_files[0]}" ]]; then
-      jna_jar="${jna_files[0]}"
-    fi
+    local jna_match
+    for jna_match in "$ROOT_DIR/sdk/java/jna-"*.jar; do
+      if [[ -f "$jna_match" ]]; then
+        jna_jar="$jna_match"
+        break
+      fi
+    done
+  fi
+
+  if [[ -z "$jna_jar" && -f "/usr/share/java/jna.jar" ]]; then
+    jna_jar="/usr/share/java/jna.jar"
+  fi
+
+  if [[ -z "$jna_jar" ]]; then
+    local jna_match
+    for jna_match in /usr/share/java/jna-*.jar; do
+      if [[ -f "$jna_match" ]]; then
+        jna_jar="$jna_match"
+        break
+      fi
+    done
   fi
 
   if [[ -z "$jna_jar" ]]; then
