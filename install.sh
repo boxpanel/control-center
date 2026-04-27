@@ -407,77 +407,149 @@ ensure_nodejs() {
   fi
 }
 
-ensure_sdk_installed() {
-  step "检查海康威视SDK"
-  
-  # 检查GCC版本
-  if ! command -v gcc >/dev/null 2>&1; then
-    printf "警告: GCC未安装，SDK功能可能无法正常工作\n"
+copy_sdk_files() {
+  local sdk_dir="$ROOT_DIR/sdk/arm64"
+  local system_lib_dir="/usr/local/lib"
+  local system_com_dir="$system_lib_dir/HCNetSDKCom"
+
+  if [[ ! -d "$sdk_dir" ]]; then
+    printf "错误: SDK目录不存在: $sdk_dir\n"
     return 1
   fi
-  
-  local gcc_version
-  gcc_version=$(gcc -dumpversion)
-  if [[ "$(echo "$gcc_version 4.1.2" | tr ' ' '\n' | sort -V | head -n1)" != "4.1.2" ]]; then
-    printf "警告: GCC版本$gcc_version低于4.1.2，SDK可能无法正常工作\n"
-  fi
-  
-  # 检查SDK目录
-  local sdk_dir="$ROOT_DIR/sdk/arm64"
+
   if [[ ! -f "$sdk_dir/libhcnetsdk.so" ]]; then
-    printf "警告: 未找到SDK库文件，FTP配置功能将不可用\n"
+    printf "错误: SDK核心库 libhcnetsdk.so 不存在于: $sdk_dir\n"
+    return 1
+  fi
+
+  step "复制SDK库文件到系统目录: $system_lib_dir"
+
+  # 创建目标目录
+  run_root mkdir -p "$system_lib_dir"
+  run_root mkdir -p "$system_com_dir"
+
+  # 复制所有 .so 文件（包括 .so 和 .so.*）
+  local so_count=0
+  local file=""
+  for file in "$sdk_dir"/lib*.so* "$sdk_dir"/lib*.so.*; do
+    if [[ -f "$file" ]]; then
+      run_root cp -f "$file" "$system_lib_dir/"
+      so_count=$((so_count + 1))
+    fi
+  done
+  for file in "$sdk_dir"/HCNetSDKCom/lib*.so*; do
+    if [[ -f "$file" ]]; then
+      run_root cp -f "$file" "$system_com_dir/"
+      so_count=$((so_count + 1))
+    fi
+  done
+
+  printf "已复制 %d 个SDK库文件\n" "$so_count"
+
+  # 复制头文件和配置文件
+  if [[ -f "$sdk_dir/HCNetSDK.h" ]]; then
+    run_root cp -f "$sdk_dir/HCNetSDK.h" "$system_lib_dir/"
+    printf "已复制头文件: HCNetSDK.h\n"
+  fi
+  if [[ -f "$sdk_dir/HCNetSDK_Log_Switch.xml" ]]; then
+    run_root cp -f "$sdk_dir/HCNetSDK_Log_Switch.xml" "$system_lib_dir/"
+    printf "已复制配置文件: HCNetSDK_Log_Switch.xml\n"
+  fi
+
+  # 设置库文件权限
+  run_root chmod -R 755 "$system_lib_dir"/*.so* "$system_com_dir"/*.so* 2>/dev/null || true
+
+  # 更新动态链接器缓存
+  run_root ldconfig
+
+  printf "SDK库文件安装完成\n"
+  return 0
+}
+
+ensure_sdk_installed() {
+  step "检查海康威视SDK"
+
+  local sdk_dir="$ROOT_DIR/sdk/arm64"
+
+  # 检查SDK目录是否存在
+  if [[ ! -d "$sdk_dir" ]]; then
+    printf "警告: SDK目录不存在: $sdk_dir\n"
+    printf "请确认SDK文件已放置在仓库的 sdk/arm64/ 目录下\n"
+    return 1
+  fi
+
+  if [[ ! -f "$sdk_dir/libhcnetsdk.so" ]]; then
+    printf "警告: 未找到SDK核心库 libhcnetsdk.so\n"
     printf "请将海康威视ARM64 Linux SDK文件复制到: $sdk_dir/\n"
     return 1
   fi
-  
-  # 复制SDK库到系统目录
-  local system_lib_dir="/usr/local/lib"
-  local system_com_dir="$system_lib_dir/HCNetSDKCom"
-  if [[ ! -f "$system_lib_dir/libhcnetsdk.so" ]]; then
-    step "安装SDK库到系统目录"
-    run_root cp "$sdk_dir/libhcnetsdk.so" "$system_lib_dir/"
-    run_root ldconfig
+
+  # 复制SDK文件到系统目录
+  if ! copy_sdk_files; then
+    printf "警告: SDK文件复制失败，部分功能可能不可用\n"
+    return 1
   fi
-  run_root mkdir -p "$system_com_dir"
-  run_root cp "$sdk_dir"/*.so* "$system_lib_dir/" 2>/dev/null || true
-  if [[ -d "$sdk_dir/HCNetSDKCom" ]]; then
-    run_root cp "$sdk_dir/HCNetSDKCom"/*.so* "$system_com_dir/" 2>/dev/null || true
+
+  # 检查GCC版本（用于编译C++桥接器）
+  local need_compile=0
+  if command -v gcc >/dev/null 2>&1; then
+    local gcc_version
+    gcc_version=$(gcc -dumpversion)
+    printf "GCC版本: %s\n" "$gcc_version"
+    local min_version="4.1.2"
+    if [[ "$(echo "$gcc_version $min_version" | tr ' ' '\n' | sort -V | head -n1)" != "$min_version" ]]; then
+      printf "警告: GCC版本$gcc_version低于$min_version，C++桥接器可能无法编译\n"
+    else
+      need_compile=1
+    fi
+  else
+    printf "警告: GCC未安装，无法编译C++桥接器\n"
+    printf "如需使用C++ SDK桥接器，请安装: sudo apt-get install -y g++ make\n"
   fi
-  run_root ldconfig
-  
+
   # 安装jsoncpp开发包（用于C++ JSON解析）
   if ! dpkg -s libjsoncpp-dev >/dev/null 2>&1; then
     step "安装jsoncpp开发包"
-    run_root apt-get install -y libjsoncpp-dev
+    run_root apt-get install -y libjsoncpp-dev || {
+      printf "警告: jsoncpp安装失败，C++桥接器可能无法编译\n"
+    }
   fi
-  
+
   # 编译SDK桥接器
-  local bridge_cpp="$ROOT_DIR/sdk/sdk-bridge-fixed.cpp"
-  if [[ ! -f "$bridge_cpp" ]]; then
-    bridge_cpp="$ROOT_DIR/sdk/sdk-bridge.cpp"
-  fi
-  local bridge_bin="$ROOT_DIR/sdk/sdk-bridge"
-  if [[ -f "$bridge_cpp" ]]; then
-    step "编译SDK桥接器"
-    cd "$ROOT_DIR/sdk"
-    g++ -std=c++11 \
-      -I. -I/usr/include/jsoncpp \
-      -L/usr/local/lib -L/usr/local/lib/HCNetSDKCom \
-      -Wl,-rpath,/usr/local/lib:/usr/local/lib/HCNetSDKCom \
-      -Wl,-rpath-link,/usr/local/lib:/usr/local/lib/HCNetSDKCom \
-      -o "$bridge_bin" "$bridge_cpp" -lhcnetsdk -ljsoncpp
-    if [[ $? -eq 0 ]]; then
-      chmod +x "$bridge_bin"
-      printf "SDK桥接器编译成功: $bridge_bin\n"
-    else
-      printf "警告: SDK桥接器编译失败，FTP配置功能可能无法使用\n"
+  if [[ "$need_compile" -eq 1 ]]; then
+    local bridge_cpp=""
+    if [[ -f "$ROOT_DIR/sdk/sdk-bridge-fixed.cpp" ]]; then
+      bridge_cpp="$ROOT_DIR/sdk/sdk-bridge-fixed.cpp"
+    elif [[ -f "$ROOT_DIR/sdk/sdk-bridge.cpp" ]]; then
+      bridge_cpp="$ROOT_DIR/sdk/sdk-bridge.cpp"
     fi
-    cd "$ROOT_DIR"
-  else
-    printf "警告: 未找到SDK桥接器源代码: $bridge_cpp\n"
+
+    local bridge_bin="$ROOT_DIR/sdk/sdk-bridge"
+    if [[ -n "$bridge_cpp" && -f "$bridge_cpp" ]]; then
+      step "编译SDK桥接器"
+      local compile_dir
+      compile_dir="$(dirname "$bridge_cpp")"
+      pushd "$compile_dir" >/dev/null
+      if g++ -std=c++11 \
+        -I. -I/usr/include/jsoncpp \
+        -L/usr/local/lib -L/usr/local/lib/HCNetSDKCom \
+        -Wl,-rpath,/usr/local/lib:/usr/local/lib/HCNetSDKCom \
+        -Wl,-rpath-link,/usr/local/lib:/usr/local/lib/HCNetSDKCom \
+        -o "$bridge_bin" "$bridge_cpp" -lhcnetsdk -ljsoncpp 2>&1; then
+        chmod +x "$bridge_bin"
+        printf "SDK桥接器编译成功: $bridge_bin\n"
+      else
+        printf "警告: SDK桥接器编译失败\n"
+        printf "      原因可能是缺少依赖或SDK版本不兼容\n"
+        printf "      ISAPI方式仍可正常工作\n"
+      fi
+      popd >/dev/null
+    fi
   fi
-  
-  printf "SDK已安装: libhcnetsdk.so\n"
+
+  printf "SDK安装完成: %d 个库文件已复制到 %s\n" \
+    "$(find /usr/local/lib -name '*.so*' -path '*/HCNetSDK*' 2>/dev/null | wc -l)" \
+    "/usr/local/lib/"
   return 0
 }
 
