@@ -5109,14 +5109,28 @@ app.post("/api/sdk/ftp-config/set", async (req, res, next) => {
     }
 
     console.log(`[SDK API] 使用Java桥接器保存FTP配置: ${connection.host}:${connection.port}`);
-    
-    // Java桥接器目前不支持设置FTP配置，返回提示信息
-    res.json({
-      ok: false,
-      error: "Java桥接器暂不支持保存FTP配置",
-      message: "请使用设备Web界面进行FTP配置，或在后续版本中实现此功能",
-      sdkAvailable: true
-    });
+
+    const result = await hikvisionSdkBridge.setFtpConfig({
+      ip: connection.host,
+      port: connection.port,
+      username: connection.username,
+      password: connection.password
+    }, ftpConfig);
+
+    const data = result?.data || {};
+    if (data.success) {
+      res.json({
+        ok: true,
+        connection: {
+          host: connection.host,
+          port: connection.port,
+          username: connection.username
+        },
+        message: data.message || "FTP配置保存成功"
+      });
+    } else {
+      throw new Error(data.error || data.message || "FTP配置保存失败");
+    }
   } catch (err) {
     console.error("[SDK API] Java桥接器保存FTP配置失败:", err.message);
     res.status(500).json({

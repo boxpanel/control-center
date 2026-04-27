@@ -376,6 +376,32 @@ class HikvisionSdkBridge {
   async getPictureNamingRule(connection) {
     return this.runJavaTool("itc-ftp-config", connection);
   }
+
+  async setFtpConfig(connection, ftpConfig = {}) {
+    return this.runJavaTool("set-itc-ftp-config", connection, [
+      ftpConfig.enable ? "1" : "0",
+      String(Number(ftpConfig.addressType || 0) || 0),
+      String(Number(ftpConfig.port || 21) || 21),
+      withDefault(ftpConfig.username),
+      withDefault(ftpConfig.password),
+      String(Number(ftpConfig.dirLevel || 0) || 0),
+      ftpConfig.filterCarPic ? "1" : "0",
+      String(Number(ftpConfig.uploadDataType || 0) || 0),
+      String(Number(ftpConfig.ftpIndex || 0) || 0),
+      String(Number(ftpConfig.topDirMode || 0) || 0),
+      String(Number(ftpConfig.subDirMode || 0) || 0),
+      String(Number(ftpConfig.threeDirMode || 0) || 0),
+      String(Number(ftpConfig.fourDirMode || 0) || 0),
+      withDefault(ftpConfig.host),
+      String(Number(ftpConfig.picNameRule?.delimiter || 0) || 0),
+      Array.isArray(ftpConfig.picNameRule?.items) ? ftpConfig.picNameRule.items.join(",") : "",
+      withDefault(ftpConfig.picNameCustom),
+      withDefault(ftpConfig.topCustomDir),
+      withDefault(ftpConfig.subCustomDir),
+      withDefault(ftpConfig.threeCustomDir),
+      withDefault(ftpConfig.fourCustomDir)
+    ]);
+  }
 }
 
 const hikvisionSdkBridge = new HikvisionSdkBridge();

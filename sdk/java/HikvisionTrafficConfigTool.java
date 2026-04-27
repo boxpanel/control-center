@@ -25,6 +25,7 @@ public class HikvisionTrafficConfigTool {
     private static final int NET_DVR_GET_NETCFG_V30 = 1000;
     private static final int NET_DVR_SET_NETCFG_V30 = 1001;
     private static final int NET_ITC_GET_FTPCFG = 3121;
+    private static final int NET_ITC_SET_FTPCFG = 3122;
     private static final int NET_ITC_GET_TRIGGERCFG = 3003;
     private static final int NET_ITC_SET_TRIGGERCFG = 3004;
     private static final int NET_DVR_GET_SNAPENABLECFG = 1086;
@@ -653,6 +654,9 @@ public class HikvisionTrafficConfigTool {
                     case "itc-ftp-config":
                         success(buildItcFtpConfig(userId));
                         break;
+                    case "set-itc-ftp-config":
+                        success(applyItcFtpConfig(userId, args));
+                        break;
                     case "current-trigger-mode":
                         success(buildCurrentTriggerMode(userId));
                         break;
@@ -920,6 +924,100 @@ public class HikvisionTrafficConfigTool {
                 + "\"delimiter\":\"" + json(delimiter) + "\""
                 + "}"
                 + "}";
+    }
+
+    private static String applyItcFtpConfig(int userId, String[] args) {
+        NET_ITC_FTP_TYPE_COND condition = new NET_ITC_FTP_TYPE_COND();
+        condition.dwChannel = 1;
+        condition.byWorkMode = 0;
+        condition.write();
+
+        NET_ITC_FTP_CFG config = new NET_ITC_FTP_CFG();
+        config.dwSize = config.size();
+        config.write();
+        IntByReference statusList = new IntByReference(0);
+        boolean ok = sdk.NET_DVR_GetDeviceConfig(
+                userId,
+                NET_ITC_GET_FTPCFG,
+                1,
+                condition.getPointer(),
+                condition.size(),
+                statusList.getPointer(),
+                config.getPointer(),
+                config.size()
+        );
+        if (!ok) {
+            fail("读取现有FTP配置失败", sdk.NET_DVR_GetLastError());
+            return "";
+        }
+        config.read();
+
+        config.byEnable = (byte) (parseBooleanFlag(arg(args, 5, "")) ? 1 : 0);
+        config.byAddressType = (byte) parseInt(arg(args, 6, "0"), 0);
+        config.wFTPPort = (short) parseInt(arg(args, 7, "21"), 21);
+        fillBytes(config.szUserName, arg(args, 8, ""));
+        fillBytes(config.szPassWORD, arg(args, 9, ""));
+        config.byDirLevel = (byte) parseInt(arg(args, 10, "0"), 0);
+        config.byIsFilterCarPic = (byte) (parseBooleanFlag(arg(args, 11, "0")) ? 1 : 0);
+        config.byUploadDataType = (byte) parseInt(arg(args, 12, "0"), 0);
+        config.byRes4 = (byte) parseInt(arg(args, 13, "0"), 0);
+        config.byTopDirMode = (byte) parseInt(arg(args, 14, "0"), 0);
+        config.bySubDirMode = (byte) parseInt(arg(args, 15, "0"), 0);
+        config.byThreeDirMode = (byte) parseInt(arg(args, 16, "0"), 0);
+        config.byFourDirMode = (byte) parseInt(arg(args, 17, "0"), 0);
+
+        String serverAddress = arg(args, 18, "");
+        if (!serverAddress.isEmpty()) {
+            if (config.byAddressType == 1) {
+                fillBytes(config.unionServer, serverAddress);
+            } else {
+                byte[] ipBytes = serverAddress.getBytes(DEVICE_CHARSET);
+                int ipLen = Math.min(ipBytes.length, 15);
+                Arrays.fill(config.unionServer, (byte) 0);
+                System.arraycopy(ipBytes, 0, config.unionServer, 0, ipLen);
+            }
+        }
+
+        String picNameDelimiter = arg(args, 19, "0");
+        config.struPicNameRule.byDelimiter = (byte) parseInt(picNameDelimiter, 0);
+        String picNameItemsRaw = arg(args, 20, "");
+        if (!picNameItemsRaw.isEmpty()) {
+            byte[] picNameItems = new byte[PICNAME_MAXITEM];
+            String[] parts = picNameItemsRaw.split(",");
+            for (int i = 0; i < Math.min(parts.length, PICNAME_MAXITEM); i++) {
+                picNameItems[i] = (byte) parseInt(parts[i].trim(), 0);
+            }
+            config.struPicNameRule.byItemOrder = picNameItems;
+        }
+        fillBytes(config.szPicNameCustom, arg(args, 21, ""));
+        fillBytes(config.szTopCustomDir, arg(args, 22, ""));
+        fillBytes(config.szSubCustomDir, arg(args, 23, ""));
+        fillBytes(config.szThreeCustomDir, arg(args, 24, ""));
+        fillBytes(config.szFourCustomDir, arg(args, 25, ""));
+
+        config.write();
+        IntByReference setStatusList = new IntByReference(0);
+        boolean setOk = sdk.NET_DVR_SetDeviceConfig(
+                userId,
+                NET_ITC_SET_FTPCFG,
+                1,
+                condition.getPointer(),
+                condition.size(),
+                setStatusList.getPointer(),
+                config.getPointer(),
+                config.size()
+        );
+        if (!setOk) {
+            fail("NET_DVR_SetDeviceConfig(ITC_FTP_CFG) failed", sdk.NET_DVR_GetLastError());
+            return "";
+        }
+        int setStatus = setStatusList.getValue();
+        if (setStatus != 0 && setStatus != 1) {
+            fail("NET_DVR_SetDeviceConfig(ITC_FTP_CFG) returned status=" + setStatus, setStatus);
+            return "";
+        }
+
+        return "{\"success\":true,\"message\":\"FTP配置保存成功\"}";
     }
 
     private static String buildTriggerConfig(int userId) {
