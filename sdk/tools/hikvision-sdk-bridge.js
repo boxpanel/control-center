@@ -373,6 +373,19 @@ class HikvisionSdkBridge {
     return this.runJavaTool("itc-ftp-config", connection);
   }
 
+  async setFtpConfig(connection, values = {}) {
+    return this.runJavaTool("set-itc-ftp-config", connection, [
+      values.enable ? "1" : "0",
+      withDefault(values.host),
+      String(Number(values.port || 0) || 0),
+      withDefault(values.username),
+      withDefault(values.password),
+      String(Number(values.dirLevel || 0) || 0),
+      String(Number(values.uploadDataType || 1) || 1),
+      values.filterCarPic ? "1" : "0"
+    ]);
+  }
+
   async getPictureNamingRule(connection) {
     return this.runJavaTool("itc-ftp-config", connection);
   }
