@@ -6670,15 +6670,6 @@ function isSdkApiSuccess(response) {
   return Boolean(response?.ok || response?.success);
 }
 
-function escapeXml(str) {
-  return String(str || "")
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&apos;");
-}
-
 function parseIsapiNetworkConfig(xmlText) {
   if (!xmlText || typeof xmlText !== "string") return {};
   const extract = (tag) => {
