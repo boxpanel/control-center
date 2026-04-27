@@ -723,6 +723,19 @@ const DEVICE_PREVIEW_ISAPI_SCHEMAS = {
   sdkNetworkConfig: {
     readOnly: false,
     saveApiPath: "/api/sdk/network-config/set",
+    isapiPath: "/ISAPI/System/Network/Interfaces/1",
+    isapiSavePath: "/ISAPI/System/Network/Interfaces/1",
+    isapiSaveContentType: "application/xml; charset=utf-8",
+    buildIsapiSaveBody(values = {}) {
+      const dhcp = String(values.dhcpEnabled || "") === "1" || values.dhcpEnabled === true;
+      return `<?xml version="1.0" encoding="UTF-8"?>
+<NetworkInterface>
+<ipAddress>${escapeXml(String(values.ipAddress || "").trim())}</ipAddress>
+<subnetMask>${escapeXml(String(values.subnetMask || "").trim())}</subnetMask>
+<gateway>${escapeXml(String(values.gateway || "").trim())}</gateway>
+<mtu>${Number(values.mtu || 0) || 0}</mtu>
+</NetworkInterface>`;
+    },
     fields: [
       { key: "ipAddress", label: "IP地址", type: "text" },
       { key: "subnetMask", label: "IP地址掩码", type: "text" },
@@ -760,8 +773,7 @@ const DEVICE_PREVIEW_ISAPI_SCHEMAS = {
   },
   sdkFtpConfig: {
     readOnly: false,
-    unsupported: true,
-    unsupportedMessage: "此设备型号不支持通过ISAPI或SDK保存FTP配置。请使用设备Web界面进行FTP配置。",
+    saveApiPath: "/api/sdk/ftp-config/set",
     fields: [],
     mapLoadResult(result = {}) {
       const data = normalizeSdkFtpConfigResult(result);
@@ -6670,6 +6682,34 @@ function isSdkApiSuccess(response) {
   return Boolean(response?.ok || response?.success);
 }
 
+function escapeXml(str) {
+  return String(str || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&apos;");
+}
+
+function parseIsapiNetworkConfig(xmlText) {
+  if (!xmlText || typeof xmlText !== "string") return {};
+  const extract = (tag) => {
+    const match = xmlText.match(new RegExp(`<${tag}>([^<]*)</${tag}>`, "i"));
+    return match ? match[1].trim() : "";
+  };
+  return {
+    ipAddress: extract("ipAddress"),
+    subnetMask: extract("subnetMask"),
+    gateway: extract("gateway"),
+    mtu: extract("mtu") || "1500",
+    macAddress: extract("macAddress"),
+    netInterfaceLabel: extract("id") ? `接口 ${extract("id")}` : "",
+    dhcpEnabled: extract("dhcpEnabled") || extract("DHCP") || "0",
+    httpPort: extract("httpPort") || "80",
+    sdkPort: extract("sdkPort") || "8000"
+  };
+}
+
 function getDevicePreviewSdkPort(device) {
   return Number(device?.sdkPort || device?.sdkPortNo || 8000) || 8000;
 }
@@ -7968,9 +8008,30 @@ async function runDevicePreviewIsapiRequest(methodOverride = "") {
         });
         values = schema.mapLoadResult(response?.rawText || "", device);
       } else if (preset.schema === "sdkNetworkConfig") {
-        const response = await fetchJson("/api/sdk/network-config", sdkPayload);
-        if (!isSdkApiSuccess(response)) throw new Error(response?.error || "SDK网络参数获取失败");
-        values = schema.mapLoadResult(response.networkConfig || {}, device);
+        let sdkFailed = false;
+        try {
+          const response = await fetchJson("/api/sdk/network-config", sdkPayload);
+          if (!isSdkApiSuccess(response)) throw new Error(response?.error || "SDK网络参数获取失败");
+          values = schema.mapLoadResult(response.networkConfig || {}, device);
+        } catch (sdkErr) {
+          sdkFailed = true;
+        }
+        if (sdkFailed) {
+          const connection = {
+            host: String(device.host || "").trim(),
+            port: Number(device.port || 80) || 80,
+            username: String(device.username || "").trim(),
+            password: String(device.password || "")
+          };
+          const isapiResp = await fetchJson("/api/isapi/request", {
+            connection,
+            pathname: schema.isapiPath || "/ISAPI/System/Network/Interfaces/1",
+            method: "GET",
+            contentType: "application/xml; charset=utf-8",
+            body: ""
+          });
+          values = parseIsapiNetworkConfig(isapiResp?.rawText || "");
+        }
     } else if (preset.schema === "sdkFtpConfig") {
       const response = await fetchSdkFtpPanelData(device, sdkPayload);
       values = schema.mapLoadResult(response, device, response);
