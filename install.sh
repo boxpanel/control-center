@@ -345,7 +345,7 @@ ensure_sdk_packages() {
   fi
 
   local missing=()
-  local required=(openjdk-17-jre-headless openjdk-17-jdk-headless)
+  local required=(openjdk-17-jre-headless openjdk-17-jdk-headless libjna-java)
   local pkg=""
   for pkg in "${required[@]}"; do
     if ! dpkg -s "$pkg" >/dev/null 2>&1; then
@@ -378,6 +378,22 @@ print_sdk_runtime_status() {
   else
     printf "Java compiler      : missing\n"
   fi
+
+  local java_build_dir="$ROOT_DIR/sdk/build/java"
+  local java_build_class="$java_build_dir/HikvisionTrafficConfigTool.class"
+  if [[ -f "$java_build_class" ]]; then
+    printf "Java bridge        : compiled\n"
+  else
+    printf "Java bridge        : not compiled\n"
+  fi
+
+  local cpp_bridge_bin="$ROOT_DIR/sdk/sdk-bridge"
+  if [[ -f "$cpp_bridge_bin" ]]; then
+    printf "C++ bridge         : compiled\n"
+  else
+    printf "C++ bridge         : not compiled\n"
+  fi
+
   if [[ -n "$sdk_root" ]]; then
     printf "HCNetSDK root      : %s\n" "$sdk_root"
   else
@@ -466,6 +482,71 @@ copy_sdk_files() {
   return 0
 }
 
+compile_java_bridge() {
+  step "编译Java桥接器"
+
+  local java_src="$ROOT_DIR/sdk/java/HikvisionTrafficConfigTool.java"
+  if [[ ! -f "$java_src" ]]; then
+    printf "警告: Java桥接器源文件不存在: $java_src\n"
+    return 1
+  fi
+
+  if ! command -v javac >/dev/null 2>&1; then
+    printf "警告: javac未安装，无法编译Java桥接器\n"
+    return 1
+  fi
+
+  # 查找JNA jar
+  local jna_jar=""
+  local jna_candidates=(
+    "$ROOT_DIR/sdk/java/jna.jar"
+    "$ROOT_DIR/sdk/java/jna-"*.jar
+    "/usr/share/java/jna.jar"
+  )
+  local candidate=""
+  for candidate in "${jna_candidates[@]}"; do
+    if [[ -f "$candidate" ]]; then
+      jna_jar="$candidate"
+      break
+    fi
+  done
+
+  if [[ -z "$jna_jar" ]]; then
+    # 使用通配符匹配 /usr/share/java/jna-*.jar
+    local jna_files
+    jna_files=(/usr/share/java/jna-*.jar 2>/dev/null || true)
+    if [[ "${#jna_files[@]}" -gt 0 && -f "${jna_files[0]}" ]]; then
+      jna_jar="${jna_files[0]}"
+    fi
+  fi
+
+  if [[ -z "$jna_jar" ]]; then
+    printf "警告: 未找到JNA jar包\n"
+    printf "      请安装: sudo apt-get install -y libjna-java\n"
+    return 1
+  fi
+
+  printf "找到JNA jar: %s\n" "$jna_jar"
+
+  # 创建构建目录
+  local java_build_dir="$ROOT_DIR/sdk/build/java"
+  mkdir -p "$java_build_dir"
+
+  # 编译Java桥接器
+  local separator=":"
+  local classpath="${jna_jar}${separator}$ROOT_DIR/sdk/java"
+
+  printf "编译Java桥接器...\n"
+  if javac -encoding UTF-8 -cp "$classpath" -d "$java_build_dir" "$java_src" 2>&1; then
+    printf "Java桥接器编译成功: $java_build_dir/HikvisionTrafficConfigTool.class\n"
+    return 0
+  else
+    printf "警告: Java桥接器编译失败\n"
+    printf "      请检查Java环境和JNA依赖\n"
+    return 1
+  fi
+}
+
 ensure_sdk_installed() {
   step "检查海康威视SDK"
 
@@ -489,6 +570,9 @@ ensure_sdk_installed() {
     printf "警告: SDK文件复制失败，部分功能可能不可用\n"
     return 1
   fi
+
+  # 编译Java桥接器
+  compile_java_bridge
 
   # 检查GCC版本（用于编译C++桥接器）
   local need_compile=0
@@ -515,7 +599,7 @@ ensure_sdk_installed() {
     }
   fi
 
-  # 编译SDK桥接器
+  # 编译C++桥接器
   if [[ "$need_compile" -eq 1 ]]; then
     local bridge_cpp=""
     if [[ -f "$ROOT_DIR/sdk/sdk-bridge-fixed.cpp" ]]; then
@@ -526,7 +610,7 @@ ensure_sdk_installed() {
 
     local bridge_bin="$ROOT_DIR/sdk/sdk-bridge"
     if [[ -n "$bridge_cpp" && -f "$bridge_cpp" ]]; then
-      step "编译SDK桥接器"
+      step "编译C++桥接器"
       local compile_dir
       compile_dir="$(dirname "$bridge_cpp")"
       pushd "$compile_dir" >/dev/null
@@ -537,9 +621,9 @@ ensure_sdk_installed() {
         -Wl,-rpath-link,/usr/local/lib:/usr/local/lib/HCNetSDKCom \
         -o "$bridge_bin" "$bridge_cpp" -lhcnetsdk -ljsoncpp 2>&1; then
         chmod +x "$bridge_bin"
-        printf "SDK桥接器编译成功: $bridge_bin\n"
+        printf "C++桥接器编译成功: $bridge_bin\n"
       else
-        printf "警告: SDK桥接器编译失败\n"
+        printf "警告: C++桥接器编译失败\n"
         printf "      原因可能是缺少依赖或SDK版本不兼容\n"
         printf "      ISAPI方式仍可正常工作\n"
       fi
