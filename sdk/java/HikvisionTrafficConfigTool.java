@@ -25,7 +25,8 @@ public class HikvisionTrafficConfigTool {
     private static final int NET_DVR_GET_NETCFG_V30 = 1000;
     private static final int NET_DVR_SET_NETCFG_V30 = 1001;
     private static final int NET_ITC_GET_FTPCFG = 3121;
-    private static final int NET_ITC_SET_FTPCFG = 3122;
+    private static final int NET_DVR_GET_FTPCFG = 134;
+    private static final int NET_DVR_SET_FTPCFG = 135;
     private static final int NET_ITC_GET_TRIGGERCFG = 3003;
     private static final int NET_ITC_SET_TRIGGERCFG = 3004;
     private static final int NET_DVR_GET_SNAPENABLECFG = 1086;
@@ -601,6 +602,31 @@ public class HikvisionTrafficConfigTool {
         }
     }
 
+    public static class NET_DVR_FTPCFG extends Structure {
+        public int dwSize;
+        public int dwEnableFTP;
+        public byte[] sFTPIP = new byte[16];
+        public int dwFTPPort;
+        public byte[] sUserName = new byte[NAME_LEN];
+        public byte[] sPassword = new byte[PASSWD_LEN];
+        public int dwDirLevel;
+        public short wTopDirMode;
+        public short wSubDirMode;
+        public byte byEnableAnony;
+        public byte byPicArchivingInterval;
+        public byte[] byRes = new byte[22];
+
+        @Override
+        protected List<String> getFieldOrder() {
+            return Arrays.asList(
+                    "dwSize", "dwEnableFTP", "sFTPIP", "dwFTPPort",
+                    "sUserName", "sPassword", "dwDirLevel",
+                    "wTopDirMode", "wSubDirMode", "byEnableAnony",
+                    "byPicArchivingInterval", "byRes"
+            );
+        }
+    }
+
     private static HCNetSDK sdk;
 
     public static void main(String[] args) {
@@ -655,7 +681,7 @@ public class HikvisionTrafficConfigTool {
                         success(buildItcFtpConfig(userId));
                         break;
                     case "set-itc-ftp-config":
-                        success(applyItcFtpConfig(userId, args));
+                        success(applyFtpConfig(userId, args));
                         break;
                     case "current-trigger-mode":
                         success(buildCurrentTriggerMode(userId));
@@ -926,69 +952,36 @@ public class HikvisionTrafficConfigTool {
                 + "}";
     }
 
-    private static String applyItcFtpConfig(int userId, String[] args) {
-        NET_ITC_FTP_TYPE_COND condition = new NET_ITC_FTP_TYPE_COND();
-        condition.dwChannel = 1;
-        condition.byWorkMode = 0;
-        condition.write();
-
-        NET_ITC_FTP_CFG config = new NET_ITC_FTP_CFG();
+    private static String applyFtpConfig(int userId, String[] args) {
+        NET_DVR_FTPCFG config = new NET_DVR_FTPCFG();
         config.dwSize = config.size();
-        config.write();
-        IntByReference statusList = new IntByReference(0);
-        boolean ok = sdk.NET_DVR_GetDeviceConfig(
-                userId, NET_ITC_GET_FTPCFG, 1,
-                condition.getPointer(), condition.size(),
-                statusList.getPointer(),
-                config.getPointer(), config.size()
-        );
-        if (!ok) {
-            fail("NET_DVR_GetDeviceConfig(ITC_FTP_CFG) failed before set", sdk.NET_DVR_GetLastError());
-            return "";
-        }
-        config.read();
-
-        config.byEnable = (byte) (parseBooleanFlag(arg(args, 5, "1")) ? 1 : 0);
+        config.dwEnableFTP = parseBooleanFlag(arg(args, 5, "1")) ? 1 : 0;
 
         String ftpHost = arg(args, 6, "");
         if (!ftpHost.isEmpty()) {
             byte[] hostBytes = ftpHost.getBytes(DEVICE_CHARSET);
-            Arrays.fill(config.unionServer, (byte) 0);
-            System.arraycopy(hostBytes, 0, config.unionServer, 0, Math.min(hostBytes.length, config.unionServer.length));
+            Arrays.fill(config.sFTPIP, (byte) 0);
+            System.arraycopy(hostBytes, 0, config.sFTPIP, 0, Math.min(hostBytes.length, config.sFTPIP.length));
         }
 
-        int ftpPort = parseInt(arg(args, 7, "21"), 21);
-        config.wFTPPort = (short) ftpPort;
+        config.dwFTPPort = parseInt(arg(args, 7, "21"), 21);
 
         String ftpUser = arg(args, 8, "");
         if (!ftpUser.isEmpty()) {
-            fillBytes(config.szUserName, ftpUser);
+            fillBytes(config.sUserName, ftpUser);
         }
 
         String ftpPass = arg(args, 9, "");
         if (!ftpPass.isEmpty()) {
-            fillBytes(config.szPassWORD, ftpPass);
+            fillBytes(config.sPassword, ftpPass);
         }
 
-        int dirLevel = parseInt(arg(args, 10, "0"), 0);
-        config.byDirLevel = (byte) dirLevel;
-
-        int uploadDataType = parseInt(arg(args, 11, "1"), 1);
-        config.byUploadDataType = (byte) uploadDataType;
-
-        int filterCarPic = parseInt(arg(args, 12, "0"), 0);
-        config.byIsFilterCarPic = (byte) filterCarPic;
+        config.dwDirLevel = parseInt(arg(args, 10, "0"), 0);
 
         config.write();
-        IntByReference retStatusList = new IntByReference(0);
-        ok = sdk.NET_DVR_SetDeviceConfig(
-                userId, NET_ITC_SET_FTPCFG, 1,
-                condition.getPointer(), condition.size(),
-                retStatusList.getPointer(),
-                config.getPointer(), config.size()
-        );
+        boolean ok = sdk.NET_DVR_SetDVRConfig(userId, NET_DVR_SET_FTPCFG, 0, config.getPointer(), config.size());
         if (!ok) {
-            fail("NET_DVR_SetDeviceConfig(ITC_FTP_CFG) failed", sdk.NET_DVR_GetLastError());
+            fail("NET_DVR_SetDVRConfig(FTPCFG) failed", sdk.NET_DVR_GetLastError());
             return "";
         }
 
