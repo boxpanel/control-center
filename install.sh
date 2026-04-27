@@ -387,13 +387,6 @@ print_sdk_runtime_status() {
     printf "Java bridge        : not compiled\n"
   fi
 
-  local cpp_bridge_bin="$ROOT_DIR/sdk/sdk-bridge"
-  if [[ -f "$cpp_bridge_bin" ]]; then
-    printf "C++ bridge         : compiled\n"
-  else
-    printf "C++ bridge         : not compiled\n"
-  fi
-
   if [[ -n "$sdk_root" ]]; then
     printf "HCNetSDK root      : %s\n" "$sdk_root"
   else
@@ -573,63 +566,6 @@ ensure_sdk_installed() {
 
   # 编译Java桥接器
   compile_java_bridge
-
-  # 检查GCC版本（用于编译C++桥接器）
-  local need_compile=0
-  if command -v gcc >/dev/null 2>&1; then
-    local gcc_version
-    gcc_version=$(gcc -dumpversion)
-    printf "GCC版本: %s\n" "$gcc_version"
-    local min_version="4.1.2"
-    if [[ "$(echo "$gcc_version $min_version" | tr ' ' '\n' | sort -V | head -n1)" != "$min_version" ]]; then
-      printf "警告: GCC版本$gcc_version低于$min_version，C++桥接器可能无法编译\n"
-    else
-      need_compile=1
-    fi
-  else
-    printf "警告: GCC未安装，无法编译C++桥接器\n"
-    printf "如需使用C++ SDK桥接器，请安装: sudo apt-get install -y g++ make\n"
-  fi
-
-  # 安装jsoncpp开发包（用于C++ JSON解析）
-  if ! dpkg -s libjsoncpp-dev >/dev/null 2>&1; then
-    step "安装jsoncpp开发包"
-    run_root apt-get install -y libjsoncpp-dev || {
-      printf "警告: jsoncpp安装失败，C++桥接器可能无法编译\n"
-    }
-  fi
-
-  # 编译C++桥接器
-  if [[ "$need_compile" -eq 1 ]]; then
-    local bridge_cpp=""
-    if [[ -f "$ROOT_DIR/sdk/sdk-bridge-fixed.cpp" ]]; then
-      bridge_cpp="$ROOT_DIR/sdk/sdk-bridge-fixed.cpp"
-    elif [[ -f "$ROOT_DIR/sdk/sdk-bridge.cpp" ]]; then
-      bridge_cpp="$ROOT_DIR/sdk/sdk-bridge.cpp"
-    fi
-
-    local bridge_bin="$ROOT_DIR/sdk/sdk-bridge"
-    if [[ -n "$bridge_cpp" && -f "$bridge_cpp" ]]; then
-      step "编译C++桥接器"
-      local compile_dir
-      compile_dir="$(dirname "$bridge_cpp")"
-      pushd "$compile_dir" >/dev/null
-      if g++ -std=c++11 \
-        -I. -I/usr/include/jsoncpp \
-        -L/usr/local/lib -L/usr/local/lib/HCNetSDKCom \
-        -Wl,-rpath,/usr/local/lib:/usr/local/lib/HCNetSDKCom \
-        -Wl,-rpath-link,/usr/local/lib:/usr/local/lib/HCNetSDKCom \
-        -o "$bridge_bin" "$bridge_cpp" -lhcnetsdk -ljsoncpp 2>&1; then
-        chmod +x "$bridge_bin"
-        printf "C++桥接器编译成功: $bridge_bin\n"
-      else
-        printf "警告: C++桥接器编译失败\n"
-        printf "      原因可能是缺少依赖或SDK版本不兼容\n"
-        printf "      ISAPI方式仍可正常工作\n"
-      fi
-      popd >/dev/null
-    fi
-  fi
 
   printf "SDK安装完成: %d 个库文件已复制到 %s\n" \
     "$(find /usr/local/lib -name '*.so*' -path '*/HCNetSDK*' 2>/dev/null | wc -l)" \
