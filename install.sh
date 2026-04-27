@@ -310,11 +310,6 @@ has_hikvision_sdk_assets() {
 }
 
 find_hikvision_sdk_root() {
-  if [[ -f "$ROOT_DIR/sdk/arm64/libhcnetsdk.so" ]]; then
-    printf "%s" "$ROOT_DIR/sdk/arm64"
-    return 0
-  fi
-
   local candidates=(
     "$ROOT_DIR/HCNetSDKV6.1.11.5"
     "$ROOT_DIR/HCNetSDKV6.1.11.5_build20251204_ArmLinux64_ZH"
@@ -369,26 +364,24 @@ print_sdk_runtime_status() {
     return
   fi
 
-  local sdk_so=""
-  if [[ -f "$ROOT_DIR/sdk/arm64/libhcnetsdk.so" ]]; then
-    sdk_so="$ROOT_DIR/sdk/arm64/libhcnetsdk.so"
-  fi
+  local sdk_root=""
+  sdk_root="$(find_hikvision_sdk_root 2>/dev/null || true)"
 
   printf "SDK bridge         : detected\n"
   if command -v java >/dev/null 2>&1; then
-    printf "Java runtime        : %s\n" "$(java -version 2>&1 | head -n 1)"
+    printf "Java runtime       : %s\n" "$(java -version 2>&1 | head -n 1)"
   else
-    printf "Java runtime        : missing\n"
+    printf "Java runtime       : missing\n"
   fi
   if command -v javac >/dev/null 2>&1; then
-    printf "Java compiler       : %s\n" "$(javac -version 2>&1)"
+    printf "Java compiler      : %s\n" "$(javac -version 2>&1)"
   else
-    printf "Java compiler       : missing\n"
+    printf "Java compiler      : missing\n"
   fi
-  if [[ -n "$sdk_so" ]]; then
-    printf "HCNetSDK library    : %s\n" "$sdk_so"
+  if [[ -n "$sdk_root" ]]; then
+    printf "HCNetSDK root      : %s\n" "$sdk_root"
   else
-    printf "HCNetSDK library    : not found (SDK-only features will stay unavailable until the SDK files are deployed to sdk/arm64/)\n"
+    printf "HCNetSDK root      : not found (SDK-only features will stay unavailable until the Linux SDK package is present)\n"
   fi
 }
 
@@ -415,49 +408,75 @@ ensure_nodejs() {
 }
 
 ensure_sdk_installed() {
-  step "部署海康威视SDK库文件"
-
+  step "检查海康威视SDK"
+  
+  # 检查GCC版本
+  if ! command -v gcc >/dev/null 2>&1; then
+    printf "警告: GCC未安装，SDK功能可能无法正常工作\n"
+    return 1
+  fi
+  
+  local gcc_version
+  gcc_version=$(gcc -dumpversion)
+  if [[ "$(echo "$gcc_version 4.1.2" | tr ' ' '\n' | sort -V | head -n1)" != "4.1.2" ]]; then
+    printf "警告: GCC版本$gcc_version低于4.1.2，SDK可能无法正常工作\n"
+  fi
+  
+  # 检查SDK目录
   local sdk_dir="$ROOT_DIR/sdk/arm64"
-  if [[ ! -d "$sdk_dir" ]]; then
-    printf "警告: 未找到SDK目录 %s，跳过SDK部署\n" "$sdk_dir"
-    printf "SDK功能将不可用，其他功能正常运行\n"
-    return 1
-  fi
-
   if [[ ! -f "$sdk_dir/libhcnetsdk.so" ]]; then
-    printf "警告: 未找到 %s/libhcnetsdk.so，跳过SDK部署\n" "$sdk_dir"
+    printf "警告: 未找到SDK库文件，FTP配置功能将不可用\n"
+    printf "请将海康威视ARM64 Linux SDK文件复制到: $sdk_dir/\n"
     return 1
   fi
-
+  
+  # 复制SDK库到系统目录
   local system_lib_dir="/usr/local/lib"
   local system_com_dir="$system_lib_dir/HCNetSDKCom"
-
+  if [[ ! -f "$system_lib_dir/libhcnetsdk.so" ]]; then
+    step "安装SDK库到系统目录"
+    run_root cp "$sdk_dir/libhcnetsdk.so" "$system_lib_dir/"
+    run_root ldconfig
+  fi
   run_root mkdir -p "$system_com_dir"
-
-  local count=0
-  local f=""
-  for f in "$sdk_dir"/*.so*; do
-    if [[ -f "$f" ]]; then
-      run_root cp "$f" "$system_lib_dir/" 2>/dev/null || true
-      count=$((count + 1))
-    fi
-  done
-
+  run_root cp "$sdk_dir"/*.so* "$system_lib_dir/" 2>/dev/null || true
   if [[ -d "$sdk_dir/HCNetSDKCom" ]]; then
-    for f in "$sdk_dir/HCNetSDKCom"/*.so*; do
-      if [[ -f "$f" ]]; then
-        run_root cp "$f" "$system_com_dir/" 2>/dev/null || true
-        count=$((count + 1))
-      fi
-    done
+    run_root cp "$sdk_dir/HCNetSDKCom"/*.so* "$system_com_dir/" 2>/dev/null || true
   fi
-
-  run_root ldconfig 2>/dev/null || true
-
-  if [[ "$count" -gt 0 ]]; then
-    printf "已部署 %d 个SDK库文件到 %s\n" "$count" "$system_lib_dir"
+  run_root ldconfig
+  
+  # 安装jsoncpp开发包（用于C++ JSON解析）
+  if ! dpkg -s libjsoncpp-dev >/dev/null 2>&1; then
+    step "安装jsoncpp开发包"
+    run_root apt-get install -y libjsoncpp-dev
   fi
-
+  
+  # 编译SDK桥接器
+  local bridge_cpp="$ROOT_DIR/sdk/sdk-bridge-fixed.cpp"
+  if [[ ! -f "$bridge_cpp" ]]; then
+    bridge_cpp="$ROOT_DIR/sdk/sdk-bridge.cpp"
+  fi
+  local bridge_bin="$ROOT_DIR/sdk/sdk-bridge"
+  if [[ -f "$bridge_cpp" ]]; then
+    step "编译SDK桥接器"
+    cd "$ROOT_DIR/sdk"
+    g++ -std=c++11 \
+      -I. -I/usr/include/jsoncpp \
+      -L/usr/local/lib -L/usr/local/lib/HCNetSDKCom \
+      -Wl,-rpath,/usr/local/lib:/usr/local/lib/HCNetSDKCom \
+      -Wl,-rpath-link,/usr/local/lib:/usr/local/lib/HCNetSDKCom \
+      -o "$bridge_bin" "$bridge_cpp" -lhcnetsdk -ljsoncpp
+    if [[ $? -eq 0 ]]; then
+      chmod +x "$bridge_bin"
+      printf "SDK桥接器编译成功: $bridge_bin\n"
+    else
+      printf "警告: SDK桥接器编译失败，FTP配置功能可能无法使用\n"
+    fi
+    cd "$ROOT_DIR"
+  else
+    printf "警告: 未找到SDK桥接器源代码: $bridge_cpp\n"
+  fi
+  
   printf "SDK已安装: libhcnetsdk.so\n"
   return 0
 }

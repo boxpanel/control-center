@@ -1313,11 +1313,11 @@ const DEVICE_PREVIEW_ISAPI_SCHEMAS = {
   // 设备iDS-2CD9371-KS支持通过SDK配置FTP
   ftpConfig: {
     readOnly: true,
-    method: "SDK",
-    sdkCommand: "get-ftp",
+    method: "SDK", // 使用SDK方式
+    sdkCommand: "get-ftp", // SDK桥接器命令
     contentType: "application/json; charset=utf-8",
-    apiPath: "/api/sdk/ftp-config/get",
-    unsupported: false,
+    apiPath: "/api/sdk/ftp-config/get", // 后端API路径
+    unsupported: false, // 现在支持SDK方式
     fields: [
       { key: "enable", label: "FTP启用状态", type: "text", readOnly: true },
       { key: "host", label: "FTP服务器地址", type: "text", readOnly: true },
@@ -1350,13 +1350,12 @@ const DEVICE_PREVIEW_ISAPI_SCHEMAS = {
     }
   },
   
-  // 命名规则schema - SDK方式（从SDK FTP配置中提取）
+  // 命名规则schema - ISAPI方式（从FTP配置中提取）
   namingRules: {
     readOnly: true,
     method: "SDK",
     contentType: "application/json; charset=utf-8",
     apiPath: "/api/sdk/naming-rules",
-    unsupported: false,
     fields: [
       { key: "fileNameFormat", label: "文件名格式", type: "text", readOnly: true },
       { key: "namingRuleEnabled", label: "命名规则启用状态", type: "text", readOnly: true },
@@ -2145,9 +2144,11 @@ async function loadFingerprint() {
 }
 
 async function fetchJson(url, body, method = "POST") {
+  // 为重启请求设置较短的超时时间
   const isRestartRequest = url === "/api/device/restart";
+  const isSdkFtpSaveRequest = url === "/api/sdk/ftp-config/set";
   const controller = new AbortController();
-  const timeoutMs = isRestartRequest ? 3000 : 30000;
+  const timeoutMs = isRestartRequest ? 3000 : (isSdkFtpSaveRequest ? 120000 : 30000);
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
   
   try {
@@ -2168,12 +2169,11 @@ async function fetchJson(url, body, method = "POST") {
   } catch (error) {
     clearTimeout(timeoutId);
     
-    if (error?.name === "AbortError") {
-      if (isRestartRequest) {
-        console.log("重启请求超时，服务器可能已开始重启");
-        return { ok: true, message: "重启命令已发送" };
-      }
-      throw new Error("请求超时，服务器响应太慢");
+    // 如果是重启请求超时，认为是正常的（服务器可能已开始重启）
+    if (isRestartRequest && error.name === "AbortError") {
+      console.log("重启请求超时，服务器可能已开始重启");
+      // 返回一个模拟的成功响应
+      return { ok: true, message: "重启命令已发送" };
     }
     
     throw error;
@@ -2199,9 +2199,6 @@ async function fetchJsonGet(url) {
     return data;
   } catch (error) {
     clearTimeout(timeoutId);
-    if (error?.name === "AbortError") {
-      throw new Error("请求超时，服务器响应太慢");
-    }
     throw error;
   }
 }
@@ -6670,25 +6667,6 @@ function isSdkApiSuccess(response) {
   return Boolean(response?.ok || response?.success);
 }
 
-function parseIsapiNetworkConfig(xmlText) {
-  if (!xmlText || typeof xmlText !== "string") return {};
-  const extract = (tag) => {
-    const match = xmlText.match(new RegExp(`<${tag}>([^<]*)</${tag}>`, "i"));
-    return match ? match[1].trim() : "";
-  };
-  return {
-    ipAddress: extract("ipAddress"),
-    subnetMask: extract("subnetMask"),
-    gateway: extract("gateway"),
-    mtu: extract("mtu") || "1500",
-    macAddress: extract("macAddress"),
-    netInterfaceLabel: extract("id") ? `接口 ${extract("id")}` : "",
-    dhcpEnabled: extract("dhcpEnabled") || extract("DHCP") || "0",
-    httpPort: extract("httpPort") || "80",
-    sdkPort: extract("sdkPort") || "8000"
-  };
-}
-
 function getDevicePreviewSdkPort(device) {
   return Number(device?.sdkPort || device?.sdkPortNo || 8000) || 8000;
 }
@@ -7801,49 +7779,11 @@ async function saveDevicePreviewSdkPreset() {
   const presetKey = String(els.devicePreviewIsapiPreset?.value || "deviceInfo").trim() || "deviceInfo";
   const preset = DEVICE_PREVIEW_ISAPI_PRESETS[presetKey] || DEVICE_PREVIEW_ISAPI_PRESETS.deviceInfo;
   const schema = DEVICE_PREVIEW_ISAPI_SCHEMAS[preset.schema] || DEVICE_PREVIEW_ISAPI_SCHEMAS.deviceInfo;
-
-  if (schema.unsupported) {
-    throw new Error(schema.unsupportedMessage || "此功能在当前设备上不支持");
-  }
-
-  const values = collectDevicePreviewIsapiControlValues();
-
-  if (schema.isapiSavePath) {
-    const connection = {
-      host: String(device.host || "").trim(),
-      port: Number(device.port || 80) || 80,
-      username: String(device.username || "").trim(),
-      password: String(device.password || "")
-    };
-    const xmlBody = typeof schema.buildIsapiSaveBody === "function"
-      ? schema.buildIsapiSaveBody(values)
-      : "";
-    if (els.devicePreviewIsapiHint) {
-      els.devicePreviewIsapiHint.textContent = "正在通过ISAPI保存参数...";
-    }
-    showLoading("保存参数中...");
-    try {
-      const response = await fetchJson("/api/isapi/request", {
-        connection,
-        pathname: schema.isapiSavePath,
-        method: "PUT",
-        contentType: schema.isapiSaveContentType || "application/xml; charset=utf-8",
-        body: xmlBody
-      });
-      if (els.devicePreviewIsapiHint) {
-        els.devicePreviewIsapiHint.textContent = "保存成功，正在刷新参数...";
-      }
-      await autoLoadDevicePreviewPreset(presetKey);
-      return response;
-    } finally {
-      hideLoading();
-    }
-  }
-
   if (!schema?.saveApiPath) {
     throw new Error("当前分类不支持保存");
   }
 
+  const values = collectDevicePreviewIsapiControlValues();
   const payload = typeof schema.buildSavePayload === "function" ? schema.buildSavePayload(values) : values;
   const sdkPayload = typeof schema.buildSaveRequest === "function"
     ? schema.buildSaveRequest(device, values, payload)
@@ -7987,30 +7927,9 @@ async function runDevicePreviewIsapiRequest(methodOverride = "") {
         });
         values = schema.mapLoadResult(response?.rawText || "", device);
       } else if (preset.schema === "sdkNetworkConfig") {
-        let sdkFailed = false;
-        try {
-          const response = await fetchJson("/api/sdk/network-config", sdkPayload);
-          if (!isSdkApiSuccess(response)) throw new Error(response?.error || "SDK网络参数获取失败");
-          values = schema.mapLoadResult(response.networkConfig || {}, device);
-        } catch (sdkErr) {
-          sdkFailed = true;
-        }
-        if (sdkFailed) {
-          const connection = {
-            host: String(device.host || "").trim(),
-            port: Number(device.port || 80) || 80,
-            username: String(device.username || "").trim(),
-            password: String(device.password || "")
-          };
-          const isapiResp = await fetchJson("/api/isapi/request", {
-            connection,
-            pathname: schema.isapiPath || "/ISAPI/System/Network/Interfaces/1",
-            method: "GET",
-            contentType: "application/xml; charset=utf-8",
-            body: ""
-          });
-          values = parseIsapiNetworkConfig(isapiResp?.rawText || "");
-        }
+        const response = await fetchJson("/api/sdk/network-config", sdkPayload);
+        if (!isSdkApiSuccess(response)) throw new Error(response?.error || "SDK网络参数获取失败");
+        values = schema.mapLoadResult(response.networkConfig || {}, device);
     } else if (preset.schema === "sdkFtpConfig") {
       const response = await fetchSdkFtpPanelData(device, sdkPayload);
       values = schema.mapLoadResult(response, device, response);
@@ -8502,11 +8421,7 @@ if (els.devicePreviewModalCloseBtn) {
         await saveDevicePreviewSdkPreset();
       } catch (error) {
         if (els.devicePreviewIsapiHint) {
-          if (error?.name === "AbortError" || String(error?.message || "").includes("aborted")) {
-            els.devicePreviewIsapiHint.textContent = "保存失败：请求超时，设备响应太慢或SDK功能不可用";
-          } else {
-            els.devicePreviewIsapiHint.textContent = `保存失败：${error?.message || error}`;
-          }
+          els.devicePreviewIsapiHint.textContent = `保存失败：${error?.message || error}`;
         }
       } finally {
         updateDevicePreviewSaveButtonState();

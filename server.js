@@ -1,7 +1,7 @@
 import { execFile, spawn } from "node:child_process";
 import crypto from "node:crypto";
 import dgram from "node:dgram";
-import { watch as fsWatch, existsSync } from "node:fs";
+import { watch as fsWatch } from "node:fs";
 import fs from "node:fs/promises";
 import net from "node:net";
 import path from "node:path";
@@ -5033,33 +5033,38 @@ app.post("/api/device/ftp-config", async (req, res, next) => {
 
 // SDK FTP配置相关API
 app.post("/api/sdk/ftp-config/get", async (req, res, next) => {
-  const cfg = await getClientConfig().catch(() => ({}));
-  const baseConn = normalizeConnectionConfig(cfg?.connection);
-  const reqConn = req.body?.connection && typeof req.body.connection === "object" ? normalizeConnectionConfig(req.body.connection) : {};
-  const connection = normalizeConnectionConfig({
-    host: reqConn.host || baseConn.host,
-    port: reqConn.port || baseConn.port,
-    username: reqConn.username || baseConn.username,
-    password: reqConn.password || baseConn.password
-  });
-  
   try {
-    if (!hikvisionSdkBridge) {
-      return res.status(503).json({
-        ok: false,
-        success: false,
-        error: "SDK功能不可用",
-        message: "SDK桥接器未加载或初始化失败，无法获取FTP配置",
-        sdkAvailable: false
-      });
-    }
-    
-    const result = await hikvisionSdkBridge.getFtpConfig({
-      ip: connection.host,
-      port: connection.port,
-      username: connection.username,
-      password: connection.password
+    const cfg = await getClientConfig();
+    const baseConn = normalizeConnectionConfig(cfg?.connection);
+    const reqConn = req.body?.connection && typeof req.body.connection === "object" ? normalizeConnectionConfig(req.body.connection) : {};
+    const connection = normalizeConnectionConfig({
+      host: reqConn.host || baseConn.host,
+      port: reqConn.port || baseConn.port,
+      username: reqConn.username || baseConn.username,
+      password: reqConn.password || baseConn.password
     });
+    
+    // 调用SDK桥接器获取FTP配置
+    const { execFile } = await import('node:child_process');
+    const { promisify } = await import('node:util');
+    const execFileAsync = promisify(execFile);
+    
+    const sdkBridgePath = path.join(__dirname, "sdk", "sdk-bridge");
+    const channel = req.body.channel || 1;
+    
+    const { stdout, stderr } = await execFileAsync(sdkBridgePath, [
+      "get-ftp",
+      connection.host,
+      connection.username,
+      connection.password,
+      connection.port.toString(),
+      channel.toString()
+    ]);
+    
+    const result = JSON.parse(stdout);
+    if (result.error) {
+      throw new Error(result.message || "SDK获取FTP配置失败");
+    }
     
     res.json({
       ok: true,
@@ -5068,23 +5073,9 @@ app.post("/api/sdk/ftp-config/get", async (req, res, next) => {
         port: connection.port,
         username: connection.username
       },
-      ftpConfig: result?.ftpConfig || result || {}
+      ftpConfig: result.data
     });
   } catch (err) {
-    if (String(err?.message || "").includes("itc-ftp-config")) {
-      res.json({
-        ok: true,
-        connection: {
-          host: connection.host || "",
-          port: connection.port || 80,
-          username: connection.username || ""
-        },
-        ftpConfig: {},
-        sdkFallback: false,
-        message: "SDK FTP配置加载成功(精简模式)"
-      });
-      return;
-    }
     next(err);
   }
 });
@@ -5101,36 +5092,47 @@ app.post("/api/sdk/ftp-config/set", async (req, res, next) => {
       password: reqConn.password || baseConn.password
     });
     
-    if (!hikvisionSdkBridge) {
-      return res.status(503).json({
-        success: false,
-        error: "SDK功能不可用",
-        message: "SDK桥接器未加载或初始化失败，无法设置FTP配置",
-        sdkAvailable: false
-      });
-    }
+    // 调用SDK桥接器设置FTP配置
+    const { execFile } = await import('node:child_process');
+    const { promisify } = await import('node:util');
+    const execFileAsync = promisify(execFile);
     
+    const sdkBridgePath = path.join(__dirname, "sdk", "sdk-bridge");
+    const channel = req.body.channel || 1;
     const ftpConfig = req.body.ftpConfig;
+    
     if (!ftpConfig || typeof ftpConfig !== 'object') {
       throw new Error("缺少FTP配置参数");
     }
     
-    const result = await hikvisionSdkBridge.setFtpConfig({
-      ip: connection.host,
-      port: connection.port,
-      username: connection.username,
-      password: connection.password
-    }, ftpConfig);
+    const { stdout, stderr } = await execFileAsync(
+      sdkBridgePath,
+      [
+        "set-ftp",
+        connection.host,
+        connection.username,
+        connection.password,
+        connection.port.toString(),
+        channel.toString()
+      ],
+      {
+        input: JSON.stringify(ftpConfig)
+      }
+    );
+    
+    const result = JSON.parse(stdout);
+    if (result.error) {
+      throw new Error(result.message || "SDK设置FTP配置失败");
+    }
     
     res.json({
       ok: true,
-      success: true,
       connection: {
         host: connection.host,
         port: connection.port,
         username: connection.username
       },
-      message: result?.message || "FTP配置设置成功"
+      message: result.data?.message || "FTP配置设置成功"
     });
   } catch (err) {
     next(err);
@@ -6303,15 +6305,32 @@ app.get("/api/stream/status/:streamId", async (req, res, next) => {
 });
 
 app.use((err, req, res, next) => {
-  console.error(`全局错误处理: ${err.message || "未知错误"}`);
+  // 检查是否为ISAPI相关错误
+  const isIsapiError = err.message && (
+    err.message.includes("ISAPI") || 
+    err.message.includes("摄像头") ||
+    err.message.includes("设备连接")
+  );
   
+  // 确定状态码
   let statusCode = 500;
   if (err?.statusCode && Number.isFinite(err.statusCode)) {
     statusCode = err.statusCode;
+  } else if (isIsapiError) {
+    // ISAPI相关错误使用400状态码
+    statusCode = 400;
   }
   
-  let errorMessage = String(err.message || "未知错误");
+  // 确定错误消息
+  let errorMessage = "Internal error";
+  if (statusCode !== 500) {
+    errorMessage = String(err.message || "Bad request");
+  } else if (isIsapiError) {
+    // 即使是500错误，如果是ISAPI相关，也显示具体消息
+    errorMessage = String(err.message || "ISAPI请求失败");
+  }
   
+  console.error(`全局错误处理: ${statusCode} - ${errorMessage}`);
   res.status(statusCode).json({
     error: errorMessage
   });
