@@ -504,6 +504,7 @@ const SDK_FTP_ENABLE_MODE_OPTIONS = [
 ];
 
 const SDK_FTP_UPLOAD_TARGET_OPTIONS = [
+  { value: 0, label: "上传全部数据" },
   { value: 1, label: "上传卡口数据" },
   { value: 2, label: "上传违章数据" }
 ];
@@ -589,8 +590,8 @@ function normalizeSdkFtpConfigResult(result = {}) {
     ?? ftp.byUploadDataType
     ?? 0
   ) || 0;
-  const ftp1UploadData = uploadDataType === 2 ? 2 : 1;
-  const ftp2UploadData = uploadDataType === 1 ? 1 : 2;
+  const ftp1UploadData = uploadDataType === 2 ? 2 : uploadDataType === 1 ? 1 : 0;
+  const ftp2UploadData = uploadDataType === 1 ? 1 : uploadDataType === 2 ? 2 : 0;
 
   return {
     enable: enabled,
@@ -829,8 +830,8 @@ const DEVICE_PREVIEW_ISAPI_SCHEMAS = {
         ftpConfig.enable = ftpEnableMode > 0;
         ftpConfig.ftpIndex = ftpEnableMode >= 2 ? 2 : 1;
         const currentChannel = Math.max(1, Math.min(2, Number(values.ftpIndexRaw || 1) || 1));
-        const ftp1UploadData = Number(values.ftp1UploadData || 1) || 1;
-        const ftp2UploadData = Number(values.ftp2UploadData || 2) || 2;
+        const ftp1UploadData = Number(values.ftp1UploadData ?? 1);
+        const ftp2UploadData = Number(values.ftp2UploadData ?? 2);
         ftpConfig.uploadDataType = currentChannel === 2 ? ftp2UploadData : ftp1UploadData;
       }
       if (Object.prototype.hasOwnProperty.call(values, "uploadAdditionalInfo")) {
