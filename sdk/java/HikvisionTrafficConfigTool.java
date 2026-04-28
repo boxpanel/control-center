@@ -891,54 +891,79 @@ public class HikvisionTrafficConfigTool {
         String delimiter = delimiterString(config.struPicNameRule.byDelimiter);
         String example = buildPictureNameExample(config.struPicNameRule, trimZero(config.szPicNameCustom), delimiter);
 
-        return "{"
-                + "\"success\":true,"
-                + "\"message\":\"SDK ITC FTP config loaded\","
-                + "\"ftpConfig\":{"
-                + "\"ftpEnabled\":\"" + json(enabled ? "已启用" : "已禁用") + "\","
-                + "\"ftpServer\":\"" + json(serverAddress) + "\","
-                + "\"ftpPort\":\"" + json(String.valueOf(ftpPort)) + "\","
-                + "\"ftpUsername\":\"" + json(username) + "\","
-                + "\"ftpPassword\":\"" + json(passwordMasked) + "\","
-                + "\"ftpDirectory\":\"" + json(buildDirectorySummary(config)) + "\","
-                + "\"ftpUploadMode\":\"" + json(dirLevelLabel(dirLevel)) + "\","
-                + "\"ftpUploadInterval\":\"" + json("0") + "\","
-                + "\"ftpImageQuality\":\"" + json("") + "\","
-                + "\"ftpImageResolution\":\"" + json("") + "\","
-                + "\"uploadAdditionalInfo\":\"" + json(uploadAdditionalInfo ? "已启用" : "未启用") + "\","
-                + "\"ftpUploadType\":\"" + json(uploadDataTypeLabel(uploadDataType)) + "\","
-                + "\"ftpFileNameFormat\":\"" + json(fileNameFormat) + "\","
-                + "\"ftpImageFormat\":\"" + json("JPEG") + "\""
-                + "},"
-                + "\"namingRules\":{"
-                + "\"fileNameFormat\":\"" + json(fileNameFormat) + "\","
-                + "\"namingRuleEnabled\":\"" + json(namingElements.isEmpty() ? "未配置" : "已启用") + "\","
-                + "\"prefix\":\"" + json(trimZero(config.szPicNameCustom)) + "\","
-                + "\"dateFormat\":\"" + json(fileNameFormat.contains("时间") ? "YYYYMMDDHHmmss" : "") + "\","
-                + "\"timeFormat\":\"" + json(fileNameFormat.contains("时间") ? "HHmmss" : "") + "\","
-                + "\"includeChannelNumber\":\"" + json(boolLabel(containsPictureItem(config.struPicNameRule, 5)) ) + "\","
-                + "\"includeSequenceNumber\":\"" + json(boolLabel(containsPictureItem(config.struPicNameRule, 13) || containsPictureItem(config.struPicNameRule, 14))) + "\","
-                + "\"includeCameraName\":\"" + json(boolLabel(containsPictureItem(config.struPicNameRule, 1) || containsPictureItem(config.struPicNameRule, 4))) + "\","
-                + "\"includePlateNumber\":\"" + json(boolLabel(containsPictureItem(config.struPicNameRule, 8))) + "\","
-                + "\"includeTimestamp\":\"" + json(boolLabel(containsPictureItem(config.struPicNameRule, 6))) + "\","
-                + "\"includeEventType\":\"" + json(boolLabel(containsPictureItem(config.struPicNameRule, 22))) + "\","
-                + "\"fileExtension\":\"" + json(".jpg") + "\","
-                + "\"namingElements\":\"" + json(namingElements) + "\","
-                + "\"example\":\"" + json(example) + "\""
-                + "},"
-                + "\"itcFtpMeta\":{"
-                + "\"serverTypeLabel\":\"" + json(ftpServerTypeLabel(ftpServerType)) + "\","
-                + "\"addressTypeLabel\":\"" + json(useDomain ? "域名" : "IP地址") + "\","
-                + "\"isFilterCarPicLabel\":\"" + json(filterCarPic ? "不上传" : "上传") + "\","
-                + "\"uploadAdditionalInfo\":" + (uploadAdditionalInfo ? "true" : "false") + ","
-                + "\"uploadAdditionalInfoLabel\":\"" + json(uploadAdditionalInfo ? "启用" : "未启用") + "\","
-                + "\"topDirModeLabel\":\"" + json(dirModeLabel(unsignedByte(config.byTopDirMode))) + "\","
-                + "\"subDirModeLabel\":\"" + json(dirModeLabel(unsignedByte(config.bySubDirMode))) + "\","
-                + "\"threeDirModeLabel\":\"" + json(dirModeLabel(unsignedByte(config.byThreeDirMode))) + "\","
-                + "\"fourDirModeLabel\":\"" + json(dirModeLabel(unsignedByte(config.byFourDirMode))) + "\","
-                + "\"delimiter\":\"" + json(delimiter) + "\""
-                + "}"
-                + "}";
+        StringBuilder sb = new StringBuilder();
+        sb.append("{\"success\":true,");
+        sb.append("\"message\":\"SDK ITC FTP config loaded\",");
+        sb.append("\"ftpConfig\":{");
+        sb.append("\"ftpEnabled\":\"").append(json(enabled ? "已启用" : "已禁用")).append("\",");
+        sb.append("\"ftpServer\":\"").append(json(serverAddress)).append("\",");
+        sb.append("\"ftpPort\":\"").append(json(String.valueOf(ftpPort))).append("\",");
+        sb.append("\"ftpUsername\":\"").append(json(username)).append("\",");
+        sb.append("\"ftpPassword\":\"").append(json(passwordMasked)).append("\",");
+        sb.append("\"ftpDirectory\":\"").append(json(buildDirectorySummary(config))).append("\",");
+        sb.append("\"ftpUploadMode\":\"").append(json(dirLevelLabel(dirLevel))).append("\",");
+        sb.append("\"ftpUploadInterval\":\"").append(json("0")).append("\",");
+        sb.append("\"ftpImageQuality\":\"\",");
+        sb.append("\"ftpImageResolution\":\"\",");
+        sb.append("\"uploadAdditionalInfo\":\"").append(json(uploadAdditionalInfo ? "已启用" : "未启用")).append("\",");
+        sb.append("\"ftpUploadType\":\"").append(json(uploadDataTypeLabel(uploadDataType))).append("\",");
+        sb.append("\"ftpFileNameFormat\":\"").append(json(fileNameFormat)).append("\",");
+        sb.append("\"ftpImageFormat\":\"JPEG\"");
+        sb.append("},");
+        sb.append("\"namingRules\":{");
+        sb.append("\"fileNameFormat\":\"").append(json(fileNameFormat)).append("\",");
+        sb.append("\"namingRuleEnabled\":\"").append(json(namingElements.isEmpty() ? "未配置" : "已启用")).append("\",");
+        sb.append("\"prefix\":\"").append(json(trimZero(config.szPicNameCustom))).append("\",");
+        sb.append("\"dateFormat\":\"").append(json(fileNameFormat.contains("时间") ? "YYYYMMDDHHmmss" : "")).append("\",");
+        sb.append("\"timeFormat\":\"").append(json(fileNameFormat.contains("时间") ? "HHmmss" : "")).append("\",");
+        sb.append("\"includeChannelNumber\":\"").append(json(boolLabel(containsPictureItem(config.struPicNameRule, 5)))).append("\",");
+        sb.append("\"includeSequenceNumber\":\"").append(json(boolLabel(containsPictureItem(config.struPicNameRule, 13) || containsPictureItem(config.struPicNameRule, 14)))).append("\",");
+        sb.append("\"includeCameraName\":\"").append(json(boolLabel(containsPictureItem(config.struPicNameRule, 1) || containsPictureItem(config.struPicNameRule, 4)))).append("\",");
+        sb.append("\"includePlateNumber\":\"").append(json(boolLabel(containsPictureItem(config.struPicNameRule, 8)))).append("\",");
+        sb.append("\"includeTimestamp\":\"").append(json(boolLabel(containsPictureItem(config.struPicNameRule, 6)))).append("\",");
+        sb.append("\"includeEventType\":\"").append(json(boolLabel(containsPictureItem(config.struPicNameRule, 22)))).append("\",");
+        sb.append("\"fileExtension\":\".jpg\",");
+        sb.append("\"namingElements\":\"").append(json(namingElements)).append("\",");
+        sb.append("\"example\":\"").append(json(example)).append("\"");
+        sb.append("},");
+        sb.append("\"itcFtpMeta\":{");
+        sb.append("\"enable\":").append(enabled ? 1 : 0).append(",");
+        sb.append("\"addressType\":").append(unsignedByte(config.byAddressType)).append(",");
+        sb.append("\"dirLevel\":").append(dirLevel).append(",");
+        sb.append("\"filterCarPic\":").append(filterCarPic ? 1 : 0).append(",");
+        sb.append("\"uploadDataType\":").append(uploadDataType).append(",");
+        sb.append("\"ftpIndex\":").append(ftpServerType).append(",");
+        sb.append("\"topDirMode\":").append(unsignedByte(config.byTopDirMode)).append(",");
+        sb.append("\"subDirMode\":").append(unsignedByte(config.bySubDirMode)).append(",");
+        sb.append("\"threeDirMode\":").append(unsignedByte(config.byThreeDirMode)).append(",");
+        sb.append("\"fourDirMode\":").append(unsignedByte(config.byFourDirMode)).append(",");
+        sb.append("\"delimiterRaw\":").append(config.struPicNameRule.byDelimiter & 0xFF).append(",");
+        sb.append("\"picNameItems\":[");
+        {
+            boolean firstItem = true;
+            for (byte code : config.struPicNameRule.byItemOrder) {
+                int item = code & 0xFF;
+                if (item == 0) continue;
+                if (!firstItem) sb.append(",");
+                firstItem = false;
+                sb.append(item);
+            }
+        }
+        sb.append("],");
+        sb.append("\"serverTypeLabel\":\"").append(json(ftpServerTypeLabel(ftpServerType))).append("\",");
+        sb.append("\"addressTypeLabel\":\"").append(json(useDomain ? "域名" : "IP地址")).append("\",");
+        sb.append("\"isFilterCarPicLabel\":\"").append(json(filterCarPic ? "不上传" : "上传")).append("\",");
+        sb.append("\"uploadAdditionalInfo\":").append(uploadAdditionalInfo ? "true" : "false").append(",");
+        sb.append("\"uploadAdditionalInfoLabel\":\"").append(json(uploadAdditionalInfo ? "启用" : "未启用")).append("\",");
+        sb.append("\"topDirModeLabel\":\"").append(json(dirModeLabel(unsignedByte(config.byTopDirMode)))).append("\",");
+        sb.append("\"subDirModeLabel\":\"").append(json(dirModeLabel(unsignedByte(config.bySubDirMode)))).append("\",");
+        sb.append("\"threeDirModeLabel\":\"").append(json(dirModeLabel(unsignedByte(config.byThreeDirMode)))).append("\",");
+        sb.append("\"fourDirModeLabel\":\"").append(json(dirModeLabel(unsignedByte(config.byFourDirMode)))).append("\",");
+        sb.append("\"delimiter\":\"").append(json(delimiter)).append("\"");
+        sb.append("}");
+        sb.append("}");
+
+        return sb.toString();
     }
 
     private static String applyItcFtpConfig(int userId, String[] args) {

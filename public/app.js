@@ -575,11 +575,10 @@ function normalizeSdkFtpConfigResult(result = {}) {
   const ftp = legacy || {};
   const naming = wrapper.namingRules && typeof wrapper.namingRules === "object" ? wrapper.namingRules : {};
   const meta = wrapper.itcFtpMeta && typeof wrapper.itcFtpMeta === "object" ? wrapper.itcFtpMeta : {};
-  const enabled = String(ftp.ftpEnabled || "").includes("启用") ? 1 : 0;
+  const enabled = meta.enable != null ? meta.enable : (String(ftp.ftpEnabled || "").includes("启用") ? 1 : 0);
   const ftpIndex = Number(meta.ftpIndex ?? ftp.ftpIndex ?? 1) || 1;
-  const uploadAdditionalInfo = Boolean(
-    meta.uploadAdditionalInfo
-    ?? meta.isUploadAdditionalInfo
+  const uploadAdditionalInfo = meta.uploadAdditionalInfo != null ? meta.uploadAdditionalInfo : Boolean(
+    meta.isUploadAdditionalInfo
     ?? ftp.uploadAdditionalInfo
     ?? ftp.isUploadAdditionalInfo
     ?? false
@@ -595,7 +594,7 @@ function normalizeSdkFtpConfigResult(result = {}) {
 
   return {
     enable: enabled,
-    addressType: String(meta.addressTypeLabel || "").includes("域名") ? 1 : 0,
+    addressType: meta.addressType != null ? meta.addressType : (String(meta.addressTypeLabel || "").includes("域名") ? 1 : 0),
     ftpIndex,
     ftpEnableMode: enabled ? (ftpIndex >= 2 ? 2 : 1) : 0,
     uploadAdditionalInfo: uploadAdditionalInfo ? 1 : 0,
@@ -606,20 +605,20 @@ function normalizeSdkFtpConfigResult(result = {}) {
     port: Number(ftp.ftpPort || 21) || 21,
     username: ftp.ftpUsername || "",
     password: ftp.ftpPassword || "",
-    dirLevel: findSdkOptionValueByLabel(SDK_FTP_DIR_LEVEL_OPTIONS, ftp.ftpUploadMode, 0),
-    filterCarPic: String(meta.isFilterCarPicLabel || "").includes("不上传") ? 1 : 0,
-    topDirMode: findSdkOptionValueByLabel(SDK_FTP_DIR_MODE_OPTIONS, meta.topDirModeLabel, 0),
-    subDirMode: findSdkOptionValueByLabel(SDK_FTP_DIR_MODE_OPTIONS, meta.subDirModeLabel, 0),
-    threeDirMode: findSdkOptionValueByLabel(SDK_FTP_DIR_MODE_OPTIONS, meta.threeDirModeLabel, 0),
-    fourDirMode: findSdkOptionValueByLabel(SDK_FTP_DIR_MODE_OPTIONS, meta.fourDirModeLabel, 0),
+    dirLevel: meta.dirLevel != null ? meta.dirLevel : findSdkOptionValueByLabel(SDK_FTP_DIR_LEVEL_OPTIONS, ftp.ftpUploadMode, 0),
+    filterCarPic: meta.filterCarPic != null ? meta.filterCarPic : (String(meta.isFilterCarPicLabel || "").includes("不上传") ? 1 : 0),
+    topDirMode: meta.topDirMode != null ? meta.topDirMode : findSdkOptionValueByLabel(SDK_FTP_DIR_MODE_OPTIONS, meta.topDirModeLabel, 0),
+    subDirMode: meta.subDirMode != null ? meta.subDirMode : findSdkOptionValueByLabel(SDK_FTP_DIR_MODE_OPTIONS, meta.subDirModeLabel, 0),
+    threeDirMode: meta.threeDirMode != null ? meta.threeDirMode : findSdkOptionValueByLabel(SDK_FTP_DIR_MODE_OPTIONS, meta.threeDirModeLabel, 0),
+    fourDirMode: meta.fourDirMode != null ? meta.fourDirMode : findSdkOptionValueByLabel(SDK_FTP_DIR_MODE_OPTIONS, meta.fourDirModeLabel, 0),
     picNameCustom: naming.prefix || "",
     topCustomDir: "",
     subCustomDir: "",
     threeCustomDir: "",
     fourCustomDir: "",
     picNameRule: {
-      delimiter: findSdkOptionValueByLabel(SDK_FTP_DELIMITER_OPTIONS, meta.delimiter, 0),
-      items: parseSdkFtpNamingItemValues(naming.namingElements)
+      delimiter: meta.delimiterRaw != null ? meta.delimiterRaw : findSdkOptionValueByLabel(SDK_FTP_DELIMITER_OPTIONS, meta.delimiter, 0),
+      items: Array.isArray(meta.picNameItems) && meta.picNameItems.length > 0 ? meta.picNameItems : parseSdkFtpNamingItemValues(naming.namingElements)
     }
   };
 }
