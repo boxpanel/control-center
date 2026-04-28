@@ -7015,7 +7015,7 @@ function syncDevicePreviewFtpModeState() {
   const title = host.querySelector("[data-ftp-panel-title]");
   const ftp2UploadRow = host.querySelector('[data-ftp-upload-row="2"]');
   const ftpEnableMode = Number(getOnvifControlValue(ftpEnableModeField) || 0) || 0;
-  const showUploadRows = ftpEnableMode > 0;
+  const showUploadRows = ftpEnableMode >= 2;
   const showDual = ftpEnableMode >= 2;
   dualRows?.classList.toggle("view-hidden", !showUploadRows);
   ftp2UploadRow?.classList.toggle("view-hidden", !showDual);
