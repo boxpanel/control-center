@@ -28,6 +28,8 @@ public class HikvisionTrafficConfigTool {
     private static final int NET_ITC_SET_FTPCFG = 3122;
     private static final int NET_ITC_GET_TRIGGERCFG = 3003;
     private static final int NET_ITC_SET_TRIGGERCFG = 3004;
+    private static final int NET_DVR_GET_TRIGGEREX_CFG = 5074;
+    private static final int NET_DVR_SET_TRIGGEREX_CFG = 5075;
     private static final int NET_DVR_GET_SNAPENABLECFG = 1086;
     private static final int NET_DVR_GET_CURTRIGGERMODE = 3130;
     private static final int NET_DVR_SET_CURTRIGGERMODE = 3140;
@@ -225,6 +227,19 @@ public class HikvisionTrafficConfigTool {
         @Override
         protected List<String> getFieldOrder() {
             return Arrays.asList("dwSize", "dwTriggerType", "byRes");
+        }
+    }
+
+    public static class NET_DVR_TRIGGER_COND extends Structure {
+        public int dwSize;
+        public int dwChannel;
+        public int dwTriggerMode;
+        public byte byDetSceneID;
+        public byte[] byRes = new byte[63];
+
+        @Override
+        protected List<String> getFieldOrder() {
+            return Arrays.asList("dwSize", "dwChannel", "dwTriggerMode", "byDetSceneID", "byRes");
         }
     }
 
@@ -1341,11 +1356,28 @@ public class HikvisionTrafficConfigTool {
             writeStructureToUnion(trigger.uTriggerParam, hvt);
         }
 
+        // Use NET_DVR_SET_TRIGGEREX_CFG with NET_DVR_TRIGGER_COND (matching official demo)
+        NET_DVR_TRIGGER_COND condition = new NET_DVR_TRIGGER_COND();
+        condition.dwSize = condition.size();
+        condition.dwChannel = 1;
+        condition.dwTriggerMode = nextType != 0 ? nextType : currentTriggerType;
+        condition.write();
+
         config.write();
-        int configChannel = nextType != 0 ? nextType : currentTriggerType;
-        boolean ok = sdk.NET_DVR_SetDVRConfig(userId, NET_ITC_SET_TRIGGERCFG, configChannel, config.getPointer(), config.size());
+        IntByReference statusList = new IntByReference(0);
+        boolean ok = sdk.NET_DVR_SetDeviceConfig(
+            userId, NET_DVR_SET_TRIGGEREX_CFG, 1,
+            condition.getPointer(), condition.size(),
+            statusList.getPointer(),
+            config.getPointer(), config.size()
+        );
         if (!ok) {
-            fail("NET_DVR_SetDVRConfig(TRIGGERCFG) failed, channel=" + configChannel, sdk.NET_DVR_GetLastError());
+            fail("NET_DVR_SetDeviceConfig(TRIGGEREX_CFG) failed", sdk.NET_DVR_GetLastError());
+            return "";
+        }
+        int setStatus = statusList.getValue();
+        if (setStatus != 0 && setStatus != 1) {
+            fail("NET_DVR_SetDeviceConfig(TRIGGEREX_CFG) returned status=" + setStatus, setStatus);
             return "";
         }
         return buildTriggerConfig(userId);
@@ -1541,11 +1573,42 @@ public class HikvisionTrafficConfigTool {
     }
 
     private static NET_ITC_TRIGGERCFG loadTriggerConfigStruct(int userId, int currentTriggerType) {
+        // Try EX method first (matching official demo)
         NET_ITC_TRIGGERCFG config = new NET_ITC_TRIGGERCFG();
         config.dwSize = config.size();
         config.write();
+
+        NET_DVR_CURTRIGGERMODE currentMode = loadCurrentTriggerModeStruct(userId);
+        int triggerType = (currentMode != null) ? currentMode.dwTriggerType : currentTriggerType;
+
+        NET_DVR_TRIGGER_COND condition = new NET_DVR_TRIGGER_COND();
+        condition.dwSize = condition.size();
+        condition.dwChannel = 1;
+        condition.dwTriggerMode = triggerType;
+        condition.write();
+
+        IntByReference statusList = new IntByReference(0);
+        boolean ok = sdk.NET_DVR_GetDeviceConfig(
+            userId, NET_DVR_GET_TRIGGEREX_CFG, 1,
+            condition.getPointer(), condition.size(),
+            statusList.getPointer(),
+            config.getPointer(), config.size()
+        );
+
+        if (ok) {
+            int status = statusList.getValue();
+            if (status == 0 || status == 1) {
+                config.read();
+                return config;
+            }
+        }
+
+        // Fallback to old method
+        config = new NET_ITC_TRIGGERCFG();
+        config.dwSize = config.size();
+        config.write();
         IntByReference bytesReturned = new IntByReference();
-        boolean ok = sdk.NET_DVR_GetDVRConfig(userId, NET_ITC_GET_TRIGGERCFG, 0, config.getPointer(), config.size(), bytesReturned);
+        ok = sdk.NET_DVR_GetDVRConfig(userId, NET_ITC_GET_TRIGGERCFG, 0, config.getPointer(), config.size(), bytesReturned);
         if (!ok && currentTriggerType != 0) {
             config.write();
             ok = sdk.NET_DVR_GetDVRConfig(userId, NET_ITC_GET_TRIGGERCFG, currentTriggerType, config.getPointer(), config.size(), bytesReturned);
