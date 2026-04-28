@@ -490,7 +490,7 @@ const SDK_FTP_DIR_MODE_OPTIONS = [
 ];
 
 const SDK_FTP_DELIMITER_OPTIONS = [
-  { value: 0, label: "_" },
+  { value: 95, label: "_" },
   { value: 46, label: "." },
   { value: 43, label: "+" },
   { value: 45, label: "-" },

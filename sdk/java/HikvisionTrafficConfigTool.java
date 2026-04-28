@@ -1827,7 +1827,7 @@ public class HikvisionTrafficConfigTool {
 
     private static String delimiterString(byte delimiter) {
         int value = delimiter & 0xFF;
-        if (value == 0) return "_";
+        if (value == 0) return "";
         return Character.toString((char) value);
     }
 
