@@ -806,7 +806,7 @@ const DEVICE_PREVIEW_ISAPI_SCHEMAS = {
       const items = [];
       for (let i = 1; i <= 15; i += 1) {
         const raw = Number(values[`picNameItem${i}`] || 0) || 0;
-        if (raw > 0) items.push(raw);
+        items.push(raw);
       }
       let picNameCustom = "";
       for (let i = 1; i <= 15; i += 1) {
