@@ -1433,7 +1433,9 @@ public class HikvisionTrafficConfigTool {
         NET_DVR_CURTRIGGERMODE currentMode = loadCurrentTriggerModeStruct(userId);
         int currentTriggerType = currentMode == null ? 0 : currentMode.dwTriggerType;
         NET_ITC_TRIGGERCFG config = loadTriggerConfigStruct(userId, currentTriggerType);
-        if (config == null) return "";
+        if (config == null) {
+            return buildTriggerConfig(userId);
+        }
 
         NET_ITC_SINGLE_TRIGGERCFG trigger = config.struTriggerParam;
         int originalType = trigger.dwTriggerType;
