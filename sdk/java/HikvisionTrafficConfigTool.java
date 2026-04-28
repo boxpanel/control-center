@@ -946,7 +946,6 @@ public class HikvisionTrafficConfigTool {
             boolean firstItem = true;
             for (byte code : config.struPicNameRule.byItemOrder) {
                 int item = code & 0xFF;
-                if (item == 0) continue;
                 if (!firstItem) sb.append(",");
                 firstItem = false;
                 sb.append(item);
@@ -1060,7 +1059,7 @@ public class HikvisionTrafficConfigTool {
             return "";
         }
 
-        return "{\"success\":true,\"message\":\"FTP配置保存成功\"}";
+        return buildItcFtpConfig(userId);
     }
 
     private static String buildTriggerConfig(int userId) {
