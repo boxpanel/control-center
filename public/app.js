@@ -340,15 +340,13 @@ const DEVICE_PREVIEW_ONVIF_SCHEMAS = {
 };
 
 const SDK_TRIGGER_TYPE_OPTIONS = [
-  { value: 1, label: "卡口IO测速" },
-  { value: 2, label: "卡口单IO" },
-  { value: 4, label: "卡口RS485车检器" },
+  { value: 2, label: "卡口单IO触发" },
+  { value: 4, label: "卡口车检器" },
   { value: 8, label: "卡口RS485雷达" },
-  { value: 16, label: "虚拟线圈" },
-  { value: 32, label: "视频测速" },
-  { value: 256, label: "一体机车检器" },
-  { value: 4096, label: "智能设备车检器" },
-  { value: 1048576, label: "HVT V50" }
+  { value: 32, label: "卡口混合车道" },
+  { value: 512, label: "电警车检器" },
+  { value: 65536, label: "卡式电警车检器" },
+  { value: 131072, label: "视频电警" }
 ];
 
 const SDK_BOOLEAN_OPTIONS = [
