@@ -1436,6 +1436,12 @@ public class HikvisionTrafficConfigTool {
             writeStructureToUnion(trigger.uTriggerParam, hvt);
         }
 
+        // For basic trigger types (no advanced config), skip the SET call
+        // Only call SET for types that have configurable parameters (RS485/Radar/VTCOIL/HVT)
+        if (nextType != 0x4 && nextType != 0x8 && nextType != 0x10 && (nextType & 0x20) == 0 && (nextType & 0x100000) == 0) {
+            return buildTriggerConfig(userId);
+        }
+
         // Use NET_DVR_SET_TRIGGEREX_CFG with NET_DVR_TRIGGER_COND (matching official demo)
         NET_DVR_TRIGGER_COND condition = new NET_DVR_TRIGGER_COND();
         condition.dwSize = condition.size();
