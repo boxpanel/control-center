@@ -1741,33 +1741,41 @@ public class HikvisionTrafficConfigTool {
     }
 
     private static NET_ITC_TRIGGERCFG loadTriggerConfigStruct(int userId, int currentTriggerType) {
-        // Try EX method first (matching official demo)
-        NET_ITC_TRIGGERCFG config = new NET_ITC_TRIGGERCFG();
-        config.dwSize = config.size();
-        config.write();
-
         NET_DVR_CURTRIGGERMODE currentMode = loadCurrentTriggerModeStruct(userId);
         int triggerType = (currentMode != null) ? currentMode.dwTriggerType : currentTriggerType;
 
-        NET_DVR_TRIGGER_COND condition = new NET_DVR_TRIGGER_COND();
-        condition.dwSize = condition.size();
-        condition.dwChannel = 1;
-        condition.dwTriggerMode = triggerType;
-        condition.write();
+        // Try EX method with different channel/trigger mode combinations
+        int[][] combos = {
+            {1, triggerType},
+            {0, triggerType},
+            {1, 0},
+            {0, 0}
+        };
+        for (int[] combo : combos) {
+            NET_ITC_TRIGGERCFG config = new NET_ITC_TRIGGERCFG();
+            config.dwSize = config.size();
+            config.write();
 
-        IntByReference statusList = new IntByReference(0);
-        boolean ok = sdk.NET_DVR_GetDeviceConfig(
-            userId, NET_DVR_GET_TRIGGEREX_CFG, 1,
-            condition.getPointer(), condition.size(),
-            statusList.getPointer(),
-            config.getPointer(), config.size()
-        );
+            NET_DVR_TRIGGER_COND condition = new NET_DVR_TRIGGER_COND();
+            condition.dwSize = condition.size();
+            condition.dwChannel = combo[0];
+            condition.dwTriggerMode = combo[1];
+            condition.write();
 
-        if (ok) {
-            int status = statusList.getValue();
-            if (status == 0 || status == 1) {
-                config.read();
-                return config;
+            IntByReference statusList = new IntByReference(0);
+            boolean ok = sdk.NET_DVR_GetDeviceConfig(
+                userId, NET_DVR_GET_TRIGGEREX_CFG, 1,
+                condition.getPointer(), condition.size(),
+                statusList.getPointer(),
+                config.getPointer(), config.size()
+            );
+
+            if (ok) {
+                int status = statusList.getValue();
+                if (status == 0 || status == 1) {
+                    config.read();
+                    return config;
+                }
             }
         }
 
