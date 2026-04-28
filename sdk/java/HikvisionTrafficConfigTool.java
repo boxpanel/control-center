@@ -1523,6 +1523,7 @@ public class HikvisionTrafficConfigTool {
         // For basic trigger types (no advanced config), skip the SET call
         // Only call SET for types that have configurable parameters (RS485/Radar/VTCOIL/HVT)
         if (nextType != 0x4 && nextType != 0x8 && nextType != 0x10 && (nextType & 0x20) == 0 && (nextType & 0x100000) == 0) {
+            System.err.println("[DEBUG] Skipping SET for basic trigger type: " + nextType + " (0x" + Integer.toHexString(nextType) + ")");
             return buildTriggerConfig(userId);
         }
 
