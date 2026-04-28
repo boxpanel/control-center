@@ -1430,22 +1430,18 @@ public class HikvisionTrafficConfigTool {
     }
 
     private static String applyTriggerConfig(int userId, String[] args) {
-        int nextType = parseInt(arg(args, 6, "0"), 0);
-        // Skip SET for basic trigger types that don't support configurable parameters
-        if (nextType != 0x4 && nextType != 0x8 && nextType != 0x10 && (nextType & 0x20) == 0 && (nextType & 0x100000) == 0) {
-            return buildTriggerConfig(userId);
-        }
-
         NET_DVR_CURTRIGGERMODE currentMode = loadCurrentTriggerModeStruct(userId);
         int currentTriggerType = currentMode == null ? 0 : currentMode.dwTriggerType;
         NET_ITC_TRIGGERCFG config = loadTriggerConfigStruct(userId, currentTriggerType);
         if (config == null) {
-            return buildTriggerConfig(userId);
+            config = new NET_ITC_TRIGGERCFG();
+            config.dwSize = config.size();
         }
 
         NET_ITC_SINGLE_TRIGGERCFG trigger = config.struTriggerParam;
         int originalType = trigger.dwTriggerType;
         trigger.byEnable = (byte) (parseBooleanFlag(arg(args, 5, unsignedByte(trigger.byEnable) == 1 ? "1" : "0")) ? 1 : 0);
+        int nextType = parseInt(arg(args, 6, String.valueOf(trigger.dwTriggerType)), trigger.dwTriggerType);
         trigger.dwTriggerType = nextType;
 
         if (nextType == 0x4) {
@@ -1523,13 +1519,6 @@ public class HikvisionTrafficConfigTool {
             hvt.bySpeedMode = (byte) parseInt(arg(args, 16, String.valueOf(unsignedByte(hvt.bySpeedMode))), unsignedByte(hvt.bySpeedMode));
             hvt.write();
             writeStructureToUnion(trigger.uTriggerParam, hvt);
-        }
-
-        // For basic trigger types (no advanced config), skip the SET call
-        // Only call SET for types that have configurable parameters (RS485/Radar/VTCOIL/HVT)
-        if (nextType != 0x4 && nextType != 0x8 && nextType != 0x10 && (nextType & 0x20) == 0 && (nextType & 0x100000) == 0) {
-            System.err.println("[DEBUG] Skipping SET for basic trigger type: " + nextType + " (0x" + Integer.toHexString(nextType) + ")");
-            return buildTriggerConfig(userId);
         }
 
         // Use NET_DVR_SET_TRIGGEREX_CFG with NET_DVR_TRIGGER_COND (matching official demo)
