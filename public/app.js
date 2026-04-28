@@ -7359,7 +7359,28 @@ function renderDevicePreviewSdkTriggerConfigControls() {
     '<div class="devicePreviewTriggerCurrent">当前生效模式：<strong data-isapi-field="triggerTypeLabel"></strong></div>',
     `<label class="devicePreviewTriggerTopField devicePreviewTriggerLaneCount"><span>关联车道总数</span><select class="devicePreviewParamSelect" data-isapi-field="laneCount">${renderPreviewSelectOptions(SDK_TRIGGER_LANE_COUNT_OPTIONS)}</select></label>`,
     '</div>',
-    '<div class="devicePreviewTriggerSection">',
+    '<div class="devicePreviewTriggerSection view-hidden" data-trigger-group="spare">',
+    '<div class="devicePreviewTriggerSectionTitle">备用参数</div>',
+    '<div class="devicePreviewTriggerGrid">',
+    renderTriggerFieldRow("备用模式", "triggerSpareMode", { type: "select", selectOptions: SDK_TRIGGER_SPARE_MODE_OPTIONS }),
+    renderTriggerFieldRow("容错时间(分钟)", "faultToleranceMinutes", { type: "number" }),
+    '</div>',
+    '</div>',
+    '<div class="devicePreviewTriggerSection view-hidden" data-trigger-group="capture">',
+    '<div class="devicePreviewTriggerSectionTitle">抓拍参数</div>',
+    '<div class="devicePreviewTriggerGrid">',
+    '<div class="devicePreviewTriggerLeft">',
+    renderTriggerFieldRow("显示辅助线", "displayEnabled", { type: "select", selectOptions: SDK_BOOLEAN_OPTIONS }),
+    renderTriggerFieldRow("抓拍模式", "snapMode", { type: "select", selectOptions: SDK_SNAP_MODE_OPTIONS }),
+    renderTriggerFieldRow("测速方式", "speedDetector", { type: "select", selectOptions: SDK_SPEED_DETECTOR_OPTIONS }),
+    renderTriggerFieldRow("场景模式", "sceneMode", { type: "select", selectOptions: SDK_SCENE_MODE_OPTIONS }),
+    renderTriggerFieldRow("抓拍类型", "capType", { type: "select", selectOptions: SDK_CAP_TYPE_OPTIONS }),
+    renderTriggerFieldRow("抓拍方式", "capMode", { type: "select", selectOptions: SDK_CAP_MODE_OPTIONS }),
+    renderTriggerFieldRow("速度模式", "speedMode", { type: "select", selectOptions: SDK_SPEED_MODE_OPTIONS }),
+    '</div>',
+    '</div>',
+    '</div>',
+    '<div class="devicePreviewTriggerSection" data-trigger-group="lane">',
     '<div class="devicePreviewTriggerSectionTitle">车道参数及识别区域设置</div>',
     '<div class="devicePreviewTriggerGrid">',
     '<div class="devicePreviewTriggerLeft">',
@@ -7395,7 +7416,7 @@ function renderDevicePreviewSdkTriggerConfigControls() {
     '</div>',
     '</div>',
     '</div>',
-    '<div class="devicePreviewTriggerSection">',
+    '<div class="devicePreviewTriggerSection" data-trigger-group="radar">',
     '<div class="devicePreviewTriggerSectionTitle">雷达参数</div>',
     '<div class="devicePreviewTriggerRadarGrid">',
     renderTriggerFieldRow("雷达类型", "radarType", { type: "select", selectOptions: SDK_RADAR_TYPE_OPTIONS }),
@@ -7414,6 +7435,39 @@ function renderDevicePreviewSdkTriggerConfigControls() {
     '<input type="hidden" data-isapi-field="summary" />',
     '</div>'
   ].join("");
+}
+
+function syncDevicePreviewTriggerModeSections() {
+  const host = ensureDevicePreviewOnvifControlsHost();
+  if (!host) return;
+  const triggerCodeField = host.querySelector('[data-isapi-field="triggerTypeCode"]');
+  if (!triggerCodeField) return;
+  const triggerType = Number(getOnvifControlValue(triggerCodeField) || 0) || 0;
+
+  const showLane = triggerType === 8;
+  const showRadar = triggerType === 8;
+  const showSpare = triggerType === 4;
+  const showCapture = triggerType === 32;
+  const showLaneCount = triggerType === 4 || triggerType === 8 || triggerType === 32;
+
+  host.querySelector('[data-isapi-field="laneCount"]')?.closest(".devicePreviewTriggerLaneCount")?.classList.toggle("view-hidden", !showLaneCount);
+  host.querySelector('[data-trigger-group="lane"]')?.classList.toggle("view-hidden", !showLane);
+  host.querySelector('[data-trigger-group="radar"]')?.classList.toggle("view-hidden", !showRadar);
+  host.querySelector('[data-trigger-group="spare"]')?.classList.toggle("view-hidden", !showSpare);
+  host.querySelector('[data-trigger-group="capture"]')?.classList.toggle("view-hidden", !showCapture);
+}
+
+function bindDevicePreviewTriggerTypeChange() {
+  const host = ensureDevicePreviewOnvifControlsHost();
+  if (!host || host.dataset.triggerTypeBound === "1") return;
+  host.dataset.triggerTypeBound = "1";
+  host.addEventListener("change", (event) => {
+    const target = event.target;
+    if (!(target instanceof HTMLElement)) return;
+    if (target.matches('[data-isapi-field="triggerTypeCode"]')) {
+      syncDevicePreviewTriggerModeSections();
+    }
+  });
 }
 
 function fillDevicePreviewOnvifControls(values = {}) {
@@ -7479,6 +7533,9 @@ function fillDevicePreviewIsapiControls(values = {}) {
   if (host.querySelector(".devicePreviewFtpPanel")) {
     syncDevicePreviewFtpModeState();
   }
+  if (host.querySelector('[data-trigger-group]')) {
+    syncDevicePreviewTriggerModeSections();
+  }
 }
 
 function renderDevicePreviewOnvifControls(presetKey = "") {
@@ -7510,6 +7567,7 @@ function renderDevicePreviewIsapiControls(schemaKey = "") {
   if (schemaKey === "sdkTriggerConfig") {
     host.innerHTML = renderDevicePreviewSdkTriggerConfigControls();
     bindDevicePreviewTriggerRegionEditor();
+    bindDevicePreviewTriggerTypeChange();
     return;
   }
   const schema = DEVICE_PREVIEW_ISAPI_SCHEMAS[schemaKey] || DEVICE_PREVIEW_ISAPI_SCHEMAS.deviceInfo;
