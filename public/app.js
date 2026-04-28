@@ -562,42 +562,8 @@ function parseSdkFtpNamingItemValues(namingElements = "") {
 
 function normalizeSdkFtpConfigResult(result = {}) {
   const wrapper = result && typeof result === "object" ? result : {};
-  const meta = wrapper.itcFtpMeta && typeof wrapper.itcFtpMeta === "object" ? wrapper.itcFtpMeta : {};
-  const naming = wrapper.namingRules && typeof wrapper.namingRules === "object" ? wrapper.namingRules : {};
   const raw = wrapper.rawFtpConfig && typeof wrapper.rawFtpConfig === "object" ? wrapper.rawFtpConfig : null;
-  if (raw) {
-    // rawFtpConfig是从summaryResponse.ftpConfig构建的，字段名是ftpEnabled/ftpServer等中文显示格式
-    // 需要补充原始数值字段，优先使用meta中的原始值
-    return {
-      enable: meta.enable != null ? meta.enable : (String(raw.ftpEnabled || "").includes("启用") ? 1 : 0),
-      addressType: meta.addressType != null ? meta.addressType : 0,
-      ftpIndex: meta.ftpIndex != null ? meta.ftpIndex : Number(raw.ftpIndex ?? 1) || 1,
-      ftpEnableMode: meta.enable != null ? (meta.enable ? (meta.ftpIndex >= 2 ? 2 : 1) : 0) : 0,
-      uploadAdditionalInfo: meta.uploadAdditionalInfo != null ? meta.uploadAdditionalInfo : 0,
-      uploadDataType: meta.uploadDataType != null ? meta.uploadDataType : 0,
-      ftp1UploadData: meta.uploadDataType === 2 ? 2 : meta.uploadDataType === 1 ? 1 : 0,
-      ftp2UploadData: meta.uploadDataType === 1 ? 1 : meta.uploadDataType === 2 ? 2 : 0,
-      host: raw.ftpServer || "",
-      port: Number(raw.ftpPort || 21) || 21,
-      username: raw.ftpUsername || "",
-      password: raw.ftpPassword || "",
-      dirLevel: meta.dirLevel != null ? meta.dirLevel : 0,
-      filterCarPic: meta.filterCarPic != null ? meta.filterCarPic : 0,
-      topDirMode: meta.topDirMode != null ? meta.topDirMode : 0,
-      subDirMode: meta.subDirMode != null ? meta.subDirMode : 0,
-      threeDirMode: meta.threeDirMode != null ? meta.threeDirMode : 0,
-      fourDirMode: meta.fourDirMode != null ? meta.fourDirMode : 0,
-      picNameCustom: naming.prefix || "",
-      topCustomDir: "",
-      subCustomDir: "",
-      threeCustomDir: "",
-      fourCustomDir: "",
-      picNameRule: {
-        delimiter: meta.delimiterRaw != null ? meta.delimiterRaw : 95,
-        items: Array.isArray(meta.picNameItems) ? meta.picNameItems : []
-      }
-    };
-  }
+  if (raw) return raw;
   const legacy = wrapper.ftpConfig && typeof wrapper.ftpConfig === "object" ? wrapper.ftpConfig : null;
   if (legacy && ("host" in legacy || "dirLevel" in legacy || "picNameRule" in legacy)) {
     return legacy;
@@ -854,7 +820,7 @@ const DEVICE_PREVIEW_ISAPI_SCHEMAS = {
       }
       const ftpConfig = {
         picNameRule: {
-          delimiter: Number(values.picNameDelimiter ?? 95),
+          delimiter: Number(values.picNameDelimiter || 0) || 0,
           items
         },
         picNameCustom
@@ -863,14 +829,10 @@ const DEVICE_PREVIEW_ISAPI_SCHEMAS = {
         const ftpEnableMode = Number(values.ftpEnableMode || 0) || 0;
         ftpConfig.enable = ftpEnableMode > 0;
         ftpConfig.ftpIndex = ftpEnableMode >= 2 ? 2 : 1;
-        if (ftpEnableMode >= 2) {
-          const currentChannel = Math.max(1, Math.min(2, Number(values.ftpIndexRaw || 1) || 1));
-          const ftp1UploadData = Number(values.ftp1UploadData ?? 1);
-          const ftp2UploadData = Number(values.ftp2UploadData ?? 2);
-          ftpConfig.uploadDataType = currentChannel === 2 ? ftp2UploadData : ftp1UploadData;
-        } else {
-          ftpConfig.uploadDataType = 0;
-        }
+        const currentChannel = Math.max(1, Math.min(2, Number(values.ftpIndexRaw || 1) || 1));
+        const ftp1UploadData = Number(values.ftp1UploadData ?? 1);
+        const ftp2UploadData = Number(values.ftp2UploadData ?? 2);
+        ftpConfig.uploadDataType = currentChannel === 2 ? ftp2UploadData : ftp1UploadData;
       }
       if (Object.prototype.hasOwnProperty.call(values, "uploadAdditionalInfo")) {
         ftpConfig.uploadAdditionalInfo = values.uploadAdditionalInfo ? 1 : 0;
@@ -7049,7 +7011,7 @@ function syncDevicePreviewFtpModeState() {
   const title = host.querySelector("[data-ftp-panel-title]");
   const ftp2UploadRow = host.querySelector('[data-ftp-upload-row="2"]');
   const ftpEnableMode = Number(getOnvifControlValue(ftpEnableModeField) || 0) || 0;
-  const showUploadRows = ftpEnableMode >= 2;
+  const showUploadRows = ftpEnableMode > 0;
   const showDual = ftpEnableMode >= 2;
   dualRows?.classList.toggle("view-hidden", !showUploadRows);
   ftp2UploadRow?.classList.toggle("view-hidden", !showDual);
