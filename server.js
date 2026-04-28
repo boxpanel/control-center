@@ -5110,8 +5110,7 @@ app.post("/api/sdk/ftp-config/set", async (req, res, next) => {
       password: connection.password
     }, ftpConfig);
 
-    const data = result?.data || {};
-    if (data.success) {
+    if (result && result.success) {
       res.json({
         ok: true,
         connection: {
@@ -5119,10 +5118,10 @@ app.post("/api/sdk/ftp-config/set", async (req, res, next) => {
           port: connection.port,
           username: connection.username
         },
-        message: data.message || "FTP配置保存成功"
+        message: result.message || "FTP配置保存成功"
       });
     } else {
-      throw new Error(data.error || data.message || "FTP配置保存失败");
+      throw new Error(result?.error || result?.message || "FTP配置保存失败");
     }
   } catch (err) {
     console.error("[SDK API] Java桥接器保存FTP配置失败:", err.message);
