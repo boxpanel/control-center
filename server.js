@@ -5126,10 +5126,17 @@ app.post("/api/sdk/ftp-config/set", async (req, res, next) => {
   } catch (err) {
     console.error("[SDK API] Java桥接器保存FTP配置失败:", err.message);
     console.error("[SDK API] 详细错误:", err.stack || err);
+    
+    // 检测设备不支持FTP配置的情况 (status=1419 表示设备拒绝该命令)
+    const errMsg = err.message || "";
+    const isDeviceUnsupported = errMsg.includes("status=1419") || errMsg.includes("SetDeviceConfig") || errMsg.includes("ITC_FTP_CFG");
+    
     res.status(500).json({
       ok: false,
       error: "保存FTP配置失败",
-      message: err.message,
+      message: isDeviceUnsupported
+        ? "设备型号(iDS-2CD9371-KS)不支持通过程序修改FTP配置。请使用设备Web界面(http://192.168.11.253)进行FTP配置"
+        : errMsg,
       sdkAvailable: hikvisionSdkBridge ? hikvisionSdkBridge.sdkAvailable : false
     });
   }
