@@ -19,22 +19,15 @@ import { SerialPort } from "serialport";
 import onvif from "onvif";
 import { nodeOnvifProbe, onvifDiscoveryProbe, wsDiscoveryMulticast, wsDiscoveryUnicast } from "./onvif-discovery.js";
 
-// 条件导入SDK桥接器 - 使用try-catch避免启动失败
+// 加载Java桥接器（SDK功能）
 let hikvisionSdkBridge = null;
 try {
-  const module = await import("./sdk/tools/hikvision-sdk-bridge-enhanced.js");
+  const module = await import("./sdk/tools/hikvision-sdk-bridge.js");
   hikvisionSdkBridge = module.default;
-  console.log("[Server] 增强版SDK桥接器加载成功");
+  console.log("[Server] Java SDK桥接器加载成功");
 } catch (error) {
-  console.log("[Server] 增强版SDK桥接器加载失败，尝试加载基础版...");
-  try {
-    const module = await import("./sdk/tools/hikvision-sdk-bridge.js");
-    hikvisionSdkBridge = module.default;
-    console.log("[Server] 基础版SDK桥接器加载成功");
-  } catch (error2) {
-    console.log("[Server] SDK桥接器加载失败，SDK功能将不可用:", error2.message);
-    hikvisionSdkBridge = null;
-  }
+  console.log("[Server] Java SDK桥接器加载失败，SDK功能将不可用:", error.message);
+  hikvisionSdkBridge = null;
 }
 
 const { Cam } = onvif;
@@ -6864,7 +6857,7 @@ app.get("/api/sdk/status/detailed", async (req, res) => {
         initialized: hikvisionSdkBridge.initialized,
         platform: process.platform,
         arch: process.arch,
-        message: "基础版SDK桥接器"
+        message: "Java SDK桥接器"
       };
     }
     
