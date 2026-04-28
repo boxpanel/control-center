@@ -5125,6 +5125,7 @@ app.post("/api/sdk/ftp-config/set", async (req, res, next) => {
     }
   } catch (err) {
     console.error("[SDK API] Java桥接器保存FTP配置失败:", err.message);
+    console.error("[SDK API] 详细错误:", err.stack || err);
     res.status(500).json({
       ok: false,
       error: "保存FTP配置失败",
