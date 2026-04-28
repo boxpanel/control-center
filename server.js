@@ -6499,11 +6499,18 @@ app.post("/api/sdk/trigger-config/set", async (req, res) => {
     });
     
   } catch (error) {
-    console.error("[SDK API] 保存触发模式配置失败:", error);
+    console.error("[SDK API] 保存触发模式配置失败:", error.message);
+    console.error("[SDK API] 详细错误:", error.stack || error);
+    
+    const errMsg = error.message || "";
+    const isDeviceUnsupported = errMsg.includes("status=") || errMsg.includes("TRIGGERCFG") || errMsg.includes("SetDVRConfig");
+    
     res.status(500).json({ 
       success: false,
       error: "保存触发模式配置失败",
-      message: error.message,
+      message: isDeviceUnsupported
+        ? "设备可能不支持通过SDK修改触发模式配置。请使用设备Web界面进行配置"
+        : errMsg,
       sdkAvailable: hikvisionSdkBridge ? hikvisionSdkBridge.sdkAvailable : false,
       mock: false
     });
