@@ -1785,9 +1785,9 @@ public class HikvisionTrafficConfigTool {
         config.write();
         IntByReference bytesReturned = new IntByReference();
         ok = sdk.NET_DVR_GetDVRConfig(userId, NET_ITC_GET_TRIGGERCFG, 0, config.getPointer(), config.size(), bytesReturned);
-        if (!ok && currentTriggerType != 0) {
+        if (!ok) {
             config.write();
-            ok = sdk.NET_DVR_GetDVRConfig(userId, NET_ITC_GET_TRIGGERCFG, currentTriggerType, config.getPointer(), config.size(), bytesReturned);
+            ok = sdk.NET_DVR_GetDVRConfig(userId, NET_ITC_GET_TRIGGERCFG, 1, config.getPointer(), config.size(), bytesReturned);
         }
         if (!ok) {
             fail("NET_DVR_GetDVRConfig(TRIGGERCFG) failed, currentTriggerType=" + currentTriggerType, sdk.NET_DVR_GetLastError());
