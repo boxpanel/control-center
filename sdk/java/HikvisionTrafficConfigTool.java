@@ -819,6 +819,9 @@ public class HikvisionTrafficConfigTool {
                 + "\"success\":true,"
                 + "\"message\":\"SDK current trigger mode loaded\","
                 + "\"currentTriggerMode\":{"
+                + "\"rawValues\":{"
+                + "\"triggerTypeCode\":" + triggerType
+                + "},"
                 + "\"triggerTypeCode\":" + triggerType + ","
                 + "\"triggerTypeHex\":\"" + json(toHex(triggerType)) + "\","
                 + "\"triggerTypeLabel\":\"" + json(label) + "\","
@@ -1214,10 +1217,63 @@ public class HikvisionTrafficConfigTool {
         if (!triggerSpareModeLabel.isEmpty()) summary.append(" / spare=").append(triggerSpareModeLabel);
         if (!capModeLabel.isEmpty()) summary.append(" / capMode=").append(capModeLabel);
 
+        StringBuilder raw = new StringBuilder();
+        raw.append("\"rawValues\":{");
+        raw.append("\"triggerTypeCode\":").append(triggerType).append(",");
+        raw.append("\"enabled\":").append(enabled ? 1 : 0).append(",");
+        raw.append("\"laneCount\":").append(laneCount).append(",");
+        raw.append("\"triggerSpareMode\":").append(triggerSpareMode == null ? "null" : triggerSpareMode).append(",");
+        raw.append("\"faultToleranceMinutes\":").append(faultToleranceMinutes == null ? "null" : faultToleranceMinutes).append(",");
+        raw.append("\"displayEnabled\":").append(displayEnabled == null ? "null" : (displayEnabled ? 1 : 0)).append(",");
+        raw.append("\"snapMode\":").append(snapMode == null ? "null" : snapMode).append(",");
+        raw.append("\"speedDetector\":").append(speedDetector == null ? "null" : speedDetector).append(",");
+        raw.append("\"sceneMode\":").append(sceneMode == null ? "null" : sceneMode).append(",");
+        raw.append("\"capType\":").append(capType == null ? "null" : capType).append(",");
+        raw.append("\"capMode\":").append(capMode == null ? "null" : capMode).append(",");
+        raw.append("\"speedMode\":").append(speedMode == null ? "null" : speedMode).append(",");
+        raw.append("\"radarType\":").append(radarType == null ? "null" : radarType).append(",");
+        raw.append("\"levelAngle\":").append(levelAngle == null ? "null" : levelAngle).append(",");
+        raw.append("\"radarSensitivity\":").append(radarSensitivity == null ? "null" : radarSensitivity).append(",");
+        raw.append("\"radarSpeedValidTime\":").append(radarSpeedValidTime == null ? "null" : radarSpeedValidTime).append(",");
+        raw.append("\"lineCorrectParam\":").append(lineCorrectParam == null ? "null" : floatString(lineCorrectParam)).append(",");
+        raw.append("\"constCorrectParam\":").append(constCorrectParam == null ? "null" : constCorrectParam).append(",");
+        raw.append("\"plateRecogEnabled\":").append(plateRecogEnabled == null ? "null" : (plateRecogEnabled ? 1 : 0)).append(",");
+        raw.append("\"plateRecogMode\":").append(plateRecogMode == null ? "null" : plateRecogMode).append(",");
+        raw.append("\"vehicleLogoRecogEnabled\":").append(vehicleLogoRecogEnabled == null ? "null" : (vehicleLogoRecogEnabled ? 1 : 0)).append(",");
+        raw.append("\"plateProvince\":").append(plateProvince == null ? "null" : plateProvince).append(",");
+        raw.append("\"plateRegion\":").append(plateRegion == null ? "null" : plateRegion).append(",");
+        raw.append("\"plateCountry\":").append(plateCountry == null ? "null" : plateCountry).append(",");
+        raw.append("\"platePixelWidthMin\":").append(platePixelWidthMin == null ? "null" : platePixelWidthMin).append(",");
+        raw.append("\"platePixelWidthMax\":").append(platePixelWidthMax == null ? "null" : platePixelWidthMax).append(",");
+        raw.append("\"firstLaneEnabled\":").append(firstLaneEnabled == null ? "null" : (firstLaneEnabled ? 1 : 0)).append(",");
+        raw.append("\"firstLaneRelatedDriveWay\":").append(firstLaneRelatedDriveWay == null ? "null" : firstLaneRelatedDriveWay).append(",");
+        raw.append("\"firstLaneDistance\":").append(firstLaneDistance == null ? "null" : firstLaneDistance).append(",");
+        raw.append("\"firstLaneTrigDelayTime\":").append(firstLaneTrigDelayTime == null ? "null" : firstLaneTrigDelayTime).append(",");
+        raw.append("\"firstLaneTrigDelayDistance\":").append(firstLaneTrigDelayDistance == null ? "null" : firstLaneTrigDelayDistance).append(",");
+        raw.append("\"firstLaneSpeedCapEnabled\":").append(firstLaneSpeedCapEnabled == null ? "null" : (firstLaneSpeedCapEnabled ? 1 : 0)).append(",");
+        raw.append("\"firstLaneSignSpeed\":").append(firstLaneSignSpeed == null ? "null" : firstLaneSignSpeed).append(",");
+        raw.append("\"firstLaneSpeedLimit\":").append(firstLaneSpeedLimit == null ? "null" : firstLaneSpeedLimit).append(",");
+        raw.append("\"firstLaneSnapTimes\":").append(firstLaneSnapTimes == null ? "null" : firstLaneSnapTimes).append(",");
+        raw.append("\"firstLaneOverlayDriveWay\":").append(firstLaneOverlayDriveWay == null ? "null" : firstLaneOverlayDriveWay).append(",");
+        raw.append("\"firstLaneFlashMode\":").append(firstLaneFlashMode == null ? "null" : firstLaneFlashMode).append(",");
+        raw.append("\"firstLaneCartSignSpeed\":").append(firstLaneCartSignSpeed == null ? "null" : firstLaneCartSignSpeed).append(",");
+        raw.append("\"firstLaneCartSpeedLimit\":").append(firstLaneCartSpeedLimit == null ? "null" : firstLaneCartSpeedLimit).append(",");
+        raw.append("\"firstLaneRelatedIOOutEx\":").append(firstLaneRelatedIOOutEx == null ? "null" : firstLaneRelatedIOOutEx).append(",");
+        raw.append("\"firstLaneLaneType\":").append(firstLaneLaneType == null ? "null" : firstLaneLaneType).append(",");
+        raw.append("\"firstLaneUseageType\":").append(firstLaneUseageType == null ? "null" : firstLaneUseageType).append(",");
+        raw.append("\"firstLaneDirectionType\":").append(firstLaneDirectionType == null ? "null" : firstLaneDirectionType).append(",");
+        raw.append("\"firstLaneLowSpeedLimit\":").append(firstLaneLowSpeedLimit == null ? "null" : firstLaneLowSpeedLimit).append(",");
+        raw.append("\"firstLaneBigCarLowSpeedLimit\":").append(firstLaneBigCarLowSpeedLimit == null ? "null" : firstLaneBigCarLowSpeedLimit).append(",");
+        raw.append("\"firstLaneLowSpeedCapEnabled\":").append(firstLaneLowSpeedCapEnabled == null ? "null" : (firstLaneLowSpeedCapEnabled ? 1 : 0)).append(",");
+        raw.append("\"firstLaneEmergencyCapEnabled\":").append(firstLaneEmergencyCapEnabled == null ? "null" : (firstLaneEmergencyCapEnabled ? 1 : 0)).append(",");
+        raw.append("\"firstLaneRegionMode\":").append(firstLaneRegionMode == null ? "null" : firstLaneRegionMode);
+        raw.append("},");
+
         return "{"
                 + "\"success\":true,"
                 + "\"message\":\"SDK trigger config loaded\","
                 + "\"triggerConfig\":{"
+                + raw.toString()
                 + "\"enabled\":" + enabled + ","
                 + "\"enabledLabel\":\"" + json(enabled ? "Enabled" : "Disabled") + "\","
                 + "\"triggerTypeCode\":" + triggerType + ","
