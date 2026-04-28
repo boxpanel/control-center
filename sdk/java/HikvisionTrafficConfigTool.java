@@ -1430,6 +1430,12 @@ public class HikvisionTrafficConfigTool {
     }
 
     private static String applyTriggerConfig(int userId, String[] args) {
+        int nextType = parseInt(arg(args, 6, "0"), 0);
+        // Skip SET for basic trigger types that don't support configurable parameters
+        if (nextType != 0x4 && nextType != 0x8 && nextType != 0x10 && (nextType & 0x20) == 0 && (nextType & 0x100000) == 0) {
+            return buildTriggerConfig(userId);
+        }
+
         NET_DVR_CURTRIGGERMODE currentMode = loadCurrentTriggerModeStruct(userId);
         int currentTriggerType = currentMode == null ? 0 : currentMode.dwTriggerType;
         NET_ITC_TRIGGERCFG config = loadTriggerConfigStruct(userId, currentTriggerType);
@@ -1440,7 +1446,6 @@ public class HikvisionTrafficConfigTool {
         NET_ITC_SINGLE_TRIGGERCFG trigger = config.struTriggerParam;
         int originalType = trigger.dwTriggerType;
         trigger.byEnable = (byte) (parseBooleanFlag(arg(args, 5, unsignedByte(trigger.byEnable) == 1 ? "1" : "0")) ? 1 : 0);
-        int nextType = parseInt(arg(args, 6, String.valueOf(trigger.dwTriggerType)), trigger.dwTriggerType);
         trigger.dwTriggerType = nextType;
 
         if (nextType == 0x4) {
