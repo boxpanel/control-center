@@ -863,10 +863,14 @@ const DEVICE_PREVIEW_ISAPI_SCHEMAS = {
         const ftpEnableMode = Number(values.ftpEnableMode || 0) || 0;
         ftpConfig.enable = ftpEnableMode > 0;
         ftpConfig.ftpIndex = ftpEnableMode >= 2 ? 2 : 1;
-        const currentChannel = Math.max(1, Math.min(2, Number(values.ftpIndexRaw || 1) || 1));
-        const ftp1UploadData = Number(values.ftp1UploadData ?? 1);
-        const ftp2UploadData = Number(values.ftp2UploadData ?? 2);
-        ftpConfig.uploadDataType = currentChannel === 2 ? ftp2UploadData : ftp1UploadData;
+        if (ftpEnableMode >= 2) {
+          const currentChannel = Math.max(1, Math.min(2, Number(values.ftpIndexRaw || 1) || 1));
+          const ftp1UploadData = Number(values.ftp1UploadData ?? 1);
+          const ftp2UploadData = Number(values.ftp2UploadData ?? 2);
+          ftpConfig.uploadDataType = currentChannel === 2 ? ftp2UploadData : ftp1UploadData;
+        } else {
+          ftpConfig.uploadDataType = 0;
+        }
       }
       if (Object.prototype.hasOwnProperty.call(values, "uploadAdditionalInfo")) {
         ftpConfig.uploadAdditionalInfo = values.uploadAdditionalInfo ? 1 : 0;
@@ -7045,7 +7049,7 @@ function syncDevicePreviewFtpModeState() {
   const title = host.querySelector("[data-ftp-panel-title]");
   const ftp2UploadRow = host.querySelector('[data-ftp-upload-row="2"]');
   const ftpEnableMode = Number(getOnvifControlValue(ftpEnableModeField) || 0) || 0;
-  const showUploadRows = ftpEnableMode > 0;
+  const showUploadRows = ftpEnableMode >= 2;
   const showDual = ftpEnableMode >= 2;
   dualRows?.classList.toggle("view-hidden", !showUploadRows);
   ftp2UploadRow?.classList.toggle("view-hidden", !showDual);
