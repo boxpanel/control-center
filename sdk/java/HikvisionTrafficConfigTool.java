@@ -1782,11 +1782,15 @@ public class HikvisionTrafficConfigTool {
         }
 
         // Fallback to old method
-        config = new NET_ITC_TRIGGERCFG();
+        return loadTriggerConfigOldMethod(userId, currentTriggerType);
+    }
+
+    private static NET_ITC_TRIGGERCFG loadTriggerConfigOldMethod(int userId, int currentTriggerType) {
+        NET_ITC_TRIGGERCFG config = new NET_ITC_TRIGGERCFG();
         config.dwSize = config.size();
         config.write();
         IntByReference bytesReturned = new IntByReference();
-        ok = sdk.NET_DVR_GetDVRConfig(userId, NET_ITC_GET_TRIGGERCFG, 0, config.getPointer(), config.size(), bytesReturned);
+        boolean ok = sdk.NET_DVR_GetDVRConfig(userId, NET_ITC_GET_TRIGGERCFG, 0, config.getPointer(), config.size(), bytesReturned);
         if (!ok) {
             config.write();
             ok = sdk.NET_DVR_GetDVRConfig(userId, NET_ITC_GET_TRIGGERCFG, 1, config.getPointer(), config.size(), bytesReturned);
