@@ -2043,7 +2043,7 @@ public class HikvisionTrafficConfigTool {
             epolice.struPlateRecog.wPlatePixelWidthMax = (short) parseInt(arg(args, 30, String.valueOf(unsignedShort(epolice.struPlateRecog.wPlatePixelWidthMax))), unsignedShort(epolice.struPlateRecog.wPlatePixelWidthMax));
 
             NET_ITC_EPOLICE_LANE_PARAM firstLane = epolice.struLane[0];
-            firstLane.byEnable = (byte) (parseBooleanFlag(arg(args, 31, unsignedByte(firstLane.byEnable) == 1 ? "1" : "0")) ? 1 : 0);
+            firstLane.byEnable = 1;
             firstLane.byRelatedDriveWay = (byte) parseInt(arg(args, 32, String.valueOf(defaultPositive(unsignedByte(firstLane.byRelatedDriveWay), 1))), defaultPositive(unsignedByte(firstLane.byRelatedDriveWay), 1));
             firstLane.wDistance = (short) parseInt(arg(args, 33, String.valueOf(unsignedShort(firstLane.wDistance))), unsignedShort(firstLane.wDistance));
             firstLane.bySignSpeed = (byte) parseInt(arg(args, 37, String.valueOf(unsignedByte(firstLane.bySignSpeed))), unsignedByte(firstLane.bySignSpeed));

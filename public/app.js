@@ -7605,6 +7605,7 @@ function renderDevicePreviewSdkTriggerConfigControls() {
     '<div class="devicePreviewEpoliceOnly">' + renderTriggerFieldRow("车道方向类型", "firstLaneDirectionType", { type: "select", selectOptions: SDK_LANE_DIRECTION_OPTIONS }) + '</div>',
     '<div class="devicePreviewEpoliceOnly">' + renderTriggerFieldRow("预录开始时间", "epoliceSnapPicPreRecord", { type: "select", selectOptions: SDK_EPOLICE_SNAP_PRE_RECORD_OPTIONS }) + '</div>',
     renderTriggerFieldRow("关联车道号(也做叠加用)", "firstLaneRelatedDriveWay", { type: "number" }),
+    '<div class="devicePreviewEpoliceOnly">' + renderTriggerFieldRow("叠加车道号", "firstLaneOverlayDriveWay", { type: "number" }) + '</div>',
     '<div class="devicePreviewRadarOnly">' + renderTriggerFieldRow("叠加车道号", "firstLaneOverlayDriveWay", { type: "number" }) + '</div>',
     '<div class="devicePreviewRadarOnly">' + renderTriggerFieldRow("车道方向类型", "firstLaneDirectionType", { type: "select", selectOptions: SDK_LANE_DIRECTION_OPTIONS }) + '</div>',
     renderTriggerFieldRow("车道用途", "firstLaneUseageType", { type: "select", selectOptions: SDK_LANE_USAGE_OPTIONS }),
