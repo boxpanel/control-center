@@ -247,7 +247,10 @@
                 <button id="systemRestartBtn" type="button" style="margin-left: 10px;">重启设备</button>
               </div>
               <div id="systemPassHint" style="margin-top:10px; font-size:12px; color:#6b7280;"></div>
-              <div id="fingerprintBox" class="fingerprintBox" style="margin-top:10px;">加载设备指纹中...</div>
+              <div class="fingerprint-row">
+                <div id="fingerprintBox" class="fingerprintBox">加载设备指纹中...</div>
+                <button id="copyFingerprintBtn" type="button" class="fingerprint-copy-btn" title="复制指纹码">复制</button>
+              </div>
               <div id="systemSaveHint" style="margin-top:10px; font-size:12px; color:#6b7280;"></div>
             </section>
 
@@ -308,7 +311,7 @@
                   </div>
                 </div>
               </div>
-              <div id="activationHint" style="margin-top:10px; font-size:12px; color:#6b7280;"></div>
+              <div id="activationHint" style="margin-top:4px; font-size:12px; color:#6b7280;"></div>
             </section>
           </div>
         </div>

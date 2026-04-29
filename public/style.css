@@ -50,7 +50,43 @@ h1 {
   color: #374151;
   text-align: left;
   word-break: break-all;
-  max-width: 520px;
+  flex: 1;
+  min-width: 0;
+}
+
+.fingerprint-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.fingerprint-copy-btn {
+  flex-shrink: 0;
+  padding: 4px 10px;
+  font-size: 12px;
+  border-radius: 6px;
+  border: 1px solid #d1d5db;
+  background: #f3f4f6;
+  color: #374151;
+  cursor: pointer;
+  transition: background 0.15s;
+  line-height: 1.4;
+}
+
+.fingerprint-copy-btn:hover {
+  background: #e5e7eb;
+  border-color: #9ca3af;
+}
+
+.fingerprint-copy-btn:active {
+  background: #d1d5db;
+}
+
+.fingerprint-copy-btn.copied {
+  background: #15803d;
+  border-color: #15803d;
+  color: #fff;
 }
 
 .actions { display: flex; gap: 8px; }

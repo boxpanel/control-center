@@ -4426,43 +4426,61 @@ app.get("/api/status", (req, res) => {
 
 const FEATURES_LIST = ["network", "serial"];
 
+async function computeCurrentFingerprint() {
+  try {
+    const { fingerprint } = await computeDeviceFingerprint();
+    return fingerprint;
+  } catch {
+    return "";
+  }
+}
+
 function parseActivationKey(key) {
   const prefix = "ACTIVATE-";
   if (!key.startsWith(prefix)) return null;
   const encoded = key.slice(prefix.length);
   try {
     const decoded = Buffer.from(encoded, "base64").toString("utf8");
-    const features = decoded.split(",").map(f => f.trim()).filter(Boolean);
+    const parts = decoded.split("|").map(s => s.trim());
+    if (parts.length < 2) return null;
+    const featuresStr = parts[0];
+    const fingerprint = parts[1];
+    const features = featuresStr.split(",").map(f => f.trim()).filter(Boolean);
     const valid = features.every(f => FEATURES_LIST.includes(f));
-    if (!valid || features.length === 0) return null;
-    return features;
+    if (!valid || features.length === 0 || !fingerprint) return null;
+    return { features, fingerprint };
   } catch {
     return null;
   }
 }
 
-app.get("/api/activation/status", (req, res) => {
+app.get("/api/activation/status", async (req, res) => {
   try {
     const rows = stmtActivationGetAll.all();
     const state = {};
     for (const r of rows) {
       state[r.feature] = true;
     }
-    res.json({ ok: true, features: state });
+    const fp = await computeCurrentFingerprint();
+    res.json({ ok: true, features: state, fingerprint: fp });
   } catch (err) {
     res.status(500).json({ ok: false, error: err.message });
   }
 });
 
-app.post("/api/activation/activate", (req, res) => {
+app.post("/api/activation/activate", async (req, res) => {
   try {
     const { key } = req.body || {};
     if (!key || !String(key).trim()) {
       return res.status(400).json({ ok: false, error: "请输入激活密钥" });
     }
-    const features = parseActivationKey(String(key).trim());
-    if (!features) {
-      return res.status(400).json({ ok: false, error: "密钥无效，请检查后重试" });
+    const parsed = parseActivationKey(String(key).trim());
+    if (!parsed) {
+      return res.status(400).json({ ok: false, error: "密钥格式无效" });
+    }
+    const currentFp = await computeCurrentFingerprint();
+    if (!currentFp || parsed.fingerprint !== currentFp) {
+      return res.status(400).json({ ok: false, error: "密钥与当前设备指纹不匹配，请使用为本设备生成的密钥" });
     }
     const now = Date.now();
     const insertMany = plateDb.transaction((feats) => {
@@ -4470,8 +4488,8 @@ app.post("/api/activation/activate", (req, res) => {
         stmtActivationUpsert.run({ feature: f, activationKey: key, activatedAt: now });
       }
     });
-    insertMany(features);
-    res.json({ ok: true, features });
+    insertMany(parsed.features);
+    res.json({ ok: true, features: parsed.features });
   } catch (err) {
     res.status(500).json({ ok: false, error: err.message });
   }

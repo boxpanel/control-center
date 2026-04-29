@@ -376,7 +376,16 @@ class HikvisionSdkBridge {
       String(Number(values.firstLaneInterval1 || 0) || 0),
       String(Number(values.firstLaneInterval2 || 0) || 0),
       String(Number(values.firstLaneInterval3 || 0) || 0),
-      String(Number(values.firstLaneInterval4 || 0) || 0)
+      String(Number(values.firstLaneInterval4 || 0) || 0),
+      String(Number(values.epoliceTrafficLightSignalSrc || 0) || 0),
+      String(Number(values.epoliceSnapPicPreRecord || 0) || 0),
+      String(Number(values.epoliceSerialType || 0) || 0),
+      String(Number(values.epoliceSerialProtocol || 0) || 0),
+      String(Number(values.epoliceNormalPassProtocol || 0) || 0),
+      String(Number(values.epoliceInverseProtocol || 0) || 0),
+      String(Number(values.epoliceSpeedProtocol || 0) || 0),
+      String(Number(values.epoliceCopyProtocolMask || 1) || 1),
+      String(Number(values.epoliceCopyParamMask || 1) || 1)
     ]);
   }
 

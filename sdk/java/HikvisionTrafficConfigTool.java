@@ -258,6 +258,73 @@ public class HikvisionTrafficConfigTool {
         }
     }
 
+    public static class NET_ITC_SERIAL_INFO extends Structure {
+        public byte bySerialProtocol;
+        public byte byIntervalType;
+        public short wInterval;
+        public byte byNormalPassProtocol;
+        public byte byInverseProtocol;
+        public byte bySpeedProtocol;
+        public byte[] byRes = new byte[9];
+
+        @Override
+        protected List<String> getFieldOrder() {
+            return Arrays.asList("bySerialProtocol", "byIntervalType", "wInterval", "byNormalPassProtocol", "byInverseProtocol", "bySpeedProtocol", "byRes");
+        }
+    }
+
+    public static class NET_ITC_EPOLICE_LANE_PARAM extends Structure {
+        public byte byEnable;
+        public byte byRelatedDriveWay;
+        public short wDistance;
+        public byte byRecordEnable;
+        public byte byRecordType;
+        public byte byPreRecordTime;
+        public byte byRecordDelayTime;
+        public byte byRecordTimeOut;
+        public byte bySignSpeed;
+        public byte bySpeedLimit;
+        public byte byOverlayDriveWay;
+        public NET_ITC_SERIAL_INFO struSerialInfo = new NET_ITC_SERIAL_INFO();
+        public byte[] byRelatedIOOut = new byte[4];
+        public byte byFlashMode;
+        public byte bySerialType;
+        public byte byRelatedIOOutEx;
+        public byte bySnapPicPreRecord;
+        public NET_ITC_PLATE_RECOG_REGION_PARAM[] struPlateRecog = (NET_ITC_PLATE_RECOG_REGION_PARAM[]) new NET_ITC_PLATE_RECOG_REGION_PARAM().toArray(2);
+        public byte byBigCarSignSpeed;
+        public byte byBigCarSpeedLimit;
+        public byte byRedTrafficLightChan;
+        public byte byYellowTrafficLightChan;
+        public byte byRelaLaneDirectionType;
+        public byte[] byRes3 = new byte[11];
+
+        @Override
+        protected List<String> getFieldOrder() {
+            return Arrays.asList(
+                    "byEnable", "byRelatedDriveWay", "wDistance", "byRecordEnable", "byRecordType", "byPreRecordTime",
+                    "byRecordDelayTime", "byRecordTimeOut", "bySignSpeed", "bySpeedLimit", "byOverlayDriveWay",
+                    "struSerialInfo", "byRelatedIOOut", "byFlashMode", "bySerialType", "byRelatedIOOutEx",
+                    "bySnapPicPreRecord", "struPlateRecog", "byBigCarSignSpeed", "byBigCarSpeedLimit",
+                    "byRedTrafficLightChan", "byYellowTrafficLightChan", "byRelaLaneDirectionType", "byRes3"
+            );
+        }
+    }
+
+    public static class NET_ITC_EPOLICE_RS485_PARAM extends Structure {
+        public byte byRelatedLaneNum;
+        public byte byTrafficLightSignalSrc;
+        public byte[] byRes1 = new byte[2];
+        public NET_ITC_PLATE_RECOG_PARAM struPlateRecog = new NET_ITC_PLATE_RECOG_PARAM();
+        public NET_ITC_EPOLICE_LANE_PARAM[] struLane = (NET_ITC_EPOLICE_LANE_PARAM[]) new NET_ITC_EPOLICE_LANE_PARAM().toArray(6);
+        public byte[] byRes = new byte[32];
+
+        @Override
+        protected List<String> getFieldOrder() {
+            return Arrays.asList("byRelatedLaneNum", "byTrafficLightSignalSrc", "byRes1", "struPlateRecog", "struLane", "byRes");
+        }
+    }
+
     public static class NET_ITC_INTERVAL_PARAM extends Structure {
         public byte byIntervalType;
         public byte[] byRes1 = new byte[3];
@@ -593,6 +660,13 @@ public class HikvisionTrafficConfigTool {
 
         public NET_ITC_POST_RS485_PARAM asRs485() {
             NET_ITC_POST_RS485_PARAM value = new NET_ITC_POST_RS485_PARAM();
+            value.getPointer().write(0, this.getPointer().getByteArray(0, value.size()), 0, value.size());
+            value.read();
+            return value;
+        }
+
+        public NET_ITC_EPOLICE_RS485_PARAM asEpoliceRs485() {
+            NET_ITC_EPOLICE_RS485_PARAM value = new NET_ITC_EPOLICE_RS485_PARAM();
             value.getPointer().write(0, this.getPointer().getByteArray(0, value.size()), 0, value.size());
             value.read();
             return value;
@@ -1334,6 +1408,15 @@ public class HikvisionTrafficConfigTool {
         Integer singleIoInterval3 = null;
         Integer singleIoInterval4 = null;
         Integer singleIoCopyMask = null;
+        Integer epoliceTrafficLightSignalSrc = null;
+        Integer epoliceSnapPicPreRecord = null;
+        Integer epoliceSerialType = null;
+        Integer epoliceSerialProtocol = null;
+        Integer epoliceNormalPassProtocol = null;
+        Integer epoliceInverseProtocol = null;
+        Integer epoliceSpeedProtocol = null;
+        Integer epoliceCopyProtocolMask = null;
+        Integer epoliceCopyParamMask = null;
 
         if (triggerType == 0x4) {
             NET_ITC_POST_RS485_PARAM rs485 = trigger.uTriggerParam.asRs485();
@@ -1514,6 +1597,44 @@ public class HikvisionTrafficConfigTool {
             firstLaneInterval3 = unsignedShort(firstLane.struInterval.wInterval[2]);
             firstLaneInterval4 = unsignedShort(firstLane.struInterval.wInterval[3]);
             detailSource = "hvtV50";
+        } else if (triggerType == 0x200 || triggerType == 0x10000) {
+            NET_ITC_EPOLICE_RS485_PARAM epolice = trigger.uTriggerParam.asEpoliceRs485();
+            laneCount = unsignedByte(epolice.byRelatedLaneNum);
+            epoliceTrafficLightSignalSrc = unsignedByte(epolice.byTrafficLightSignalSrc);
+            plateRecogEnabled = unsignedByte(epolice.struPlateRecog.byEnable) == 1;
+            plateRecogMode = epolice.struPlateRecog.dwRecogMode;
+            vehicleLogoRecogEnabled = unsignedByte(epolice.struPlateRecog.byVehicleLogoRecog) == 1;
+            plateProvince = unsignedByte(epolice.struPlateRecog.byProvince);
+            plateRegion = unsignedByte(epolice.struPlateRecog.byRegion);
+            plateCountry = unsignedByte(epolice.struPlateRecog.byCountry);
+            platePixelWidthMin = unsignedShort(epolice.struPlateRecog.wPlatePixelWidthMin);
+            platePixelWidthMax = unsignedShort(epolice.struPlateRecog.wPlatePixelWidthMax);
+            NET_ITC_EPOLICE_LANE_PARAM firstLane = epolice.struLane[0];
+            firstLaneEnabled = unsignedByte(firstLane.byEnable) == 1;
+            firstLaneRelatedDriveWay = unsignedByte(firstLane.byRelatedDriveWay);
+            firstLaneDistance = unsignedShort(firstLane.wDistance);
+            firstLaneSignSpeed = unsignedByte(firstLane.bySignSpeed);
+            firstLaneSpeedLimit = unsignedByte(firstLane.bySpeedLimit);
+            firstLaneOverlayDriveWay = unsignedByte(firstLane.byOverlayDriveWay);
+            firstLaneFlashMode = unsignedByte(firstLane.byFlashMode);
+            firstLaneRelatedIOOutEx = unsignedByte(firstLane.byRelatedIOOutEx);
+            firstLaneDirectionType = unsignedByte(firstLane.byRelaLaneDirectionType);
+            firstLaneCartSignSpeed = unsignedByte(firstLane.byBigCarSignSpeed);
+            firstLaneCartSpeedLimit = unsignedByte(firstLane.byBigCarSpeedLimit);
+            firstLaneRegionMode = unsignedByte(firstLane.struPlateRecog[0].byMode);
+            firstLaneRegionPoints = buildRegionPointsString(firstLane.struPlateRecog[0]);
+            firstLaneRegionPointCount = countRegionPoints(firstLaneRegionPoints);
+            firstLaneIntervalType = unsignedByte(firstLane.struSerialInfo.byIntervalType);
+            firstLaneInterval1 = unsignedShort(firstLane.struSerialInfo.wInterval);
+            epoliceSnapPicPreRecord = unsignedByte(firstLane.bySnapPicPreRecord);
+            epoliceSerialType = unsignedByte(firstLane.bySerialType);
+            epoliceSerialProtocol = unsignedByte(firstLane.struSerialInfo.bySerialProtocol);
+            epoliceNormalPassProtocol = unsignedByte(firstLane.struSerialInfo.byNormalPassProtocol);
+            epoliceInverseProtocol = unsignedByte(firstLane.struSerialInfo.byInverseProtocol);
+            epoliceSpeedProtocol = unsignedByte(firstLane.struSerialInfo.bySpeedProtocol);
+            epoliceCopyProtocolMask = 1;
+            epoliceCopyParamMask = 1;
+            detailSource = triggerType == 0x200 ? "epoliceRs485" : "perRs485";
         }
 
         StringBuilder summary = new StringBuilder();
@@ -1584,7 +1705,16 @@ public class HikvisionTrafficConfigTool {
         raw.append("\"singleIoInterval2\":").append(singleIoInterval2 == null ? "null" : singleIoInterval2).append(",");
         raw.append("\"singleIoInterval3\":").append(singleIoInterval3 == null ? "null" : singleIoInterval3).append(",");
         raw.append("\"singleIoInterval4\":").append(singleIoInterval4 == null ? "null" : singleIoInterval4).append(",");
-        raw.append("\"singleIoCopyMask\":").append(singleIoCopyMask == null ? "null" : singleIoCopyMask);
+        raw.append("\"singleIoCopyMask\":").append(singleIoCopyMask == null ? "null" : singleIoCopyMask).append(",");
+        raw.append("\"epoliceTrafficLightSignalSrc\":").append(epoliceTrafficLightSignalSrc == null ? "null" : epoliceTrafficLightSignalSrc).append(",");
+        raw.append("\"epoliceSnapPicPreRecord\":").append(epoliceSnapPicPreRecord == null ? "null" : epoliceSnapPicPreRecord).append(",");
+        raw.append("\"epoliceSerialType\":").append(epoliceSerialType == null ? "null" : epoliceSerialType).append(",");
+        raw.append("\"epoliceSerialProtocol\":").append(epoliceSerialProtocol == null ? "null" : epoliceSerialProtocol).append(",");
+        raw.append("\"epoliceNormalPassProtocol\":").append(epoliceNormalPassProtocol == null ? "null" : epoliceNormalPassProtocol).append(",");
+        raw.append("\"epoliceInverseProtocol\":").append(epoliceInverseProtocol == null ? "null" : epoliceInverseProtocol).append(",");
+        raw.append("\"epoliceSpeedProtocol\":").append(epoliceSpeedProtocol == null ? "null" : epoliceSpeedProtocol).append(",");
+        raw.append("\"epoliceCopyProtocolMask\":").append(epoliceCopyProtocolMask == null ? "null" : epoliceCopyProtocolMask).append(",");
+        raw.append("\"epoliceCopyParamMask\":").append(epoliceCopyParamMask == null ? "null" : epoliceCopyParamMask);
         raw.append("},");
 
         return "{"
@@ -1674,6 +1804,15 @@ public class HikvisionTrafficConfigTool {
                 + "\"singleIoInterval3\":" + (singleIoInterval3 == null ? "null" : singleIoInterval3) + ","
                 + "\"singleIoInterval4\":" + (singleIoInterval4 == null ? "null" : singleIoInterval4) + ","
                 + "\"singleIoCopyMask\":" + (singleIoCopyMask == null ? "null" : singleIoCopyMask) + ","
+                + "\"epoliceTrafficLightSignalSrc\":" + (epoliceTrafficLightSignalSrc == null ? "null" : epoliceTrafficLightSignalSrc) + ","
+                + "\"epoliceSnapPicPreRecord\":" + (epoliceSnapPicPreRecord == null ? "null" : epoliceSnapPicPreRecord) + ","
+                + "\"epoliceSerialType\":" + (epoliceSerialType == null ? "null" : epoliceSerialType) + ","
+                + "\"epoliceSerialProtocol\":" + (epoliceSerialProtocol == null ? "null" : epoliceSerialProtocol) + ","
+                + "\"epoliceNormalPassProtocol\":" + (epoliceNormalPassProtocol == null ? "null" : epoliceNormalPassProtocol) + ","
+                + "\"epoliceInverseProtocol\":" + (epoliceInverseProtocol == null ? "null" : epoliceInverseProtocol) + ","
+                + "\"epoliceSpeedProtocol\":" + (epoliceSpeedProtocol == null ? "null" : epoliceSpeedProtocol) + ","
+                + "\"epoliceCopyProtocolMask\":" + (epoliceCopyProtocolMask == null ? "null" : epoliceCopyProtocolMask) + ","
+                + "\"epoliceCopyParamMask\":" + (epoliceCopyParamMask == null ? "null" : epoliceCopyParamMask) + ","
                 + "\"summary\":\"" + json(summary.toString()) + "\""
                 + "}"
                 + "}";
@@ -1889,6 +2028,56 @@ public class HikvisionTrafficConfigTool {
             hvt.struPlateRecog.write();
             hvt.write();
             writeStructureToUnion(trigger.uTriggerParam, hvt);
+        } else if (nextType == 0x200 || nextType == 0x10000) {
+            NET_ITC_EPOLICE_RS485_PARAM epolice = ((nextType == originalType) && (originalType == 0x200 || originalType == 0x10000))
+                    ? trigger.uTriggerParam.asEpoliceRs485() : new NET_ITC_EPOLICE_RS485_PARAM();
+            epolice.byRelatedLaneNum = (byte) parseInt(arg(args, 7, String.valueOf(unsignedByte(epolice.byRelatedLaneNum))), unsignedByte(epolice.byRelatedLaneNum));
+            epolice.byTrafficLightSignalSrc = (byte) parseInt(arg(args, 67, String.valueOf(unsignedByte(epolice.byTrafficLightSignalSrc))), unsignedByte(epolice.byTrafficLightSignalSrc));
+            epolice.struPlateRecog.byEnable = (byte) (parseBooleanFlag(arg(args, 23, unsignedByte(epolice.struPlateRecog.byEnable) == 1 ? "1" : "0")) ? 1 : 0);
+            epolice.struPlateRecog.dwRecogMode = parseInt(arg(args, 24, String.valueOf(epolice.struPlateRecog.dwRecogMode)), epolice.struPlateRecog.dwRecogMode);
+            epolice.struPlateRecog.byVehicleLogoRecog = (byte) (parseBooleanFlag(arg(args, 25, unsignedByte(epolice.struPlateRecog.byVehicleLogoRecog) == 1 ? "1" : "0")) ? 1 : 0);
+            epolice.struPlateRecog.byProvince = (byte) parseInt(arg(args, 26, String.valueOf(unsignedByte(epolice.struPlateRecog.byProvince))), unsignedByte(epolice.struPlateRecog.byProvince));
+            epolice.struPlateRecog.byRegion = (byte) parseInt(arg(args, 27, String.valueOf(unsignedByte(epolice.struPlateRecog.byRegion))), unsignedByte(epolice.struPlateRecog.byRegion));
+            epolice.struPlateRecog.byCountry = (byte) parseInt(arg(args, 28, String.valueOf(unsignedByte(epolice.struPlateRecog.byCountry))), unsignedByte(epolice.struPlateRecog.byCountry));
+            epolice.struPlateRecog.wPlatePixelWidthMin = (short) parseInt(arg(args, 29, String.valueOf(unsignedShort(epolice.struPlateRecog.wPlatePixelWidthMin))), unsignedShort(epolice.struPlateRecog.wPlatePixelWidthMin));
+            epolice.struPlateRecog.wPlatePixelWidthMax = (short) parseInt(arg(args, 30, String.valueOf(unsignedShort(epolice.struPlateRecog.wPlatePixelWidthMax))), unsignedShort(epolice.struPlateRecog.wPlatePixelWidthMax));
+
+            NET_ITC_EPOLICE_LANE_PARAM firstLane = epolice.struLane[0];
+            firstLane.byEnable = (byte) (parseBooleanFlag(arg(args, 31, unsignedByte(firstLane.byEnable) == 1 ? "1" : "0")) ? 1 : 0);
+            firstLane.byRelatedDriveWay = (byte) parseInt(arg(args, 32, String.valueOf(defaultPositive(unsignedByte(firstLane.byRelatedDriveWay), 1))), defaultPositive(unsignedByte(firstLane.byRelatedDriveWay), 1));
+            firstLane.wDistance = (short) parseInt(arg(args, 33, String.valueOf(unsignedShort(firstLane.wDistance))), unsignedShort(firstLane.wDistance));
+            firstLane.bySignSpeed = (byte) parseInt(arg(args, 37, String.valueOf(unsignedByte(firstLane.bySignSpeed))), unsignedByte(firstLane.bySignSpeed));
+            firstLane.bySpeedLimit = (byte) parseInt(arg(args, 38, String.valueOf(unsignedByte(firstLane.bySpeedLimit))), unsignedByte(firstLane.bySpeedLimit));
+            firstLane.byOverlayDriveWay = (byte) parseInt(arg(args, 40, String.valueOf(defaultPositive(unsignedByte(firstLane.byOverlayDriveWay), 1))), defaultPositive(unsignedByte(firstLane.byOverlayDriveWay), 1));
+            firstLane.byFlashMode = (byte) parseInt(arg(args, 41, String.valueOf(unsignedByte(firstLane.byFlashMode))), unsignedByte(firstLane.byFlashMode));
+            firstLane.byBigCarSignSpeed = (byte) parseInt(arg(args, 42, String.valueOf(unsignedByte(firstLane.byBigCarSignSpeed))), unsignedByte(firstLane.byBigCarSignSpeed));
+            firstLane.byBigCarSpeedLimit = (byte) parseInt(arg(args, 43, String.valueOf(unsignedByte(firstLane.byBigCarSpeedLimit))), unsignedByte(firstLane.byBigCarSpeedLimit));
+            firstLane.byRelatedIOOutEx = (byte) parseInt(arg(args, 44, String.valueOf(unsignedByte(firstLane.byRelatedIOOutEx))), unsignedByte(firstLane.byRelatedIOOutEx));
+            firstLane.byRelaLaneDirectionType = (byte) parseInt(arg(args, 47, String.valueOf(unsignedByte(firstLane.byRelaLaneDirectionType))), unsignedByte(firstLane.byRelaLaneDirectionType));
+            firstLane.struSerialInfo.byIntervalType = (byte) parseInt(arg(args, 62, String.valueOf(unsignedByte(firstLane.struSerialInfo.byIntervalType))), unsignedByte(firstLane.struSerialInfo.byIntervalType));
+            firstLane.struSerialInfo.wInterval = (short) parseInt(arg(args, 63, String.valueOf(unsignedShort(firstLane.struSerialInfo.wInterval))), unsignedShort(firstLane.struSerialInfo.wInterval));
+            firstLane.bySnapPicPreRecord = (byte) parseInt(arg(args, 68, String.valueOf(unsignedByte(firstLane.bySnapPicPreRecord))), unsignedByte(firstLane.bySnapPicPreRecord));
+            firstLane.bySerialType = (byte) parseInt(arg(args, 69, String.valueOf(unsignedByte(firstLane.bySerialType))), unsignedByte(firstLane.bySerialType));
+            firstLane.struSerialInfo.bySerialProtocol = (byte) parseInt(arg(args, 70, String.valueOf(unsignedByte(firstLane.struSerialInfo.bySerialProtocol))), unsignedByte(firstLane.struSerialInfo.bySerialProtocol));
+            firstLane.struSerialInfo.byNormalPassProtocol = (byte) parseInt(arg(args, 71, String.valueOf(unsignedByte(firstLane.struSerialInfo.byNormalPassProtocol))), unsignedByte(firstLane.struSerialInfo.byNormalPassProtocol));
+            firstLane.struSerialInfo.byInverseProtocol = (byte) parseInt(arg(args, 72, String.valueOf(unsignedByte(firstLane.struSerialInfo.byInverseProtocol))), unsignedByte(firstLane.struSerialInfo.byInverseProtocol));
+            firstLane.struSerialInfo.bySpeedProtocol = (byte) parseInt(arg(args, 73, String.valueOf(unsignedByte(firstLane.struSerialInfo.bySpeedProtocol))), unsignedByte(firstLane.struSerialInfo.bySpeedProtocol));
+            applyPlateRecogRegion(firstLane.struPlateRecog[0], arg(args, 52, String.valueOf(unsignedByte(firstLane.struPlateRecog[0].byMode))), arg(args, 53, buildRegionPointsString(firstLane.struPlateRecog[0])));
+            firstLane.struSerialInfo.write();
+            firstLane.write();
+            epolice.struLane[0] = firstLane;
+            int copyParamMask = parseInt(arg(args, 75, "1"), 1) | 1;
+            int copyProtocolMask = parseInt(arg(args, 74, "1"), 1) | 1;
+            for (int i = 1; i < Math.min(epolice.struLane.length, 3); i += 1) {
+                NET_ITC_EPOLICE_LANE_PARAM item = epolice.struLane[i];
+                if ((copyParamMask & (1 << i)) != 0) copyEpoliceLaneParams(firstLane, item, false);
+                if ((copyProtocolMask & (1 << i)) != 0) copyEpoliceLaneParams(firstLane, item, true);
+                item.write();
+                epolice.struLane[i] = item;
+            }
+            epolice.struPlateRecog.write();
+            epolice.write();
+            writeStructureToUnion(trigger.uTriggerParam, epolice);
         }
 
         config.write();
@@ -2137,6 +2326,28 @@ public class HikvisionTrafficConfigTool {
         target.getPointer().write(0, data, 0, Math.min(data.length, target.size()));
         target.read();
         target.byEnable = originalEnable;
+        target.write();
+    }
+
+    private static void copyEpoliceLaneParams(NET_ITC_EPOLICE_LANE_PARAM source, NET_ITC_EPOLICE_LANE_PARAM target, boolean protocolOnly) {
+        if (protocolOnly) {
+            target.bySerialType = source.bySerialType;
+            target.struSerialInfo.bySerialProtocol = source.struSerialInfo.bySerialProtocol;
+            target.struSerialInfo.byNormalPassProtocol = source.struSerialInfo.byNormalPassProtocol;
+            target.struSerialInfo.byInverseProtocol = source.struSerialInfo.byInverseProtocol;
+            target.struSerialInfo.bySpeedProtocol = source.struSerialInfo.bySpeedProtocol;
+            target.struSerialInfo.write();
+            return;
+        }
+        byte originalEnable = target.byEnable;
+        byte originalDriveWay = target.byRelatedDriveWay;
+        byte originalOverlayDriveWay = target.byOverlayDriveWay;
+        byte[] data = source.getPointer().getByteArray(0, source.size());
+        target.getPointer().write(0, data, 0, Math.min(data.length, target.size()));
+        target.read();
+        target.byEnable = originalEnable;
+        target.byRelatedDriveWay = originalDriveWay;
+        target.byOverlayDriveWay = originalOverlayDriveWay;
         target.write();
     }
 
