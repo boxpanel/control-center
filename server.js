@@ -4479,7 +4479,7 @@ app.post("/api/activation/activate", async (req, res) => {
       return res.status(400).json({ ok: false, error: "密钥格式无效" });
     }
     const currentFp = await computeCurrentFingerprint();
-    if (!currentFp || parsed.fingerprint !== currentFp) {
+    if (!currentFp || parsed.fingerprint.toLowerCase() !== currentFp.toLowerCase()) {
       return res.status(400).json({ ok: false, error: "密钥与当前设备指纹不匹配，请使用为本设备生成的密钥" });
     }
     const now = Date.now();
