@@ -273,7 +273,11 @@ const els = {
   previewSnapshotBtn: document.getElementById("previewSnapshotBtn"),
   previewRtspTransport: document.getElementById("previewRtspTransport"),
   previewProcessMode: document.getElementById("previewProcessMode"),
-  previewShowProcessed: document.getElementById("previewShowProcessed")
+  previewShowProcessed: document.getElementById("previewShowProcessed"),
+  activationKeyInput: document.getElementById("activationKeyInput"),
+  activationApplyBtn: document.getElementById("activationApplyBtn"),
+  activationModuleList: document.getElementById("activationModuleList"),
+  activationHint: document.getElementById("activationHint")
 };
 
 let hlsPlayer = null;
@@ -1757,6 +1761,100 @@ window.showNavFeature = function (feature) {
     if (serialKv) serialKv.style.display = "";
   }
 };
+
+const FEATURES = [
+  { id: "network", label: "网络设备" },
+  { id: "serial", label: "串口设备" }
+];
+
+function loadActivationState() {
+  try {
+    const raw = localStorage.getItem("activation:features");
+    if (raw) return JSON.parse(raw);
+  } catch {}
+  return {};
+}
+
+function saveActivationState(state) {
+  try {
+    localStorage.setItem("activation:features", JSON.stringify(state));
+  } catch {}
+}
+
+function parseActivationKey(key) {
+  const prefix = "ACTIVATE-";
+  if (!key.startsWith(prefix)) return null;
+  const encoded = key.slice(prefix.length);
+  try {
+    const decoded = atob(encoded);
+    const features = decoded.split(",").map(f => f.trim()).filter(Boolean);
+    const valid = features.every(f => FEATURES.some(fm => fm.id === f));
+    if (!valid || features.length === 0) return null;
+    return features;
+  } catch {
+    return null;
+  }
+}
+
+function doActivateFeatures(features) {
+  const state = loadActivationState();
+  for (const f of features) {
+    state[f] = true;
+  }
+  saveActivationState(state);
+  for (const f of features) {
+    showNavFeature(f);
+  }
+}
+
+function refreshActivationModuleUi() {
+  const state = loadActivationState();
+  if (!els.activationModuleList) return;
+  const items = els.activationModuleList.querySelectorAll(".activation-module");
+  for (const el of items) {
+    const feature = el.dataset.feature;
+    const active = state[feature];
+    el.classList.toggle("active", !!active);
+    const icon = el.querySelector(".activation-module-icon");
+    const label = el.querySelector(".activation-module-status");
+    if (icon) icon.textContent = active ? "●" : "◌";
+    if (label) label.textContent = active ? "已激活" : "未激活";
+  }
+}
+
+function initActivationUi() {
+  const state = loadActivationState();
+  for (const f of Object.keys(state)) {
+    if (state[f]) showNavFeature(f);
+  }
+  refreshActivationModuleUi();
+
+  if (els.activationApplyBtn && els.activationKeyInput) {
+    els.activationApplyBtn.addEventListener("click", () => {
+      const key = String(els.activationKeyInput.value || "").trim();
+      if (!key) {
+        if (els.activationHint) els.activationHint.textContent = "请输入激活密钥";
+        return;
+      }
+      const features = parseActivationKey(key);
+      if (!features) {
+        if (els.activationHint) els.activationHint.textContent = "密钥无效，请检查后重试";
+        return;
+      }
+      doActivateFeatures(features);
+      refreshActivationModuleUi();
+      els.activationKeyInput.value = "";
+      if (els.activationHint) {
+        const names = features.map(f => {
+          const m = FEATURES.find(fm => fm.id === f);
+          return m ? m.label : f;
+        }).join("、");
+        els.activationHint.textContent = `已成功激活：${names}`;
+        els.activationHint.style.color = "#15803d";
+      }
+    });
+  }
+}
 
 function setSystemHint(text, isError = false) {
   if (!els.systemSaveHint) return;
@@ -6582,6 +6680,7 @@ const serialKv = document.getElementById("plateDetailSerialKv");
 if (serialKv) serialKv.style.display = "none";
 initSystemUi();
 initSerialUi();
+initActivationUi();
 initPlateModule();
 initEventStream();
 initDeviceConfigModalUi();
