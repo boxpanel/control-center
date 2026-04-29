@@ -1702,6 +1702,7 @@ function logSerialLine(text) {
 }
 
 const mainViewState = { view: "home" };
+const featureState = { network: false, serial: false };
 
 function setMainView(view) {
   const v = view === "serial" ? "serial" : view === "network" ? "network" : view === "system" ? "system" : "home";
@@ -1745,11 +1746,15 @@ function initSidebarNav() {
 }
 
 window.showNavFeature = function (feature) {
-  const btn = feature === "network" ? els.navNetworkBtn
-    : feature === "serial" ? els.navSerialBtn
-    : null;
-  if (btn) {
-    btn.classList.remove("nav-hidden");
+  if (feature === "network") {
+    featureState.network = true;
+    if (els.navNetworkBtn) els.navNetworkBtn.classList.remove("nav-hidden");
+  } else if (feature === "serial") {
+    featureState.serial = true;
+    if (els.navSerialBtn) els.navSerialBtn.classList.remove("nav-hidden");
+    document.documentElement.classList.remove("serial-hidden");
+    const serialKv = document.getElementById("plateDetailSerialKv");
+    if (serialKv) serialKv.style.display = "";
   }
 };
 
@@ -3346,7 +3351,7 @@ function renderPlateTable() {
   if (!pageItems.length) {
     const tr = document.createElement("tr");
     const td = document.createElement("td");
-    td.colSpan = 5;
+    td.colSpan = featureState.serial ? 5 : 4;
     td.style.padding = "18px";
     td.style.color = "#6b7280";
     td.style.textAlign = "center";
@@ -6572,6 +6577,9 @@ setButtons({ streaming: false });
 
 loadFingerprint();
 initSidebarNav();
+document.documentElement.classList.add("serial-hidden");
+const serialKv = document.getElementById("plateDetailSerialKv");
+if (serialKv) serialKv.style.display = "none";
 initSystemUi();
 initSerialUi();
 initPlateModule();

@@ -154,6 +154,14 @@ button:disabled {
   display: none !important;
 }
 
+.serial-hidden .plate-table th:nth-child(5),
+.serial-hidden .plate-table td:nth-child(5) {
+  display: none;
+}
+.serial-hidden .plate-metaSerial {
+  display: none;
+}
+
 .left { display: block; }
 .mainPage { display: grid; gap: 16px; }
 .right { display: grid; gap: 16px; }
