@@ -1744,6 +1744,15 @@ function initSidebarNav() {
   setMainView("home");
 }
 
+window.showNavFeature = function (feature) {
+  const btn = feature === "network" ? els.navNetworkBtn
+    : feature === "serial" ? els.navSerialBtn
+    : null;
+  if (btn) {
+    btn.classList.remove("nav-hidden");
+  }
+};
+
 function setSystemHint(text, isError = false) {
   if (!els.systemSaveHint) return;
   els.systemSaveHint.textContent = String(text || "");

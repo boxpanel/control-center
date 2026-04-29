@@ -150,6 +150,10 @@ button:disabled {
   color: #fff;
 }
 
+.nav-hidden {
+  display: none !important;
+}
+
 .left { display: block; }
 .mainPage { display: grid; gap: 16px; }
 .right { display: grid; gap: 16px; }
