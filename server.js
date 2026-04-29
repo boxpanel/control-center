@@ -92,6 +92,12 @@ plateDb.exec(`
     createdAt INTEGER NOT NULL,
     updatedAt INTEGER NOT NULL
   );
+
+  CREATE TABLE IF NOT EXISTS activation (
+    feature TEXT PRIMARY KEY,
+    activationKey TEXT NOT NULL,
+    activatedAt INTEGER NOT NULL
+  );
 `);
 const plateTableColumns = plateDb.prepare(`PRAGMA table_info(plate_records)`).all();
 if (!plateTableColumns.some((col) => String(col?.name || "") === "sourceEventKey")) {
@@ -169,6 +175,12 @@ const stmtAuthUpdate = plateDb.prepare(
   `UPDATE auth_users SET salt = @salt, hash = @hash, iterations = @iterations, updatedAt = @ts WHERE username = @username`
 );
 const stmtAuthDeleteAll = plateDb.prepare(`DELETE FROM auth_users`);
+
+const stmtActivationGetAll = plateDb.prepare(`SELECT feature, activationKey, activatedAt FROM activation`);
+const stmtActivationGet = plateDb.prepare(`SELECT feature, activationKey, activatedAt FROM activation WHERE feature = ?`);
+const stmtActivationUpsert = plateDb.prepare(
+  `INSERT OR REPLACE INTO activation (feature, activationKey, activatedAt) VALUES (@feature, @activationKey, @activatedAt)`
+);
 
 function rowToPlateDto(row) {
   if (!row) return null;
@@ -4410,6 +4422,59 @@ app.get("/api/serial/status", async (req, res, next) => {
 // 简单的状态检查端点，用于轮询检查服务器是否可用
 app.get("/api/status", (req, res) => {
   res.json({ ok: true, status: "running", timestamp: Date.now() });
+});
+
+const FEATURES_LIST = ["network", "serial"];
+
+function parseActivationKey(key) {
+  const prefix = "ACTIVATE-";
+  if (!key.startsWith(prefix)) return null;
+  const encoded = key.slice(prefix.length);
+  try {
+    const decoded = Buffer.from(encoded, "base64").toString("utf8");
+    const features = decoded.split(",").map(f => f.trim()).filter(Boolean);
+    const valid = features.every(f => FEATURES_LIST.includes(f));
+    if (!valid || features.length === 0) return null;
+    return features;
+  } catch {
+    return null;
+  }
+}
+
+app.get("/api/activation/status", (req, res) => {
+  try {
+    const rows = stmtActivationGetAll.all();
+    const state = {};
+    for (const r of rows) {
+      state[r.feature] = true;
+    }
+    res.json({ ok: true, features: state });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+app.post("/api/activation/activate", (req, res) => {
+  try {
+    const { key } = req.body || {};
+    if (!key || !String(key).trim()) {
+      return res.status(400).json({ ok: false, error: "请输入激活密钥" });
+    }
+    const features = parseActivationKey(String(key).trim());
+    if (!features) {
+      return res.status(400).json({ ok: false, error: "密钥无效，请检查后重试" });
+    }
+    const now = Date.now();
+    const insertMany = plateDb.transaction((feats) => {
+      for (const f of feats) {
+        stmtActivationUpsert.run({ feature: f, activationKey: key, activatedAt: now });
+      }
+    });
+    insertMany(features);
+    res.json({ ok: true, features });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message });
+  }
 });
 
 app.post("/api/serial/connect", async (req, res, next) => {

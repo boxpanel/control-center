@@ -1767,18 +1767,13 @@ const FEATURES = [
   { id: "serial", label: "串口设备" }
 ];
 
-function loadActivationState() {
+async function fetchActivationState() {
   try {
-    const raw = localStorage.getItem("activation:features");
-    if (raw) return JSON.parse(raw);
-  } catch {}
-  return {};
-}
-
-function saveActivationState(state) {
-  try {
-    localStorage.setItem("activation:features", JSON.stringify(state));
-  } catch {}
+    const r = await fetchJsonGet("/api/activation/status");
+    return r?.features || {};
+  } catch {
+    return {};
+  }
 }
 
 function parseActivationKey(key) {
@@ -1796,19 +1791,18 @@ function parseActivationKey(key) {
   }
 }
 
-function doActivateFeatures(features) {
-  const state = loadActivationState();
-  for (const f of features) {
-    state[f] = true;
-  }
-  saveActivationState(state);
-  for (const f of features) {
-    showNavFeature(f);
+async function doActivateFeatures(key) {
+  try {
+    const r = await fetchJson("/api/activation/activate", { key });
+    if (!r.ok) throw new Error(r.error || "激活失败");
+    return r.features || [];
+  } catch (e) {
+    throw e;
   }
 }
 
-function refreshActivationModuleUi() {
-  const state = loadActivationState();
+async function refreshActivationModuleUi() {
+  const state = await fetchActivationState();
   if (!els.activationModuleList) return;
   const items = els.activationModuleList.querySelectorAll(".activation-module");
   for (const el of items) {
@@ -1820,37 +1814,48 @@ function refreshActivationModuleUi() {
     if (icon) icon.textContent = active ? "●" : "◌";
     if (label) label.textContent = active ? "已激活" : "未激活";
   }
+  return state;
 }
 
-function initActivationUi() {
-  const state = loadActivationState();
+async function initActivationUi() {
+  const state = await fetchActivationState();
   for (const f of Object.keys(state)) {
     if (state[f]) showNavFeature(f);
   }
-  refreshActivationModuleUi();
+  await refreshActivationModuleUi();
 
   if (els.activationApplyBtn && els.activationKeyInput) {
-    els.activationApplyBtn.addEventListener("click", () => {
+    els.activationApplyBtn.addEventListener("click", async () => {
       const key = String(els.activationKeyInput.value || "").trim();
       if (!key) {
         if (els.activationHint) els.activationHint.textContent = "请输入激活密钥";
         return;
       }
-      const features = parseActivationKey(key);
-      if (!features) {
+      const parsed = parseActivationKey(key);
+      if (!parsed) {
         if (els.activationHint) els.activationHint.textContent = "密钥无效，请检查后重试";
         return;
       }
-      doActivateFeatures(features);
-      refreshActivationModuleUi();
-      els.activationKeyInput.value = "";
-      if (els.activationHint) {
+      try {
+        const features = await doActivateFeatures(key);
+        for (const f of features) {
+          showNavFeature(f);
+        }
+        await refreshActivationModuleUi();
+        els.activationKeyInput.value = "";
         const names = features.map(f => {
           const m = FEATURES.find(fm => fm.id === f);
           return m ? m.label : f;
         }).join("、");
-        els.activationHint.textContent = `已成功激活：${names}`;
-        els.activationHint.style.color = "#15803d";
+        if (els.activationHint) {
+          els.activationHint.textContent = `已成功激活：${names}`;
+          els.activationHint.style.color = "#15803d";
+        }
+      } catch (e) {
+        if (els.activationHint) {
+          els.activationHint.textContent = `激活失败：${e.message}`;
+          els.activationHint.style.color = "#b91c1c";
+        }
       }
     });
   }
