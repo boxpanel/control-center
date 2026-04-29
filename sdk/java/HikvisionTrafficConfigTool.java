@@ -1536,14 +1536,26 @@ public class HikvisionTrafficConfigTool {
             statusList.getPointer(),
             config.getPointer(), config.size()
         );
-        if (!ok) {
-            fail("NET_DVR_SetDeviceConfig(TRIGGEREX_CFG) failed", sdk.NET_DVR_GetLastError());
-            return "";
-        }
+        int deviceConfigError = ok ? 0 : sdk.NET_DVR_GetLastError();
         int setStatus = statusList.getValue();
-        if (setStatus != 0 && setStatus != 1) {
-            fail("NET_DVR_SetDeviceConfig(TRIGGEREX_CFG) returned status=" + setStatus, setStatus);
-            return "";
+        if (!ok || (setStatus != 0 && setStatus != 1)) {
+            int legacyChannel = nextType != 0 ? nextType : currentTriggerType;
+            boolean legacyOk = sdk.NET_DVR_SetDVRConfig(
+                userId,
+                NET_ITC_SET_TRIGGERCFG,
+                legacyChannel,
+                config.getPointer(),
+                config.size()
+            );
+            if (!legacyOk) {
+                int legacyError = sdk.NET_DVR_GetLastError();
+                fail(
+                    "NET_DVR_SetDeviceConfig(TRIGGEREX_CFG) failed/status=" + setStatus
+                    + ", fallback NET_DVR_SetDVRConfig(TRIGGERCFG) failed",
+                    legacyError != 0 ? legacyError : deviceConfigError
+                );
+                return "";
+            }
         }
         return buildTriggerConfig(userId);
     }
