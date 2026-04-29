@@ -2381,7 +2381,8 @@ public class HikvisionTrafficConfigTool {
             if (!saved) {
                 fail(
                     "NET_DVR_SetDeviceConfig(TRIGGEREX_CFG) failed/status=" + lastSetStatus
-                    + ", fallback NET_DVR_SetDVRConfig(TRIGGERCFG) failed",
+                    + "/error=" + lastDeviceConfigError
+                    + ", fallback NET_DVR_SetDVRConfig(TRIGGERCFG) failed/error=" + legacyError,
                     legacyError != 0 ? legacyError : lastDeviceConfigError
                 );
                 return "";
@@ -2647,11 +2648,13 @@ public class HikvisionTrafficConfigTool {
     private static void writeStructureToUnion(NET_ITC_TRIGGER_PARAM_UNION union, Structure value) {
         byte[] data = value.getPointer().getByteArray(0, value.size());
         union.getPointer().write(0, data, 0, Math.min(data.length, union.size()));
+        union.read();
     }
 
     private static void writeStructureToUnion(NET_ITC_VIDEO_TRIGGER_PARAM_UNION union, Structure value) {
         byte[] data = value.getPointer().getByteArray(0, value.size());
         union.getPointer().write(0, data, 0, Math.min(data.length, union.size()));
+        union.read();
     }
 
     private static void copySingleIoParams(NET_ITC_SINGLEIO_PARAM source, NET_ITC_SINGLEIO_PARAM target) {
