@@ -6566,16 +6566,11 @@ app.post("/api/sdk/trigger-config/set", async (req, res) => {
   } catch (error) {
     console.error("[SDK API] 保存触发模式配置失败:", error.message);
     console.error("[SDK API] 详细错误:", error.stack || error);
-    
-    const errMsg = error.message || "";
-    const isDeviceUnsupported = errMsg.includes("status=") || errMsg.includes("TRIGGERCFG") || errMsg.includes("SetDVRConfig") || errMsg.includes("错误码:");
-    
-    res.status(500).json({ 
+
+    res.status(500).json({
       success: false,
       error: "保存触发模式配置失败",
-      message: isDeviceUnsupported
-        ? "设备型号不支持通过SDK修改触发模式配置。请使用设备Web界面(http://192.168.11.253)进行配置"
-        : errMsg,
+      message: error.message || "保存触发模式配置失败",
       sdkAvailable: hikvisionSdkBridge ? hikvisionSdkBridge.sdkAvailable : false,
       mock: false
     });

@@ -833,11 +833,8 @@ public class HikvisionTrafficConfigTool {
     private static String applyCurrentTriggerMode(int userId, String[] args) {
         NET_DVR_CURTRIGGERMODE current = loadCurrentTriggerModeStruct(userId);
         if (current == null) return "";
-        current.dwTriggerType = parseInt(arg(args, 5, String.valueOf(current.dwTriggerType)), current.dwTriggerType);
-        current.write();
-        boolean ok = sdk.NET_DVR_SetDVRConfig(userId, NET_DVR_SET_CURTRIGGERMODE, 0, current.getPointer(), current.size());
-        if (!ok) {
-            fail("NET_DVR_SetDVRConfig(CURTRIGGERMODE) failed", sdk.NET_DVR_GetLastError());
+        int triggerType = parseInt(arg(args, 5, String.valueOf(current.dwTriggerType)), current.dwTriggerType);
+        if (!setCurrentTriggerModeStruct(userId, current, triggerType)) {
             return "";
         }
         return buildCurrentTriggerMode(userId);
@@ -1521,39 +1518,71 @@ public class HikvisionTrafficConfigTool {
             writeStructureToUnion(trigger.uTriggerParam, hvt);
         }
 
-        // Use NET_DVR_SET_TRIGGEREX_CFG with NET_DVR_TRIGGER_COND (matching official demo)
-        NET_DVR_TRIGGER_COND condition = new NET_DVR_TRIGGER_COND();
-        condition.dwSize = condition.size();
-        condition.dwChannel = 1;
-        condition.dwTriggerMode = nextType != 0 ? nextType : currentTriggerType;
-        condition.write();
-
         config.write();
-        IntByReference statusList = new IntByReference(0);
-        boolean ok = sdk.NET_DVR_SetDeviceConfig(
-            userId, NET_DVR_SET_TRIGGEREX_CFG, 1,
-            condition.getPointer(), condition.size(),
-            statusList.getPointer(),
-            config.getPointer(), config.size()
-        );
-        int deviceConfigError = ok ? 0 : sdk.NET_DVR_GetLastError();
-        int setStatus = statusList.getValue();
-        if (!ok || (setStatus != 0 && setStatus != 1)) {
-            int legacyChannel = nextType != 0 ? nextType : currentTriggerType;
-            boolean legacyOk = sdk.NET_DVR_SetDVRConfig(
-                userId,
-                NET_ITC_SET_TRIGGERCFG,
-                legacyChannel,
-                config.getPointer(),
-                config.size()
+
+        int triggerModeForCond = nextType != 0 ? nextType : currentTriggerType;
+        int[][] combos = {
+            {1, triggerModeForCond},
+            {0, triggerModeForCond},
+            {1, 0},
+            {0, 0}
+        };
+        int lastDeviceConfigError = 0;
+        int lastSetStatus = 0;
+        boolean saved = false;
+        for (int[] combo : combos) {
+            // NET_DVR_TRIGGER_COND mirrors the Hikvision demo: channel + trigger mode select the target config.
+            NET_DVR_TRIGGER_COND condition = new NET_DVR_TRIGGER_COND();
+            condition.dwSize = condition.size();
+            condition.dwChannel = combo[0];
+            condition.dwTriggerMode = combo[1];
+            condition.write();
+
+            config.write();
+            IntByReference statusList = new IntByReference(0);
+            boolean ok = sdk.NET_DVR_SetDeviceConfig(
+                userId, NET_DVR_SET_TRIGGEREX_CFG, 1,
+                condition.getPointer(), condition.size(),
+                statusList.getPointer(),
+                config.getPointer(), config.size()
             );
-            if (!legacyOk) {
-                int legacyError = sdk.NET_DVR_GetLastError();
-                fail(
-                    "NET_DVR_SetDeviceConfig(TRIGGEREX_CFG) failed/status=" + setStatus
-                    + ", fallback NET_DVR_SetDVRConfig(TRIGGERCFG) failed",
-                    legacyError != 0 ? legacyError : deviceConfigError
+            lastDeviceConfigError = ok ? 0 : sdk.NET_DVR_GetLastError();
+            lastSetStatus = statusList.getValue();
+            if (ok && (lastSetStatus == 0 || lastSetStatus == 1)) {
+                saved = true;
+                break;
+            }
+        }
+        if (!saved) {
+            int legacyError = 0;
+            for (int legacyChannel : new int[] {1, 0}) {
+                config.write();
+                boolean legacyOk = sdk.NET_DVR_SetDVRConfig(
+                    userId,
+                    NET_ITC_SET_TRIGGERCFG,
+                    legacyChannel,
+                    config.getPointer(),
+                    config.size()
                 );
+                if (legacyOk) {
+                    saved = true;
+                    break;
+                }
+                legacyError = sdk.NET_DVR_GetLastError();
+            }
+            if (!saved) {
+                fail(
+                    "NET_DVR_SetDeviceConfig(TRIGGEREX_CFG) failed/status=" + lastSetStatus
+                    + ", fallback NET_DVR_SetDVRConfig(TRIGGERCFG) failed",
+                    legacyError != 0 ? legacyError : lastDeviceConfigError
+                );
+                return "";
+            }
+        }
+        if (triggerModeForCond != 0) {
+            NET_DVR_CURTRIGGERMODE currentAfterSave = currentMode == null ? new NET_DVR_CURTRIGGERMODE() : currentMode;
+            currentAfterSave.dwSize = currentAfterSave.size();
+            if (!setCurrentTriggerModeStruct(userId, currentAfterSave, triggerModeForCond)) {
                 return "";
             }
         }
@@ -1747,6 +1776,22 @@ public class HikvisionTrafficConfigTool {
         }
         current.read();
         return current;
+    }
+
+    private static boolean setCurrentTriggerModeStruct(int userId, NET_DVR_CURTRIGGERMODE current, int triggerType) {
+        current.dwSize = current.size();
+        current.dwTriggerType = triggerType;
+        int lastError = 0;
+        for (int channel : new int[] {1, 0}) {
+            current.write();
+            boolean ok = sdk.NET_DVR_SetDVRConfig(userId, NET_DVR_SET_CURTRIGGERMODE, channel, current.getPointer(), current.size());
+            if (ok) {
+                return true;
+            }
+            lastError = sdk.NET_DVR_GetLastError();
+        }
+        fail("NET_DVR_SetDVRConfig(CURTRIGGERMODE) failed", lastError);
+        return false;
     }
 
     private static NET_ITC_TRIGGERCFG loadTriggerConfigStruct(int userId, int currentTriggerType) {
