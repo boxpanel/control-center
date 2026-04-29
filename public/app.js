@@ -276,7 +276,6 @@ const els = {
   previewShowProcessed: document.getElementById("previewShowProcessed"),
   activationKeyInput: document.getElementById("activationKeyInput"),
   activationApplyBtn: document.getElementById("activationApplyBtn"),
-  activationModuleList: document.getElementById("activationModuleList"),
   activationHint: document.getElementById("activationHint")
 };
 
@@ -1807,27 +1806,11 @@ function doActivateFeatures(features) {
   }
 }
 
-function refreshActivationModuleUi() {
-  const state = loadActivationState();
-  if (!els.activationModuleList) return;
-  const items = els.activationModuleList.querySelectorAll(".activation-module");
-  for (const el of items) {
-    const feature = el.dataset.feature;
-    const active = state[feature];
-    el.classList.toggle("active", !!active);
-    const icon = el.querySelector(".activation-module-icon");
-    const label = el.querySelector(".activation-module-status");
-    if (icon) icon.textContent = active ? "●" : "◌";
-    if (label) label.textContent = active ? "已激活" : "未激活";
-  }
-}
-
 function initActivationUi() {
   const state = loadActivationState();
   for (const f of Object.keys(state)) {
     if (state[f]) showNavFeature(f);
   }
-  refreshActivationModuleUi();
 
   if (els.activationApplyBtn && els.activationKeyInput) {
     els.activationApplyBtn.addEventListener("click", () => {
@@ -1842,7 +1825,6 @@ function initActivationUi() {
         return;
       }
       doActivateFeatures(features);
-      refreshActivationModuleUi();
       els.activationKeyInput.value = "";
       if (els.activationHint) {
         const names = features.map(f => {
