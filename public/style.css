@@ -52,6 +52,7 @@ h1 {
   word-break: break-all;
   flex: 1;
   min-width: 0;
+  max-width: 520px;
 }
 
 .fingerprint-row {
