@@ -1251,6 +1251,14 @@ public class HikvisionTrafficConfigTool {
         Integer firstLaneRegionMode = null;
         String firstLaneRegionPoints = "";
         Integer firstLaneRegionPointCount = null;
+        Integer singleIoEnabledMask = null;
+        Integer singleIoDefaultStatus = null;
+        Integer singleIoIntervalType = null;
+        Integer singleIoInterval1 = null;
+        Integer singleIoInterval2 = null;
+        Integer singleIoInterval3 = null;
+        Integer singleIoInterval4 = null;
+        Integer singleIoCopyMask = null;
 
         if (triggerType == 0x4) {
             NET_ITC_POST_RS485_PARAM rs485 = trigger.uTriggerParam.asRs485();
@@ -1263,6 +1271,18 @@ public class HikvisionTrafficConfigTool {
             NET_ITC_POST_SINGLEIO_PARAM singleIO = trigger.uTriggerParam.asSingleIO();
             NET_ITC_SINGLEIO_PARAM firstIO = singleIO.struSingleIO[0];
             laneCount = 1;
+            int enabledMask = 0;
+            for (int i = 0; i < Math.min(singleIO.struSingleIO.length, 7); i += 1) {
+                if (unsignedByte(singleIO.struSingleIO[i].byEnable) == 1) enabledMask |= (1 << i);
+            }
+            singleIoEnabledMask = enabledMask;
+            singleIoCopyMask = 1;
+            singleIoDefaultStatus = unsignedByte(firstIO.byDefaultStatus);
+            singleIoIntervalType = unsignedByte(firstIO.struInterval.byIntervalType);
+            singleIoInterval1 = unsignedShort(firstIO.struInterval.wInterval[0]);
+            singleIoInterval2 = unsignedShort(firstIO.struInterval.wInterval[1]);
+            singleIoInterval3 = unsignedShort(firstIO.struInterval.wInterval[2]);
+            singleIoInterval4 = unsignedShort(firstIO.struInterval.wInterval[3]);
             firstLaneEnabled = unsignedByte(firstIO.byEnable) == 1;
             firstLaneRelatedDriveWay = unsignedByte(firstIO.byRelatedDriveWay);
             firstLaneSnapTimes = unsignedByte(firstIO.bySnapTimes);
@@ -1400,7 +1420,15 @@ public class HikvisionTrafficConfigTool {
         raw.append("\"firstLaneBigCarLowSpeedLimit\":").append(firstLaneBigCarLowSpeedLimit == null ? "null" : firstLaneBigCarLowSpeedLimit).append(",");
         raw.append("\"firstLaneLowSpeedCapEnabled\":").append(firstLaneLowSpeedCapEnabled == null ? "null" : (firstLaneLowSpeedCapEnabled ? 1 : 0)).append(",");
         raw.append("\"firstLaneEmergencyCapEnabled\":").append(firstLaneEmergencyCapEnabled == null ? "null" : (firstLaneEmergencyCapEnabled ? 1 : 0)).append(",");
-        raw.append("\"firstLaneRegionMode\":").append(firstLaneRegionMode == null ? "null" : firstLaneRegionMode);
+        raw.append("\"firstLaneRegionMode\":").append(firstLaneRegionMode == null ? "null" : firstLaneRegionMode).append(",");
+        raw.append("\"singleIoEnabledMask\":").append(singleIoEnabledMask == null ? "null" : singleIoEnabledMask).append(",");
+        raw.append("\"singleIoDefaultStatus\":").append(singleIoDefaultStatus == null ? "null" : singleIoDefaultStatus).append(",");
+        raw.append("\"singleIoIntervalType\":").append(singleIoIntervalType == null ? "null" : singleIoIntervalType).append(",");
+        raw.append("\"singleIoInterval1\":").append(singleIoInterval1 == null ? "null" : singleIoInterval1).append(",");
+        raw.append("\"singleIoInterval2\":").append(singleIoInterval2 == null ? "null" : singleIoInterval2).append(",");
+        raw.append("\"singleIoInterval3\":").append(singleIoInterval3 == null ? "null" : singleIoInterval3).append(",");
+        raw.append("\"singleIoInterval4\":").append(singleIoInterval4 == null ? "null" : singleIoInterval4).append(",");
+        raw.append("\"singleIoCopyMask\":").append(singleIoCopyMask == null ? "null" : singleIoCopyMask);
         raw.append("},");
 
         return "{"
@@ -1477,6 +1505,14 @@ public class HikvisionTrafficConfigTool {
                 + "\"firstLaneRegionMode\":" + (firstLaneRegionMode == null ? "null" : firstLaneRegionMode) + ","
                 + "\"firstLaneRegionPoints\":\"" + json(firstLaneRegionPoints) + "\","
                 + "\"firstLaneRegionPointCount\":" + (firstLaneRegionPointCount == null ? "null" : firstLaneRegionPointCount) + ","
+                + "\"singleIoEnabledMask\":" + (singleIoEnabledMask == null ? "null" : singleIoEnabledMask) + ","
+                + "\"singleIoDefaultStatus\":" + (singleIoDefaultStatus == null ? "null" : singleIoDefaultStatus) + ","
+                + "\"singleIoIntervalType\":" + (singleIoIntervalType == null ? "null" : singleIoIntervalType) + ","
+                + "\"singleIoInterval1\":" + (singleIoInterval1 == null ? "null" : singleIoInterval1) + ","
+                + "\"singleIoInterval2\":" + (singleIoInterval2 == null ? "null" : singleIoInterval2) + ","
+                + "\"singleIoInterval3\":" + (singleIoInterval3 == null ? "null" : singleIoInterval3) + ","
+                + "\"singleIoInterval4\":" + (singleIoInterval4 == null ? "null" : singleIoInterval4) + ","
+                + "\"singleIoCopyMask\":" + (singleIoCopyMask == null ? "null" : singleIoCopyMask) + ","
                 + "\"summary\":\"" + json(summary.toString()) + "\""
                 + "}"
                 + "}";
@@ -1500,16 +1536,34 @@ public class HikvisionTrafficConfigTool {
         if (nextType == 0x2) {
             NET_ITC_POST_SINGLEIO_PARAM singleIO = (nextType == originalType) ? trigger.uTriggerParam.asSingleIO() : new NET_ITC_POST_SINGLEIO_PARAM();
             NET_ITC_SINGLEIO_PARAM firstIO = singleIO.struSingleIO[0];
-            firstIO.byEnable = trigger.byEnable;
+            int enabledMask = parseInt(arg(args, 54, unsignedByte(firstIO.byEnable) == 1 ? "1" : "0"), unsignedByte(firstIO.byEnable) == 1 ? 1 : 0);
+            int copyMask = parseInt(arg(args, 61, "1"), 1) | 1;
+            firstIO.byEnable = (byte) ((enabledMask & 0x1) != 0 ? 1 : 0);
+            firstIO.byDefaultStatus = (byte) parseInt(arg(args, 55, String.valueOf(unsignedByte(firstIO.byDefaultStatus))), unsignedByte(firstIO.byDefaultStatus));
             firstIO.byRelatedDriveWay = (byte) parseInt(arg(args, 32, String.valueOf(defaultPositive(unsignedByte(firstIO.byRelatedDriveWay), 1))), defaultPositive(unsignedByte(firstIO.byRelatedDriveWay), 1));
             firstIO.bySnapTimes = (byte) parseInt(arg(args, 39, String.valueOf(defaultPositive(unsignedByte(firstIO.bySnapTimes), 1))), defaultPositive(unsignedByte(firstIO.bySnapTimes), 1));
+            firstIO.struInterval.byIntervalType = (byte) parseInt(arg(args, 56, String.valueOf(unsignedByte(firstIO.struInterval.byIntervalType))), unsignedByte(firstIO.struInterval.byIntervalType));
+            firstIO.struInterval.wInterval[0] = (short) parseInt(arg(args, 57, String.valueOf(unsignedShort(firstIO.struInterval.wInterval[0]))), unsignedShort(firstIO.struInterval.wInterval[0]));
+            firstIO.struInterval.wInterval[1] = (short) parseInt(arg(args, 58, String.valueOf(unsignedShort(firstIO.struInterval.wInterval[1]))), unsignedShort(firstIO.struInterval.wInterval[1]));
+            firstIO.struInterval.wInterval[2] = (short) parseInt(arg(args, 59, String.valueOf(unsignedShort(firstIO.struInterval.wInterval[2]))), unsignedShort(firstIO.struInterval.wInterval[2]));
+            firstIO.struInterval.wInterval[3] = (short) parseInt(arg(args, 60, String.valueOf(unsignedShort(firstIO.struInterval.wInterval[3]))), unsignedShort(firstIO.struInterval.wInterval[3]));
             firstIO.byRelatedIOOutEx = (byte) parseInt(arg(args, 44, String.valueOf(unsignedByte(firstIO.byRelatedIOOutEx))), unsignedByte(firstIO.byRelatedIOOutEx));
             firstIO.byFlashMode = (byte) parseInt(arg(args, 41, String.valueOf(unsignedByte(firstIO.byFlashMode))), unsignedByte(firstIO.byFlashMode));
             firstIO.byUseageType = (byte) parseInt(arg(args, 46, String.valueOf(unsignedByte(firstIO.byUseageType))), unsignedByte(firstIO.byUseageType));
             firstIO.byEmergencyCapEn = (byte) (parseBooleanFlag(arg(args, 51, unsignedByte(firstIO.byEmergencyCapEn) == 1 ? "1" : "0")) ? 1 : 0);
+            firstIO.struInterval.write();
             applyPlateRecogRegion(firstIO.struPlateRecog[0], arg(args, 52, String.valueOf(unsignedByte(firstIO.struPlateRecog[0].byMode))), arg(args, 53, buildRegionPointsString(firstIO.struPlateRecog[0])));
             firstIO.write();
             singleIO.struSingleIO[0] = firstIO;
+            for (int i = 1; i < Math.min(singleIO.struSingleIO.length, 7); i += 1) {
+                NET_ITC_SINGLEIO_PARAM item = singleIO.struSingleIO[i];
+                if (i < 4 && (copyMask & (1 << i)) != 0) {
+                    copySingleIoParams(firstIO, item);
+                }
+                item.byEnable = (byte) ((enabledMask & (1 << i)) != 0 ? 1 : 0);
+                item.write();
+                singleIO.struSingleIO[i] = item;
+            }
 
             singleIO.struPlateRecog.write();
             singleIO.write();
@@ -1825,6 +1879,15 @@ public class HikvisionTrafficConfigTool {
     private static void writeStructureToUnion(NET_ITC_TRIGGER_PARAM_UNION union, Structure value) {
         byte[] data = value.getPointer().getByteArray(0, value.size());
         union.getPointer().write(0, data, 0, Math.min(data.length, union.size()));
+    }
+
+    private static void copySingleIoParams(NET_ITC_SINGLEIO_PARAM source, NET_ITC_SINGLEIO_PARAM target) {
+        byte originalEnable = target.byEnable;
+        byte[] data = source.getPointer().getByteArray(0, source.size());
+        target.getPointer().write(0, data, 0, Math.min(data.length, target.size()));
+        target.read();
+        target.byEnable = originalEnable;
+        target.write();
     }
 
     private static NET_DVR_NETCFG_V30 loadNetworkConfigStruct(int userId) {

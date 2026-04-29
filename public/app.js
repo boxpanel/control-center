@@ -466,6 +466,16 @@ const SDK_FLASH_MODE_OPTIONS = [
   { value: 1, label: "轮流闪" }
 ];
 
+const SDK_SINGLE_IO_DEFAULT_STATUS_OPTIONS = [
+  { value: 0, label: "下降沿" },
+  { value: 1, label: "上升沿" }
+];
+
+const SDK_INTERVAL_TYPE_OPTIONS = [
+  { value: 0, label: "时间" },
+  { value: 1, label: "距离" }
+];
+
 const SDK_FTP_DIR_LEVEL_OPTIONS = [
   { value: 0, label: "保存在根目录" },
   { value: 1, label: "使用一级目录" },
@@ -1047,7 +1057,15 @@ const DEVICE_PREVIEW_ISAPI_SCHEMAS = {
         firstLaneLowSpeedCapEnabled: String(values.firstLaneLowSpeedCapEnabled || "") === "1" || values.firstLaneLowSpeedCapEnabled === true,
         firstLaneEmergencyCapEnabled: String(values.firstLaneEmergencyCapEnabled || "") === "1" || values.firstLaneEmergencyCapEnabled === true,
         firstLaneRegionMode: Number(values.firstLaneRegionMode || 0) || 0,
-        firstLaneRegionPoints: String(values.firstLaneRegionPoints || "").trim()
+        firstLaneRegionPoints: String(values.firstLaneRegionPoints || "").trim(),
+        singleIoEnabledMask: Number(values.singleIoEnabledMask || 0) || 0,
+        singleIoDefaultStatus: Number(values.singleIoDefaultStatus || 0) || 0,
+        singleIoIntervalType: Number(values.singleIoIntervalType || 0) || 0,
+        singleIoInterval1: Number(values.singleIoInterval1 || 0) || 0,
+        singleIoInterval2: Number(values.singleIoInterval2 || 0) || 0,
+        singleIoInterval3: Number(values.singleIoInterval3 || 0) || 0,
+        singleIoInterval4: Number(values.singleIoInterval4 || 0) || 0,
+        singleIoCopyMask: Number(values.singleIoCopyMask || 1) || 1
       };
     }
   },
@@ -7438,6 +7456,26 @@ function renderTriggerIoOutputGroup() {
   return `<div class="devicePreviewTriggerIoGroup" data-isapi-bitmask-field="firstLaneRelatedIOOutEx">${items.join("")}</div>`;
 }
 
+function renderSingleIoInputGroup() {
+  const items = [];
+  for (let bit = 1; bit <= 7; bit += 1) {
+    items.push(`<label class="devicePreviewTriggerIoItem"><input type="checkbox" data-isapi-bitmask-item="${bit}" /><span>IO输入${bit}</span></label>`);
+  }
+  return `<div class="devicePreviewTriggerIoGroup devicePreviewSingleIoInputGroup" data-isapi-bitmask-field="singleIoEnabledMask">${items.join("")}</div>`;
+}
+
+function renderSingleIoCopyGroup() {
+  const items = [];
+  for (let bit = 1; bit <= 4; bit += 1) {
+    items.push(`<label class="devicePreviewTriggerIoItem"><input type="checkbox" data-isapi-bitmask-item="${bit}" ${bit === 1 ? "disabled" : ""} /><span>T${bit}</span></label>`);
+  }
+  return `<div class="devicePreviewTriggerIoGroup" data-isapi-bitmask-field="singleIoCopyMask">${items.join("")}</div>`;
+}
+
+function renderSingleIoIntervalFields() {
+  return `<label class="devicePreviewTriggerField"><span>连拍间隔</span><span class="devicePreviewTriggerControl devicePreviewSingleIoIntervals"><input class="devicePreviewParamInput" type="number" data-isapi-field="singleIoInterval1" /><input class="devicePreviewParamInput" type="number" data-isapi-field="singleIoInterval2" /><input class="devicePreviewParamInput" type="number" data-isapi-field="singleIoInterval3" /><input class="devicePreviewParamInput" type="number" data-isapi-field="singleIoInterval4" /><em>ms</em></span></label>`;
+}
+
 function renderDevicePreviewSdkCurrentTriggerModeControls() {
   return [
     '<div class="devicePreviewTriggerPanel">',
@@ -7486,35 +7524,40 @@ function renderDevicePreviewSdkTriggerConfigControls() {
     '<div class="devicePreviewTriggerSectionTitle">车道参数及识别区域设置</div>',
     '<div class="devicePreviewTriggerGrid">',
     '<div class="devicePreviewTriggerLeft">',
-    '<div class="devicePreviewTriggerSubTitle">车道1</div>',
+    '<div class="devicePreviewSingleIoOnly"><div class="devicePreviewTriggerIoRow"><span>启用IO</span>' + renderSingleIoInputGroup() + '</div><div class="devicePreviewTriggerTabs"><button type="button" class="active">T1</button><button type="button" disabled>T2</button><button type="button" disabled>T3</button><button type="button" disabled>T4</button></div></div>',
+    '<div class="devicePreviewTriggerSubTitle"><span class="devicePreviewRadarLaneTitle">车道1</span><span class="devicePreviewSingleIoOnly">T1</span></div>',
     renderTriggerFieldRow("关联车道号(也做叠加用)", "firstLaneRelatedDriveWay", { type: "number" }),
-    renderTriggerFieldRow("车道方向类型", "firstLaneDirectionType", { type: "select", selectOptions: SDK_LANE_DIRECTION_OPTIONS }),
+    '<div class="devicePreviewRadarOnly">' + renderTriggerFieldRow("车道方向类型", "firstLaneDirectionType", { type: "select", selectOptions: SDK_LANE_DIRECTION_OPTIONS }) + '</div>',
     renderTriggerFieldRow("车道用途", "firstLaneUseageType", { type: "select", selectOptions: SDK_LANE_USAGE_OPTIONS }),
-    renderTriggerFieldRow("线圈距离", "firstLaneDistance", { type: "number", unit: "cm" }),
-    renderTriggerFieldRow("触发延迟时间", "firstLaneTrigDelayTime", { type: "number", unit: "ms" }),
-    renderTriggerFieldRow("触发延迟距离", "firstLaneTrigDelayDistance", { type: "number", unit: "dm" }),
-    renderTriggerFieldRow("车道属性", "firstLaneLaneType", { type: "select", selectOptions: SDK_LANE_PROPERTY_OPTIONS }),
+    '<div class="devicePreviewSingleIoOnly">' + renderTriggerFieldRow("触发输入默认状态", "singleIoDefaultStatus", { type: "select", selectOptions: SDK_SINGLE_IO_DEFAULT_STATUS_OPTIONS }) + '</div>',
+    '<div class="devicePreviewRadarOnly">' + renderTriggerFieldRow("线圈距离", "firstLaneDistance", { type: "number", unit: "cm" }) + '</div>',
+    '<div class="devicePreviewRadarOnly">' + renderTriggerFieldRow("触发延迟时间", "firstLaneTrigDelayTime", { type: "number", unit: "ms" }) + '</div>',
+    '<div class="devicePreviewRadarOnly">' + renderTriggerFieldRow("触发延迟距离", "firstLaneTrigDelayDistance", { type: "number", unit: "dm" }) + '</div>',
+    '<div class="devicePreviewRadarOnly">' + renderTriggerFieldRow("车道属性", "firstLaneLaneType", { type: "select", selectOptions: SDK_LANE_PROPERTY_OPTIONS }) + '</div>',
     renderTriggerFieldRow("连拍张数", "firstLaneSnapTimes", { type: "select", selectOptions: SDK_SNAP_TIMES_OPTIONS }),
     renderTriggerCheckboxField("应急车道抓拍", "firstLaneEmergencyCapEnabled"),
-    renderTriggerCheckboxField("超速抓拍(超速多抓一张)", "firstLaneSpeedCapEnabled"),
-    renderTriggerCheckboxField("启用低速抓拍", "firstLaneLowSpeedCapEnabled"),
-    renderTriggerFieldRow("限速值", "firstLaneSpeedLimit", { type: "number", unit: "km/h" }),
-    renderTriggerFieldRow("标志限速", "firstLaneSignSpeed", { type: "number", unit: "km/h" }),
-    renderTriggerFieldRow("大车限高速", "firstLaneCartSpeedLimit", { type: "number", unit: "km/h" }),
-    renderTriggerFieldRow("大车标志限速", "firstLaneCartSignSpeed", { type: "number", unit: "km/h" }),
-    renderTriggerFieldRow("小车限低速", "firstLaneLowSpeedLimit", { type: "number", unit: "km/h" }),
-    renderTriggerFieldRow("大车限低速", "firstLaneBigCarLowSpeedLimit", { type: "number", unit: "km/h" }),
+    '<div class="devicePreviewRadarOnly">' + renderTriggerCheckboxField("超速抓拍(超速多抓一张)", "firstLaneSpeedCapEnabled") + '</div>',
+    '<div class="devicePreviewRadarOnly">' + renderTriggerCheckboxField("启用低速抓拍", "firstLaneLowSpeedCapEnabled") + '</div>',
+    '<div class="devicePreviewSingleIoOnly">' + renderTriggerFieldRow("连拍间隔类型", "singleIoIntervalType", { type: "select", selectOptions: SDK_INTERVAL_TYPE_OPTIONS }) + '</div>',
+    '<div class="devicePreviewSingleIoOnly">' + renderSingleIoIntervalFields() + '</div>',
+    '<div class="devicePreviewRadarOnly">' + renderTriggerFieldRow("限速值", "firstLaneSpeedLimit", { type: "number", unit: "km/h" }) + '</div>',
+    '<div class="devicePreviewRadarOnly">' + renderTriggerFieldRow("标志限速", "firstLaneSignSpeed", { type: "number", unit: "km/h" }) + '</div>',
+    '<div class="devicePreviewRadarOnly">' + renderTriggerFieldRow("大车限高速", "firstLaneCartSpeedLimit", { type: "number", unit: "km/h" }) + '</div>',
+    '<div class="devicePreviewRadarOnly">' + renderTriggerFieldRow("大车标志限速", "firstLaneCartSignSpeed", { type: "number", unit: "km/h" }) + '</div>',
+    '<div class="devicePreviewRadarOnly">' + renderTriggerFieldRow("小车限低速", "firstLaneLowSpeedLimit", { type: "number", unit: "km/h" }) + '</div>',
+    '<div class="devicePreviewRadarOnly">' + renderTriggerFieldRow("大车限低速", "firstLaneBigCarLowSpeedLimit", { type: "number", unit: "km/h" }) + '</div>',
     '<div class="devicePreviewTriggerIoRow"><span>关联同步输出</span>' + renderTriggerIoOutputGroup() + '</div>',
     renderTriggerFieldRow("补光灯闪烁模式", "firstLaneFlashMode", { type: "select", selectOptions: SDK_FLASH_MODE_OPTIONS }),
+    '<div class="devicePreviewSingleIoOnly"><div class="devicePreviewTriggerIoRow"><span>参数复制到</span>' + renderSingleIoCopyGroup() + '</div></div>',
     '</div>',
     '<div class="devicePreviewTriggerRight">',
     '<div class="devicePreviewTriggerPreviewBox"><svg class="devicePreviewTriggerCanvas" viewBox="0 0 100 100" preserveAspectRatio="none" aria-label="识别区域绘制画布"></svg><div class="devicePreviewTriggerPreviewLabel">识别区域1</div></div>',
     '<div class="devicePreviewTriggerPreviewToolbar"><div class="devicePreviewTriggerPreviewButtons"><button type="button" class="devicePreviewTriggerGhostBtn devicePreviewTriggerDrawBtn">绘制区域</button><button type="button" class="devicePreviewTriggerGhostBtn devicePreviewTriggerClearBtn">清除区域</button></div><label class="devicePreviewTriggerCheck devicePreviewTriggerInlineCheck"><input type="checkbox" disabled /><span>显示全部绘图</span></label></div>',
     '<div class="devicePreviewTriggerRegionStatus">尚未绘制识别区域</div>',
-    renderTriggerFieldRow("异常超速", "firstLaneSpeedLimit", { type: "number", unit: "km/h" }),
-    renderTriggerFieldRow("异常低速", "firstLaneLowSpeedLimit", { type: "number", unit: "km/h" }),
-    renderTriggerFieldRow("大车异常超速", "firstLaneCartSpeedLimit", { type: "number", unit: "km/h" }),
-    renderTriggerFieldRow("大车异常低速", "firstLaneBigCarLowSpeedLimit", { type: "number", unit: "km/h" }),
+    '<div class="devicePreviewRadarOnly">' + renderTriggerFieldRow("异常超速", "firstLaneSpeedLimit", { type: "number", unit: "km/h" }) + '</div>',
+    '<div class="devicePreviewRadarOnly">' + renderTriggerFieldRow("异常低速", "firstLaneLowSpeedLimit", { type: "number", unit: "km/h" }) + '</div>',
+    '<div class="devicePreviewRadarOnly">' + renderTriggerFieldRow("大车异常超速", "firstLaneCartSpeedLimit", { type: "number", unit: "km/h" }) + '</div>',
+    '<div class="devicePreviewRadarOnly">' + renderTriggerFieldRow("大车异常低速", "firstLaneBigCarLowSpeedLimit", { type: "number", unit: "km/h" }) + '</div>',
     '</div>',
     '</div>',
     '</div>',
@@ -7546,7 +7589,8 @@ function syncDevicePreviewTriggerModeSections() {
   if (!triggerCodeField) return;
   const triggerType = Number(getOnvifControlValue(triggerCodeField) || 0) || 0;
 
-    const showLane = triggerType === 2 || triggerType === 8;
+  const showSingleIo = triggerType === 2;
+  const showLane = showSingleIo || triggerType === 8;
   const showRadar = triggerType === 8;
   const showSpare = triggerType === 4;
   const showCapture = triggerType === 32;
@@ -7554,6 +7598,9 @@ function syncDevicePreviewTriggerModeSections() {
 
   host.querySelector('[data-isapi-field="laneCount"]')?.closest(".devicePreviewTriggerLaneCount")?.classList.toggle("view-hidden", !showLaneCount);
   host.querySelector('[data-trigger-group="lane"]')?.classList.toggle("view-hidden", !showLane);
+  host.querySelectorAll(".devicePreviewSingleIoOnly").forEach((node) => node.classList.toggle("view-hidden", !showSingleIo));
+  host.querySelectorAll(".devicePreviewRadarOnly").forEach((node) => node.classList.toggle("view-hidden", showSingleIo));
+  host.querySelectorAll(".devicePreviewRadarLaneTitle").forEach((node) => node.classList.toggle("view-hidden", showSingleIo));
   host.querySelector('[data-trigger-group="radar"]')?.classList.toggle("view-hidden", !showRadar);
   host.querySelector('[data-trigger-group="spare"]')?.classList.toggle("view-hidden", !showSpare);
   host.querySelector('[data-trigger-group="capture"]')?.classList.toggle("view-hidden", !showCapture);
@@ -8731,4 +8778,3 @@ if (els.previewSnapshotBtn) {
     }
   });
 }
-

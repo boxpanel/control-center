@@ -1603,6 +1603,40 @@ canvas {
   font-size: 14px;
 }
 
+.devicePreviewSingleIoInputGroup {
+  grid-template-columns: repeat(3, minmax(0, max-content));
+}
+
+.devicePreviewTriggerTabs {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  margin: 4px 0 2px;
+}
+
+.devicePreviewTriggerTabs button {
+  border: 1px solid rgba(203, 213, 225, 0.95);
+  background: #f3f4f6;
+  color: #64748b;
+  padding: 6px 14px;
+  font-size: 13px;
+}
+
+.devicePreviewTriggerTabs button.active {
+  background: #fff;
+  color: #111827;
+  font-weight: 700;
+}
+
+.devicePreviewSingleIoIntervals {
+  gap: 4px;
+}
+
+.devicePreviewSingleIoIntervals .devicePreviewParamInput {
+  width: 48px;
+  min-width: 0;
+}
+
 .devicePreviewTriggerRadarGrid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

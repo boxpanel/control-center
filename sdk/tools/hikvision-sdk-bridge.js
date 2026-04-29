@@ -363,7 +363,15 @@ class HikvisionSdkBridge {
       values.firstLaneLowSpeedCapEnabled ? "1" : "0",
       values.firstLaneEmergencyCapEnabled ? "1" : "0",
       String(Number(values.firstLaneRegionMode || 0) || 0),
-      withDefault(values.firstLaneRegionPoints)
+      withDefault(values.firstLaneRegionPoints),
+      String(Number(values.singleIoEnabledMask || 0) || 0),
+      String(Number(values.singleIoDefaultStatus || 0) || 0),
+      String(Number(values.singleIoIntervalType || 0) || 0),
+      String(Number(values.singleIoInterval1 || 0) || 0),
+      String(Number(values.singleIoInterval2 || 0) || 0),
+      String(Number(values.singleIoInterval3 || 0) || 0),
+      String(Number(values.singleIoInterval4 || 0) || 0),
+      String(Number(values.singleIoCopyMask || 1) || 1)
     ]);
   }
 
