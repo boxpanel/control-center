@@ -404,6 +404,24 @@ const SDK_SPEED_MODE_OPTIONS = [
   { value: 3, label: "视频测速" }
 ];
 
+const SDK_VIDEO_EPOLICE_LEVEL_OPTIONS = [
+  { value: 1, label: "1" },
+  { value: 2, label: "2" },
+  { value: 3, label: "3" }
+];
+
+const SDK_VIDEO_EPOLICE_DRIVE_DIRECT_OPTIONS = [
+  { value: 0, label: "未知" },
+  { value: 1, label: "左转" },
+  { value: 2, label: "直行" },
+  { value: 3, label: "右转" }
+];
+
+const SDK_VIDEO_EPOLICE_TRAFFIC_LIGHT_OPTIONS = [
+  { value: 0, label: "视频检测接入" },
+  { value: 1, label: "IO接入" }
+];
+
 const SDK_PLATE_RECOG_MODE_OPTIONS = [
   { value: 0, label: "关闭" },
   { value: 1, label: "仅车牌识别" },
@@ -1114,7 +1132,34 @@ const DEVICE_PREVIEW_ISAPI_SCHEMAS = {
         epoliceInverseProtocol: Number(values.epoliceInverseProtocol || 0) || 0,
         epoliceSpeedProtocol: Number(values.epoliceSpeedProtocol || 0) || 0,
         epoliceCopyProtocolMask: Number(values.epoliceCopyProtocolMask || 1) || 1,
-        epoliceCopyParamMask: Number(values.epoliceCopyParamMask || 1) || 1
+        epoliceCopyParamMask: Number(values.epoliceCopyParamMask || 1) || 1,
+        videoEpoliceIntervalType: Number(values.videoEpoliceIntervalType || 0) || 0,
+        videoEpoliceIntervalMs: Number(values.videoEpoliceIntervalMs || 0) || 0,
+        videoEpoliceCheckpointEnabled: values.videoEpoliceCheckpointEnabled === true,
+        videoEpoliceCheckpointLevel: Number(values.videoEpoliceCheckpointLevel || 1) || 1,
+        videoEpoliceWrongDirectionEnabled: values.videoEpoliceWrongDirectionEnabled === true,
+        videoEpoliceIllegalUTurnEnabled: values.videoEpoliceIllegalUTurnEnabled === true,
+        videoEpoliceIllegalUTurnLevel: Number(values.videoEpoliceIllegalUTurnLevel || 1) || 1,
+        videoEpoliceIllegalLaneChangeEnabled: values.videoEpoliceIllegalLaneChangeEnabled === true,
+        videoEpoliceIllegalLaneChangeLevel: Number(values.videoEpoliceIllegalLaneChangeLevel || 1) || 1,
+        videoEpoliceReverseEnabled: values.videoEpoliceReverseEnabled === true,
+        videoEpoliceReverseLevel: Number(values.videoEpoliceReverseLevel || 1) || 1,
+        videoEpoliceLaneLineEnabled: values.videoEpoliceLaneLineEnabled === true,
+        videoEpoliceLaneLineLevel: Number(values.videoEpoliceLaneLineLevel || 1) || 1,
+        videoEpoliceLaneLineSensitivity: Number(values.videoEpoliceLaneLineSensitivity || 0) || 0,
+        videoEpoliceMotorOccupyNonMotorEnabled: values.videoEpoliceMotorOccupyNonMotorEnabled === true,
+        videoEpoliceMotorOccupyNonMotorLevel: Number(values.videoEpoliceMotorOccupyNonMotorLevel || 1) || 1,
+        videoEpoliceStopSeconds: Number(values.videoEpoliceStopSeconds || 0) || 0,
+        videoEpoliceIntersectionStopEnabled: values.videoEpoliceIntersectionStopEnabled === true,
+        videoEpoliceGreenLightStopEnabled: values.videoEpoliceGreenLightStopEnabled === true,
+        videoEpoliceProhibitionSignEnabled: values.videoEpoliceProhibitionSignEnabled === true,
+        videoEpoliceProhibitionSignLevel: Number(values.videoEpoliceProhibitionSignLevel || 1) || 1,
+        videoEpoliceSpeedingEnabled: values.videoEpoliceSpeedingEnabled === true,
+        videoEpoliceSpeedingLevel: Number(values.videoEpoliceSpeedingLevel || 1) || 1,
+        videoEpoliceRedLightEnabled: values.videoEpoliceRedLightEnabled === true,
+        videoEpoliceCarDriveDirect: Number(values.videoEpoliceCarDriveDirect || 0) || 0,
+        videoEpoliceCopyParamMask: Number(values.videoEpoliceCopyParamMask || 1) || 1,
+        videoEpoliceTrafficLightDetect: Number(values.videoEpoliceTrafficLightDetect || 0) || 0
       };
     }
   },
@@ -7500,6 +7545,8 @@ function renderTriggerFieldRow(label, fieldKey, options = {}) {
     controlHtml = `<select class="devicePreviewParamSelect${controlClass}" data-isapi-field="${fieldKey}"${readOnly ? " disabled" : ""}>${renderPreviewSelectOptions(selectOptions)}</select>`;
   } else if (type === "checkbox") {
     controlHtml = `<input type="checkbox" data-isapi-field="${fieldKey}"${readOnly ? " disabled" : ""} />`;
+  } else if (type === "range") {
+    controlHtml = `<input class="devicePreviewParamInput${controlClass}" type="range" min="0" max="100" data-isapi-field="${fieldKey}"${readOnly ? " disabled" : ""} />`;
   } else {
     const inputType = type === "number" ? "number" : "text";
     controlHtml = `<input class="devicePreviewParamInput${controlClass}" type="${inputType}" data-isapi-field="${fieldKey}"${readOnly ? " readonly" : ""} />`;
@@ -7551,6 +7598,10 @@ function renderEpoliceCopyGroup(fieldName) {
   return `<div class="devicePreviewTriggerIoGroup" data-isapi-bitmask-field="${fieldName}">${items.join("")}</div>`;
 }
 
+function renderVideoEpoliceViolationField(label, enabledKey, levelKey) {
+  return `<label class="devicePreviewTriggerField"><span>${label}</span><span class="devicePreviewTriggerControl devicePreviewTriggerMixedControl"><input type="checkbox" data-isapi-field="${enabledKey}" /><select class="devicePreviewParamSelect" data-isapi-field="${levelKey}">${renderPreviewSelectOptions(SDK_VIDEO_EPOLICE_LEVEL_OPTIONS)}</select></span></label>`;
+}
+
 function renderSingleIoIntervalFields() {
   return `<label class="devicePreviewTriggerField"><span>连拍间隔</span><span class="devicePreviewTriggerControl devicePreviewSingleIoIntervals"><input class="devicePreviewParamInput" type="number" data-isapi-field="singleIoInterval1" /><input class="devicePreviewParamInput" type="number" data-isapi-field="singleIoInterval2" /><input class="devicePreviewParamInput" type="number" data-isapi-field="singleIoInterval3" /><input class="devicePreviewParamInput" type="number" data-isapi-field="singleIoInterval4" /><em>ms</em></span></label>`;
 }
@@ -7599,12 +7650,39 @@ function renderDevicePreviewSdkTriggerConfigControls() {
     '</div>',
     '</div>',
     '</div>',
+    '<div class="devicePreviewTriggerSection view-hidden" data-trigger-group="videoEpolice">',
+    '<div class="devicePreviewTriggerSectionTitle">视频检测抓拍类型</div>',
+    '<div class="devicePreviewTriggerGrid">',
+    '<div class="devicePreviewTriggerLeft">',
+    renderTriggerFieldRow("连拍间隔类型", "videoEpoliceIntervalType", { type: "select", selectOptions: SDK_INTERVAL_TYPE_OPTIONS }),
+    renderVideoEpoliceViolationField("卡口", "videoEpoliceCheckpointEnabled", "videoEpoliceCheckpointLevel"),
+    renderTriggerCheckboxField("不按导向行驶", "videoEpoliceWrongDirectionEnabled"),
+    renderVideoEpoliceViolationField("违章掉头", "videoEpoliceIllegalUTurnEnabled", "videoEpoliceIllegalUTurnLevel"),
+    renderVideoEpoliceViolationField("违法变道", "videoEpoliceIllegalLaneChangeEnabled", "videoEpoliceIllegalLaneChangeLevel"),
+    renderVideoEpoliceViolationField("逆行", "videoEpoliceReverseEnabled", "videoEpoliceReverseLevel"),
+    renderVideoEpoliceViolationField("压车道线", "videoEpoliceLaneLineEnabled", "videoEpoliceLaneLineLevel"),
+    renderTriggerFieldRow("压车道线灵敏度", "videoEpoliceLaneLineSensitivity", { type: "range" }),
+    renderVideoEpoliceViolationField("机占非", "videoEpoliceMotorOccupyNonMotorEnabled", "videoEpoliceMotorOccupyNonMotorLevel"),
+    renderTriggerFieldRow("停留时间(秒)", "videoEpoliceStopSeconds", { type: "range" }),
+    '</div>',
+    '<div class="devicePreviewTriggerLeft">',
+    renderTriggerFieldRow("连拍间隔时间", "videoEpoliceIntervalMs", { type: "number", unit: "ms" }),
+    renderTriggerCheckboxField("路口停车", "videoEpoliceIntersectionStopEnabled"),
+    renderTriggerCheckboxField("绿灯停车", "videoEpoliceGreenLightStopEnabled"),
+    renderVideoEpoliceViolationField("违反禁令标志", "videoEpoliceProhibitionSignEnabled", "videoEpoliceProhibitionSignLevel"),
+    renderVideoEpoliceViolationField("超速", "videoEpoliceSpeedingEnabled", "videoEpoliceSpeedingLevel"),
+    renderTriggerCheckboxField("闯红灯", "videoEpoliceRedLightEnabled"),
+    '<a class="devicePreviewTriggerAdvancedLink" href="javascript:void(0)">高级参数</a>',
+    '</div>',
+    '</div>',
+    '</div>',
     '<div class="devicePreviewTriggerSection" data-trigger-group="lane">',
     '<div class="devicePreviewTriggerSectionTitle">车道参数及识别区域设置</div>',
     '<div class="devicePreviewTriggerGrid">',
     '<div class="devicePreviewTriggerLeft">',
     '<div class="devicePreviewEpoliceOnly devicePreviewTriggerSectionTitle">电警车检器参数</div>',
     '<div class="devicePreviewCardEpoliceOnly devicePreviewTriggerSectionTitle">卡式电警车检器参数</div>',
+    '<div class="devicePreviewVideoEpoliceOnly devicePreviewTriggerSectionTitle">车道参数及触发规则设置</div>',
     '<div class="devicePreviewEpoliceOnly">' + renderTriggerFieldRow("交通信号灯", "epoliceTrafficLightSignalSrc", { type: "select", selectOptions: SDK_TRAFFIC_LIGHT_SIGNAL_OPTIONS }) + '</div>',
     '<div class="devicePreviewCardEpoliceOnly">' + renderTriggerFieldRow("交通信号灯", "epoliceTrafficLightSignalSrc", { type: "select", selectOptions: SDK_TRAFFIC_LIGHT_SIGNAL_OPTIONS }) + '</div>',
     '<div class="devicePreviewSingleIoOnly"><div class="devicePreviewTriggerIoRow"><span>启用IO</span>' + renderSingleIoInputGroup() + '</div><div class="devicePreviewTriggerTabs"><button type="button" class="active">T1</button><button type="button" disabled>T2</button><button type="button" disabled>T3</button><button type="button" disabled>T4</button></div></div>',
@@ -7614,12 +7692,16 @@ function renderDevicePreviewSdkTriggerConfigControls() {
     '<div class="devicePreviewCardEpoliceOnly">' + renderTriggerFieldRow("车道方向类型", "firstLaneDirectionType", { type: "select", selectOptions: SDK_LANE_DIRECTION_OPTIONS }) + '</div>',
     '<div class="devicePreviewEpoliceOnly">' + renderTriggerFieldRow("预录开始时间", "epoliceSnapPicPreRecord", { type: "select", selectOptions: SDK_EPOLICE_SNAP_PRE_RECORD_OPTIONS }) + '</div>',
     '<div class="devicePreviewCardEpoliceOnly">' + renderTriggerFieldRow("预录开始时间", "epoliceSnapPicPreRecord", { type: "select", selectOptions: SDK_EPOLICE_SNAP_PRE_RECORD_OPTIONS }) + '</div>',
+    '<div class="devicePreviewVideoEpoliceOnly">' + renderTriggerFieldRow("方向编号", "firstLaneDirectionType", { type: "select", selectOptions: SDK_LANE_DIRECTION_OPTIONS }) + '</div>',
+    '<div class="devicePreviewVideoEpoliceOnly">' + renderTriggerFieldRow("预录开始时间", "epoliceSnapPicPreRecord", { type: "select", selectOptions: SDK_EPOLICE_SNAP_PRE_RECORD_OPTIONS }) + '</div>',
     renderTriggerFieldRow("关联车道号(也做叠加用)", "firstLaneRelatedDriveWay", { type: "number" }),
     '<div class="devicePreviewEpoliceOnly">' + renderTriggerFieldRow("叠加车道号", "firstLaneOverlayDriveWay", { type: "number" }) + '</div>',
     '<div class="devicePreviewCardEpoliceOnly">' + renderTriggerFieldRow("叠加车道号", "firstLaneOverlayDriveWay", { type: "number" }) + '</div>',
     '<div class="devicePreviewRadarOnly">' + renderTriggerFieldRow("叠加车道号", "firstLaneOverlayDriveWay", { type: "number" }) + '</div>',
     '<div class="devicePreviewRadarOnly">' + renderTriggerFieldRow("车道方向类型", "firstLaneDirectionType", { type: "select", selectOptions: SDK_LANE_DIRECTION_OPTIONS }) + '</div>',
     '<div class="devicePreviewStandardLaneOnly">' + renderTriggerFieldRow("车道用途", "firstLaneUseageType", { type: "select", selectOptions: SDK_LANE_USAGE_OPTIONS }) + '</div>',
+    '<div class="devicePreviewVideoEpoliceOnly">' + renderTriggerFieldRow("车道用途", "firstLaneUseageType", { type: "select", selectOptions: SDK_LANE_USAGE_OPTIONS }) + '</div>',
+    '<div class="devicePreviewVideoEpoliceOnly">' + renderTriggerFieldRow("车道行驶方向", "videoEpoliceCarDriveDirect", { type: "select", selectOptions: SDK_VIDEO_EPOLICE_DRIVE_DIRECT_OPTIONS }) + '</div>',
     '<div class="devicePreviewSingleIoOnly">' + renderTriggerFieldRow("触发输入默认状态", "singleIoDefaultStatus", { type: "select", selectOptions: SDK_SINGLE_IO_DEFAULT_STATUS_OPTIONS }) + '</div>',
     '<div class="devicePreviewRadarOnly">' + renderTriggerFieldRow("线圈距离", "firstLaneDistance", { type: "number", unit: "cm" }) + '</div>',
     '<div class="devicePreviewRadarOnly">' + renderTriggerFieldRow("触发延迟时间", "firstLaneTrigDelayTime", { type: "number", unit: "ms" }) + '</div>',
@@ -7653,6 +7735,8 @@ function renderDevicePreviewSdkTriggerConfigControls() {
     '<div class="devicePreviewCardEpoliceOnly"><div class="devicePreviewTriggerIoRow"><span>复制车检器协议到车道</span>' + renderEpoliceCopyGroup("epoliceCopyProtocolMask") + '</div></div>',
     '<div class="devicePreviewEpoliceOnly"><div class="devicePreviewTriggerIoRow"><span>参数复制到</span>' + renderEpoliceCopyGroup("epoliceCopyParamMask") + '</div></div>',
     '<div class="devicePreviewCardEpoliceOnly"><div class="devicePreviewTriggerIoRow"><span>参数复制到</span>' + renderEpoliceCopyGroup("epoliceCopyParamMask") + '</div></div>',
+    '<div class="devicePreviewVideoEpoliceOnly"><div class="devicePreviewTriggerIoRow"><span>参数复制到</span>' + renderEpoliceCopyGroup("videoEpoliceCopyParamMask") + '</div></div>',
+    '<div class="devicePreviewVideoEpoliceOnly">' + renderTriggerFieldRow("红绿灯检测", "videoEpoliceTrafficLightDetect", { type: "select", selectOptions: SDK_VIDEO_EPOLICE_TRAFFIC_LIGHT_OPTIONS }) + '</div>',
     '<div class="devicePreviewSingleIoOnly"><div class="devicePreviewTriggerIoRow"><span>参数复制到</span>' + renderSingleIoCopyGroup() + '</div></div>',
     '</div>',
     '<div class="devicePreviewTriggerRight">',
@@ -7699,7 +7783,8 @@ function syncDevicePreviewTriggerModeSections() {
   const showCapture = triggerType === 32;
   const showEpolice = triggerType === 512;
   const showCardEpolice = triggerType === 65536;
-  const showAnyEpolice = showEpolice || showCardEpolice;
+  const showVideoEpolice = triggerType === 131072;
+  const showAnyEpolice = showEpolice || showCardEpolice || showVideoEpolice;
   const showLane = showSingleIo || showVehicleDetector || showCapture || showAnyEpolice || triggerType === 8;
   const showRadar = triggerType === 8 || showCapture;
   const showSpare = showVehicleDetector;
@@ -7713,11 +7798,13 @@ function syncDevicePreviewTriggerModeSections() {
   host.querySelectorAll(".devicePreviewVehicleDetectorOnly").forEach((node) => node.classList.toggle("view-hidden", !showVehicleDetector));
   host.querySelectorAll(".devicePreviewEpoliceOnly").forEach((node) => node.classList.toggle("view-hidden", !showEpolice));
   host.querySelectorAll(".devicePreviewCardEpoliceOnly").forEach((node) => node.classList.toggle("view-hidden", !showCardEpolice));
-  host.querySelectorAll(".devicePreviewStandardLaneOnly").forEach((node) => node.classList.toggle("view-hidden", showCardEpolice));
+  host.querySelectorAll(".devicePreviewVideoEpoliceOnly").forEach((node) => node.classList.toggle("view-hidden", !showVideoEpolice));
+  host.querySelectorAll(".devicePreviewStandardLaneOnly").forEach((node) => node.classList.toggle("view-hidden", showCardEpolice || showVideoEpolice));
   host.querySelectorAll(".devicePreviewMultiLaneOnly").forEach((node) => node.classList.toggle("view-hidden", !(showVehicleDetector || showCapture || showAnyEpolice)));
   host.querySelector('[data-trigger-group="radar"]')?.classList.toggle("view-hidden", !showRadar);
   host.querySelector('[data-trigger-group="spare"]')?.classList.toggle("view-hidden", !showSpare);
   host.querySelector('[data-trigger-group="capture"]')?.classList.toggle("view-hidden", !showCapture);
+  host.querySelector('[data-trigger-group="videoEpolice"]')?.classList.toggle("view-hidden", !showVideoEpolice);
 }
 
 function bindDevicePreviewTriggerTypeChange() {
