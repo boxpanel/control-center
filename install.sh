@@ -286,7 +286,11 @@ ensure_install_settings_present() {
 ensure_upgrade_backup_dir() {
   local parent_dir
   parent_dir="$(dirname "$INSTALL_DIR")"
-  printf "%s/.control-center-upgrade-backup-%s\n" "$parent_dir" "$(date +%Y%m%d-%H%M%S)"
+  printf "%s/.control-center-backups\n" "$parent_dir"
+}
+
+upgrade_backup_tag() {
+  date +%Y%m%d-%H%M%S
 }
 
 ensure_base_packages() {
@@ -595,11 +599,12 @@ bootstrap_repo_then_run() {
     repair_git_index_if_needed "$INSTALL_DIR"
     if [[ -n "$(git -C "$INSTALL_DIR" status --porcelain 2>/dev/null || true)" ]]; then
       BACKUP_DIR="$(ensure_upgrade_backup_dir)"
-      printf "[WARN] Local changes detected. Backing them up to:\n"
-      printf "       %s\n" "$BACKUP_DIR"
+      BACKUP_TAG="$(upgrade_backup_tag)"
       mkdir -p "$BACKUP_DIR"
-      git -C "$INSTALL_DIR" diff >"$BACKUP_DIR/local-changes.patch" || true
-      git -C "$INSTALL_DIR" status --short >"$BACKUP_DIR/status.txt" || true
+      git -C "$INSTALL_DIR" diff >"$BACKUP_DIR/${BACKUP_TAG}.patch" || true
+      git -C "$INSTALL_DIR" status --short >"$BACKUP_DIR/${BACKUP_TAG}-status.txt" || true
+      printf "[WARN] Local changes detected. Backed up to:\n"
+      printf "       %s\n" "${BACKUP_DIR}/${BACKUP_TAG}.patch"
     fi
     repair_git_index_if_needed "$INSTALL_DIR"
     git -C "$INSTALL_DIR" fetch origin "$REPO_BRANCH"
@@ -622,8 +627,8 @@ bootstrap_repo_then_run() {
   "$INSTALL_DIR/install.sh" "${args[@]}"
 
   if [[ -n "$BACKUP_DIR" ]]; then
-    printf "\n[INFO] Previous local changes were backed up to:\n"
-    printf "       %s\n" "$BACKUP_DIR"
+    printf "\n[INFO] Previous local changes are backed up in:\n"
+    printf "       %s/  (see %s-*.patch)\n" "$BACKUP_DIR" "$BACKUP_TAG"
   fi
 }
 
