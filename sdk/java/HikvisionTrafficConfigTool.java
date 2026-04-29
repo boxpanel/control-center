@@ -333,6 +333,40 @@ public class HikvisionTrafficConfigTool {
         }
     }
 
+    public static class NET_ITC_SINGLEIO_PARAM extends Structure {
+        public byte byDefaultStatus;
+        public byte byRelatedDriveWay;
+        public byte bySnapTimes;
+        public byte byRelatedIOOutEx;
+        public NET_ITC_INTERVAL_PARAM struInterval = new NET_ITC_INTERVAL_PARAM();
+        public byte[] byRelatedIOOut = new byte[4];
+        public byte byFlashMode;
+        public byte byEnable;
+        public byte byUseageType;
+        public byte byEmergencyCapEn;
+        public NET_ITC_PLATE_RECOG_REGION_PARAM[] struPlateRecog = (NET_ITC_PLATE_RECOG_REGION_PARAM[]) new NET_ITC_PLATE_RECOG_REGION_PARAM().toArray(2);
+        public byte[] byRes = new byte[24];
+
+        @Override
+        protected List<String> getFieldOrder() {
+            return Arrays.asList(
+                    "byDefaultStatus", "byRelatedDriveWay", "bySnapTimes", "byRelatedIOOutEx",
+                    "struInterval", "byRelatedIOOut", "byFlashMode", "byEnable", "byUseageType",
+                    "byEmergencyCapEn", "struPlateRecog", "byRes"
+            );
+        }
+    }
+
+    public static class NET_ITC_POST_SINGLEIO_PARAM extends Structure {
+        public NET_ITC_PLATE_RECOG_PARAM struPlateRecog = new NET_ITC_PLATE_RECOG_PARAM();
+        public NET_ITC_SINGLEIO_PARAM[] struSingleIO = (NET_ITC_SINGLEIO_PARAM[]) new NET_ITC_SINGLEIO_PARAM().toArray(8);
+
+        @Override
+        protected List<String> getFieldOrder() {
+            return Arrays.asList("struPlateRecog", "struSingleIO");
+        }
+    }
+
     private static NET_VCA_RECT asRectRegion(NET_ITC_PLATE_RECOG_REGION_PARAM region) {
         NET_VCA_RECT rect = new NET_VCA_RECT();
         rect.getPointer().write(0, region.uRegion, 0, Math.min(rect.size(), region.uRegion.length));
@@ -478,6 +512,13 @@ public class HikvisionTrafficConfigTool {
         @Override
         protected List<String> getFieldOrder() {
             return Collections.singletonList("uLen");
+        }
+
+        public NET_ITC_POST_SINGLEIO_PARAM asSingleIO() {
+            NET_ITC_POST_SINGLEIO_PARAM value = new NET_ITC_POST_SINGLEIO_PARAM();
+            value.getPointer().write(0, this.getPointer().getByteArray(0, value.size()), 0, value.size());
+            value.read();
+            return value;
         }
 
         public NET_ITC_POST_RS485_PARAM asRs485() {
@@ -1218,6 +1259,21 @@ public class HikvisionTrafficConfigTool {
             triggerSpareModeLabel = getTriggerSpareModeLabel(triggerSpareMode);
             faultToleranceMinutes = unsignedByte(rs485.byFaultToleranceTime);
             detailSource = "rs485";
+        } else if (triggerType == 0x2) {
+            NET_ITC_POST_SINGLEIO_PARAM singleIO = trigger.uTriggerParam.asSingleIO();
+            NET_ITC_SINGLEIO_PARAM firstIO = singleIO.struSingleIO[0];
+            laneCount = 1;
+            firstLaneEnabled = unsignedByte(firstIO.byEnable) == 1;
+            firstLaneRelatedDriveWay = unsignedByte(firstIO.byRelatedDriveWay);
+            firstLaneSnapTimes = unsignedByte(firstIO.bySnapTimes);
+            firstLaneRelatedIOOutEx = unsignedByte(firstIO.byRelatedIOOutEx);
+            firstLaneFlashMode = unsignedByte(firstIO.byFlashMode);
+            firstLaneUseageType = unsignedByte(firstIO.byUseageType);
+            firstLaneEmergencyCapEnabled = unsignedByte(firstIO.byEmergencyCapEn) == 1;
+            firstLaneRegionMode = unsignedByte(firstIO.struPlateRecog[0].byMode);
+            firstLaneRegionPoints = buildRegionPointsString(firstIO.struPlateRecog[0]);
+            firstLaneRegionPointCount = countRegionPoints(firstLaneRegionPoints);
+            detailSource = "singleIO";
         } else if (triggerType == 0x8) {
             NET_ITC_POST_RS485_RADAR_PARAM radar = trigger.uTriggerParam.asRadar();
             laneCount = unsignedByte(radar.byRelatedLaneNum);
@@ -1441,7 +1497,24 @@ public class HikvisionTrafficConfigTool {
         int nextType = parseInt(arg(args, 6, String.valueOf(trigger.dwTriggerType)), trigger.dwTriggerType);
         trigger.dwTriggerType = nextType;
 
-        if (nextType == 0x4) {
+        if (nextType == 0x2) {
+            NET_ITC_POST_SINGLEIO_PARAM singleIO = (nextType == originalType) ? trigger.uTriggerParam.asSingleIO() : new NET_ITC_POST_SINGLEIO_PARAM();
+            NET_ITC_SINGLEIO_PARAM firstIO = singleIO.struSingleIO[0];
+            firstIO.byEnable = trigger.byEnable;
+            firstIO.byRelatedDriveWay = (byte) parseInt(arg(args, 32, String.valueOf(defaultPositive(unsignedByte(firstIO.byRelatedDriveWay), 1))), defaultPositive(unsignedByte(firstIO.byRelatedDriveWay), 1));
+            firstIO.bySnapTimes = (byte) parseInt(arg(args, 39, String.valueOf(defaultPositive(unsignedByte(firstIO.bySnapTimes), 1))), defaultPositive(unsignedByte(firstIO.bySnapTimes), 1));
+            firstIO.byRelatedIOOutEx = (byte) parseInt(arg(args, 44, String.valueOf(unsignedByte(firstIO.byRelatedIOOutEx))), unsignedByte(firstIO.byRelatedIOOutEx));
+            firstIO.byFlashMode = (byte) parseInt(arg(args, 41, String.valueOf(unsignedByte(firstIO.byFlashMode))), unsignedByte(firstIO.byFlashMode));
+            firstIO.byUseageType = (byte) parseInt(arg(args, 46, String.valueOf(unsignedByte(firstIO.byUseageType))), unsignedByte(firstIO.byUseageType));
+            firstIO.byEmergencyCapEn = (byte) (parseBooleanFlag(arg(args, 51, unsignedByte(firstIO.byEmergencyCapEn) == 1 ? "1" : "0")) ? 1 : 0);
+            applyPlateRecogRegion(firstIO.struPlateRecog[0], arg(args, 52, String.valueOf(unsignedByte(firstIO.struPlateRecog[0].byMode))), arg(args, 53, buildRegionPointsString(firstIO.struPlateRecog[0])));
+            firstIO.write();
+            singleIO.struSingleIO[0] = firstIO;
+
+            singleIO.struPlateRecog.write();
+            singleIO.write();
+            writeStructureToUnion(trigger.uTriggerParam, singleIO);
+        } else if (nextType == 0x4) {
             NET_ITC_POST_RS485_PARAM rs485 = (nextType == originalType) ? trigger.uTriggerParam.asRs485() : new NET_ITC_POST_RS485_PARAM();
             rs485.byRelatedLaneNum = (byte) parseInt(arg(args, 7, String.valueOf(unsignedByte(rs485.byRelatedLaneNum))), unsignedByte(rs485.byRelatedLaneNum));
             rs485.byTriggerSpareMode = (byte) parseInt(arg(args, 8, String.valueOf(unsignedByte(rs485.byTriggerSpareMode))), unsignedByte(rs485.byTriggerSpareMode));
@@ -1714,6 +1787,10 @@ public class HikvisionTrafficConfigTool {
         } catch (Exception error) {
             return fallback;
         }
+    }
+
+    private static int defaultPositive(int value, int fallback) {
+        return value > 0 ? value : fallback;
     }
 
     private static float parseFloat(String value, float fallback) {

@@ -7546,7 +7546,7 @@ function syncDevicePreviewTriggerModeSections() {
   if (!triggerCodeField) return;
   const triggerType = Number(getOnvifControlValue(triggerCodeField) || 0) || 0;
 
-  const showLane = triggerType === 8;
+    const showLane = triggerType === 2 || triggerType === 8;
   const showRadar = triggerType === 8;
   const showSpare = triggerType === 4;
   const showCapture = triggerType === 32;
@@ -8731,5 +8731,4 @@ if (els.previewSnapshotBtn) {
     }
   });
 }
-
 
