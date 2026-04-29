@@ -248,11 +248,13 @@ public class HikvisionTrafficConfigTool {
         public byte byTriggerSpareMode;
         public byte byFaultToleranceTime;
         public byte byRes1;
-        public byte[] byRest = new byte[864];
+        public NET_ITC_PLATE_RECOG_PARAM struPlateRecog = new NET_ITC_PLATE_RECOG_PARAM();
+        public NET_ITC_LANE_PARAM[] struLane = (NET_ITC_LANE_PARAM[]) new NET_ITC_LANE_PARAM().toArray(6);
+        public byte[] byRes = new byte[32];
 
         @Override
         protected List<String> getFieldOrder() {
-            return Arrays.asList("byRelatedLaneNum", "byTriggerSpareMode", "byFaultToleranceTime", "byRes1", "byRest");
+            return Arrays.asList("byRelatedLaneNum", "byTriggerSpareMode", "byFaultToleranceTime", "byRes1", "struPlateRecog", "struLane", "byRes");
         }
     }
 
@@ -1232,6 +1234,11 @@ public class HikvisionTrafficConfigTool {
         Integer firstLaneDistance = null;
         Integer firstLaneTrigDelayTime = null;
         Integer firstLaneTrigDelayDistance = null;
+        Integer firstLaneIntervalType = null;
+        Integer firstLaneInterval1 = null;
+        Integer firstLaneInterval2 = null;
+        Integer firstLaneInterval3 = null;
+        Integer firstLaneInterval4 = null;
         Boolean firstLaneSpeedCapEnabled = null;
         Integer firstLaneSignSpeed = null;
         Integer firstLaneSpeedLimit = null;
@@ -1266,6 +1273,45 @@ public class HikvisionTrafficConfigTool {
             triggerSpareMode = unsignedByte(rs485.byTriggerSpareMode);
             triggerSpareModeLabel = getTriggerSpareModeLabel(triggerSpareMode);
             faultToleranceMinutes = unsignedByte(rs485.byFaultToleranceTime);
+            plateRecogEnabled = unsignedByte(rs485.struPlateRecog.byEnable) == 1;
+            plateRecogMode = rs485.struPlateRecog.dwRecogMode;
+            vehicleLogoRecogEnabled = unsignedByte(rs485.struPlateRecog.byVehicleLogoRecog) == 1;
+            plateProvince = unsignedByte(rs485.struPlateRecog.byProvince);
+            plateRegion = unsignedByte(rs485.struPlateRecog.byRegion);
+            plateCountry = unsignedByte(rs485.struPlateRecog.byCountry);
+            platePixelWidthMin = unsignedShort(rs485.struPlateRecog.wPlatePixelWidthMin);
+            platePixelWidthMax = unsignedShort(rs485.struPlateRecog.wPlatePixelWidthMax);
+            NET_ITC_LANE_PARAM firstLane = rs485.struLane[0];
+            firstLaneEnabled = unsignedByte(firstLane.byEnable) == 1;
+            firstLaneRelatedDriveWay = unsignedByte(firstLane.byRelatedDriveWay);
+            firstLaneDistance = unsignedShort(firstLane.wDistance);
+            firstLaneTrigDelayTime = unsignedShort(firstLane.wTrigDelayTime);
+            firstLaneTrigDelayDistance = unsignedByte(firstLane.byTrigDelayDistance);
+            firstLaneIntervalType = unsignedByte(firstLane.struInterval.byIntervalType);
+            firstLaneInterval1 = unsignedShort(firstLane.struInterval.wInterval[0]);
+            firstLaneInterval2 = unsignedShort(firstLane.struInterval.wInterval[1]);
+            firstLaneInterval3 = unsignedShort(firstLane.struInterval.wInterval[2]);
+            firstLaneInterval4 = unsignedShort(firstLane.struInterval.wInterval[3]);
+            firstLaneSpeedCapEnabled = unsignedByte(firstLane.bySpeedCapEn) == 1;
+            firstLaneSignSpeed = unsignedByte(firstLane.bySignSpeed);
+            firstLaneSpeedLimit = unsignedByte(firstLane.bySpeedLimit);
+            firstLaneSnapTimes = unsignedByte(firstLane.bySnapTimes);
+            firstLaneOverlayDriveWay = unsignedByte(firstLane.byOverlayDriveWay);
+            firstLaneFlashMode = unsignedByte(firstLane.byFlashMode);
+            firstLaneCartSignSpeed = unsignedByte(firstLane.byCartSignSpeed);
+            firstLaneCartSpeedLimit = unsignedByte(firstLane.byCartSpeedLimit);
+            firstLaneRelatedIOOutEx = unsignedByte(firstLane.byRelatedIOOutEx);
+            firstLaneLaneType = unsignedByte(firstLane.byLaneType);
+            firstLaneUseageType = unsignedByte(firstLane.byUseageType);
+            firstLaneDirectionType = unsignedByte(firstLane.byRelaLaneDirectionType);
+            firstLaneLowSpeedLimit = unsignedByte(firstLane.byLowSpeedLimit);
+            firstLaneBigCarLowSpeedLimit = unsignedByte(firstLane.byBigCarLowSpeedLimit);
+            firstLaneLowSpeedCapEnabled = unsignedByte(firstLane.byLowSpeedCapEn) == 1;
+            firstLaneEmergencyCapEnabled = unsignedByte(firstLane.byEmergencyCapEn) == 1;
+            NET_ITC_PLATE_RECOG_REGION_PARAM firstLaneRegion = firstLane.struPlateRecog[0];
+            firstLaneRegionMode = unsignedByte(firstLaneRegion.byMode);
+            firstLaneRegionPoints = buildRegionPointsString(firstLaneRegion);
+            firstLaneRegionPointCount = countRegionPoints(firstLaneRegionPoints);
             detailSource = "rs485";
         } else if (triggerType == 0x2) {
             NET_ITC_POST_SINGLEIO_PARAM singleIO = trigger.uTriggerParam.asSingleIO();
@@ -1318,6 +1364,11 @@ public class HikvisionTrafficConfigTool {
             firstLaneDistance = unsignedShort(firstLane.wDistance);
             firstLaneTrigDelayTime = unsignedShort(firstLane.wTrigDelayTime);
             firstLaneTrigDelayDistance = unsignedByte(firstLane.byTrigDelayDistance);
+            firstLaneIntervalType = unsignedByte(firstLane.struInterval.byIntervalType);
+            firstLaneInterval1 = unsignedShort(firstLane.struInterval.wInterval[0]);
+            firstLaneInterval2 = unsignedShort(firstLane.struInterval.wInterval[1]);
+            firstLaneInterval3 = unsignedShort(firstLane.struInterval.wInterval[2]);
+            firstLaneInterval4 = unsignedShort(firstLane.struInterval.wInterval[3]);
             firstLaneSpeedCapEnabled = unsignedByte(firstLane.bySpeedCapEn) == 1;
             firstLaneSignSpeed = unsignedByte(firstLane.bySignSpeed);
             firstLaneSpeedLimit = unsignedByte(firstLane.bySpeedLimit);
@@ -1404,6 +1455,11 @@ public class HikvisionTrafficConfigTool {
         raw.append("\"firstLaneDistance\":").append(firstLaneDistance == null ? "null" : firstLaneDistance).append(",");
         raw.append("\"firstLaneTrigDelayTime\":").append(firstLaneTrigDelayTime == null ? "null" : firstLaneTrigDelayTime).append(",");
         raw.append("\"firstLaneTrigDelayDistance\":").append(firstLaneTrigDelayDistance == null ? "null" : firstLaneTrigDelayDistance).append(",");
+        raw.append("\"firstLaneIntervalType\":").append(firstLaneIntervalType == null ? "null" : firstLaneIntervalType).append(",");
+        raw.append("\"firstLaneInterval1\":").append(firstLaneInterval1 == null ? "null" : firstLaneInterval1).append(",");
+        raw.append("\"firstLaneInterval2\":").append(firstLaneInterval2 == null ? "null" : firstLaneInterval2).append(",");
+        raw.append("\"firstLaneInterval3\":").append(firstLaneInterval3 == null ? "null" : firstLaneInterval3).append(",");
+        raw.append("\"firstLaneInterval4\":").append(firstLaneInterval4 == null ? "null" : firstLaneInterval4).append(",");
         raw.append("\"firstLaneSpeedCapEnabled\":").append(firstLaneSpeedCapEnabled == null ? "null" : (firstLaneSpeedCapEnabled ? 1 : 0)).append(",");
         raw.append("\"firstLaneSignSpeed\":").append(firstLaneSignSpeed == null ? "null" : firstLaneSignSpeed).append(",");
         raw.append("\"firstLaneSpeedLimit\":").append(firstLaneSpeedLimit == null ? "null" : firstLaneSpeedLimit).append(",");
@@ -1483,6 +1539,11 @@ public class HikvisionTrafficConfigTool {
                 + "\"firstLaneDistance\":" + (firstLaneDistance == null ? "null" : firstLaneDistance) + ","
                 + "\"firstLaneTrigDelayTime\":" + (firstLaneTrigDelayTime == null ? "null" : firstLaneTrigDelayTime) + ","
                 + "\"firstLaneTrigDelayDistance\":" + (firstLaneTrigDelayDistance == null ? "null" : firstLaneTrigDelayDistance) + ","
+                + "\"firstLaneIntervalType\":" + (firstLaneIntervalType == null ? "null" : firstLaneIntervalType) + ","
+                + "\"firstLaneInterval1\":" + (firstLaneInterval1 == null ? "null" : firstLaneInterval1) + ","
+                + "\"firstLaneInterval2\":" + (firstLaneInterval2 == null ? "null" : firstLaneInterval2) + ","
+                + "\"firstLaneInterval3\":" + (firstLaneInterval3 == null ? "null" : firstLaneInterval3) + ","
+                + "\"firstLaneInterval4\":" + (firstLaneInterval4 == null ? "null" : firstLaneInterval4) + ","
                 + "\"firstLaneSpeedCapEnabled\":" + (firstLaneSpeedCapEnabled == null ? "null" : firstLaneSpeedCapEnabled) + ","
                 + "\"firstLaneSpeedCapEnabledLabel\":\"" + json(boolNullableLabel(firstLaneSpeedCapEnabled)) + "\","
                 + "\"firstLaneSignSpeed\":" + (firstLaneSignSpeed == null ? "null" : firstLaneSignSpeed) + ","
@@ -1573,6 +1634,48 @@ public class HikvisionTrafficConfigTool {
             rs485.byRelatedLaneNum = (byte) parseInt(arg(args, 7, String.valueOf(unsignedByte(rs485.byRelatedLaneNum))), unsignedByte(rs485.byRelatedLaneNum));
             rs485.byTriggerSpareMode = (byte) parseInt(arg(args, 8, String.valueOf(unsignedByte(rs485.byTriggerSpareMode))), unsignedByte(rs485.byTriggerSpareMode));
             rs485.byFaultToleranceTime = (byte) parseInt(arg(args, 9, String.valueOf(unsignedByte(rs485.byFaultToleranceTime))), unsignedByte(rs485.byFaultToleranceTime));
+            rs485.struPlateRecog.byEnable = (byte) (parseBooleanFlag(arg(args, 23, unsignedByte(rs485.struPlateRecog.byEnable) == 1 ? "1" : "0")) ? 1 : 0);
+            rs485.struPlateRecog.dwRecogMode = parseInt(arg(args, 24, String.valueOf(rs485.struPlateRecog.dwRecogMode)), rs485.struPlateRecog.dwRecogMode);
+            rs485.struPlateRecog.byVehicleLogoRecog = (byte) (parseBooleanFlag(arg(args, 25, unsignedByte(rs485.struPlateRecog.byVehicleLogoRecog) == 1 ? "1" : "0")) ? 1 : 0);
+            rs485.struPlateRecog.byProvince = (byte) parseInt(arg(args, 26, String.valueOf(unsignedByte(rs485.struPlateRecog.byProvince))), unsignedByte(rs485.struPlateRecog.byProvince));
+            rs485.struPlateRecog.byRegion = (byte) parseInt(arg(args, 27, String.valueOf(unsignedByte(rs485.struPlateRecog.byRegion))), unsignedByte(rs485.struPlateRecog.byRegion));
+            rs485.struPlateRecog.byCountry = (byte) parseInt(arg(args, 28, String.valueOf(unsignedByte(rs485.struPlateRecog.byCountry))), unsignedByte(rs485.struPlateRecog.byCountry));
+            rs485.struPlateRecog.wPlatePixelWidthMin = (short) parseInt(arg(args, 29, String.valueOf(unsignedShort(rs485.struPlateRecog.wPlatePixelWidthMin))), unsignedShort(rs485.struPlateRecog.wPlatePixelWidthMin));
+            rs485.struPlateRecog.wPlatePixelWidthMax = (short) parseInt(arg(args, 30, String.valueOf(unsignedShort(rs485.struPlateRecog.wPlatePixelWidthMax))), unsignedShort(rs485.struPlateRecog.wPlatePixelWidthMax));
+
+            NET_ITC_LANE_PARAM firstLane = rs485.struLane[0];
+            firstLane.byEnable = (byte) (parseBooleanFlag(arg(args, 31, unsignedByte(firstLane.byEnable) == 1 ? "1" : "0")) ? 1 : 0);
+            firstLane.byRelatedDriveWay = (byte) parseInt(arg(args, 32, String.valueOf(unsignedByte(firstLane.byRelatedDriveWay))), unsignedByte(firstLane.byRelatedDriveWay));
+            firstLane.wDistance = (short) parseInt(arg(args, 33, String.valueOf(unsignedShort(firstLane.wDistance))), unsignedShort(firstLane.wDistance));
+            firstLane.wTrigDelayTime = (short) parseInt(arg(args, 34, String.valueOf(unsignedShort(firstLane.wTrigDelayTime))), unsignedShort(firstLane.wTrigDelayTime));
+            firstLane.byTrigDelayDistance = (byte) parseInt(arg(args, 35, String.valueOf(unsignedByte(firstLane.byTrigDelayDistance))), unsignedByte(firstLane.byTrigDelayDistance));
+            firstLane.struInterval.byIntervalType = (byte) parseInt(arg(args, 62, String.valueOf(unsignedByte(firstLane.struInterval.byIntervalType))), unsignedByte(firstLane.struInterval.byIntervalType));
+            firstLane.struInterval.wInterval[0] = (short) parseInt(arg(args, 63, String.valueOf(unsignedShort(firstLane.struInterval.wInterval[0]))), unsignedShort(firstLane.struInterval.wInterval[0]));
+            firstLane.struInterval.wInterval[1] = (short) parseInt(arg(args, 64, String.valueOf(unsignedShort(firstLane.struInterval.wInterval[1]))), unsignedShort(firstLane.struInterval.wInterval[1]));
+            firstLane.struInterval.wInterval[2] = (short) parseInt(arg(args, 65, String.valueOf(unsignedShort(firstLane.struInterval.wInterval[2]))), unsignedShort(firstLane.struInterval.wInterval[2]));
+            firstLane.struInterval.wInterval[3] = (short) parseInt(arg(args, 66, String.valueOf(unsignedShort(firstLane.struInterval.wInterval[3]))), unsignedShort(firstLane.struInterval.wInterval[3]));
+            firstLane.bySpeedCapEn = (byte) (parseBooleanFlag(arg(args, 36, unsignedByte(firstLane.bySpeedCapEn) == 1 ? "1" : "0")) ? 1 : 0);
+            firstLane.bySignSpeed = (byte) parseInt(arg(args, 37, String.valueOf(unsignedByte(firstLane.bySignSpeed))), unsignedByte(firstLane.bySignSpeed));
+            firstLane.bySpeedLimit = (byte) parseInt(arg(args, 38, String.valueOf(unsignedByte(firstLane.bySpeedLimit))), unsignedByte(firstLane.bySpeedLimit));
+            firstLane.bySnapTimes = (byte) parseInt(arg(args, 39, String.valueOf(unsignedByte(firstLane.bySnapTimes))), unsignedByte(firstLane.bySnapTimes));
+            firstLane.byOverlayDriveWay = (byte) parseInt(arg(args, 40, String.valueOf(unsignedByte(firstLane.byOverlayDriveWay))), unsignedByte(firstLane.byOverlayDriveWay));
+            firstLane.byFlashMode = (byte) parseInt(arg(args, 41, String.valueOf(unsignedByte(firstLane.byFlashMode))), unsignedByte(firstLane.byFlashMode));
+            firstLane.byCartSignSpeed = (byte) parseInt(arg(args, 42, String.valueOf(unsignedByte(firstLane.byCartSignSpeed))), unsignedByte(firstLane.byCartSignSpeed));
+            firstLane.byCartSpeedLimit = (byte) parseInt(arg(args, 43, String.valueOf(unsignedByte(firstLane.byCartSpeedLimit))), unsignedByte(firstLane.byCartSpeedLimit));
+            firstLane.byRelatedIOOutEx = (byte) parseInt(arg(args, 44, String.valueOf(unsignedByte(firstLane.byRelatedIOOutEx))), unsignedByte(firstLane.byRelatedIOOutEx));
+            firstLane.byLaneType = (byte) parseInt(arg(args, 45, String.valueOf(unsignedByte(firstLane.byLaneType))), unsignedByte(firstLane.byLaneType));
+            firstLane.byUseageType = (byte) parseInt(arg(args, 46, String.valueOf(unsignedByte(firstLane.byUseageType))), unsignedByte(firstLane.byUseageType));
+            firstLane.byRelaLaneDirectionType = (byte) parseInt(arg(args, 47, String.valueOf(unsignedByte(firstLane.byRelaLaneDirectionType))), unsignedByte(firstLane.byRelaLaneDirectionType));
+            firstLane.byLowSpeedLimit = (byte) parseInt(arg(args, 48, String.valueOf(unsignedByte(firstLane.byLowSpeedLimit))), unsignedByte(firstLane.byLowSpeedLimit));
+            firstLane.byBigCarLowSpeedLimit = (byte) parseInt(arg(args, 49, String.valueOf(unsignedByte(firstLane.byBigCarLowSpeedLimit))), unsignedByte(firstLane.byBigCarLowSpeedLimit));
+            firstLane.byLowSpeedCapEn = (byte) (parseBooleanFlag(arg(args, 50, unsignedByte(firstLane.byLowSpeedCapEn) == 1 ? "1" : "0")) ? 1 : 0);
+            firstLane.byEmergencyCapEn = (byte) (parseBooleanFlag(arg(args, 51, unsignedByte(firstLane.byEmergencyCapEn) == 1 ? "1" : "0")) ? 1 : 0);
+            firstLane.struInterval.write();
+            applyPlateRecogRegion(firstLane.struPlateRecog[0], arg(args, 52, String.valueOf(unsignedByte(firstLane.struPlateRecog[0].byMode))), arg(args, 53, buildRegionPointsString(firstLane.struPlateRecog[0])));
+            firstLane.write();
+            rs485.struLane[0] = firstLane;
+
+            rs485.struPlateRecog.write();
             rs485.write();
             writeStructureToUnion(trigger.uTriggerParam, rs485);
         } else if (nextType == 0x8) {
@@ -1600,6 +1703,11 @@ public class HikvisionTrafficConfigTool {
             firstLane.wDistance = (short) parseInt(arg(args, 33, String.valueOf(unsignedShort(firstLane.wDistance))), unsignedShort(firstLane.wDistance));
             firstLane.wTrigDelayTime = (short) parseInt(arg(args, 34, String.valueOf(unsignedShort(firstLane.wTrigDelayTime))), unsignedShort(firstLane.wTrigDelayTime));
             firstLane.byTrigDelayDistance = (byte) parseInt(arg(args, 35, String.valueOf(unsignedByte(firstLane.byTrigDelayDistance))), unsignedByte(firstLane.byTrigDelayDistance));
+            firstLane.struInterval.byIntervalType = (byte) parseInt(arg(args, 62, String.valueOf(unsignedByte(firstLane.struInterval.byIntervalType))), unsignedByte(firstLane.struInterval.byIntervalType));
+            firstLane.struInterval.wInterval[0] = (short) parseInt(arg(args, 63, String.valueOf(unsignedShort(firstLane.struInterval.wInterval[0]))), unsignedShort(firstLane.struInterval.wInterval[0]));
+            firstLane.struInterval.wInterval[1] = (short) parseInt(arg(args, 64, String.valueOf(unsignedShort(firstLane.struInterval.wInterval[1]))), unsignedShort(firstLane.struInterval.wInterval[1]));
+            firstLane.struInterval.wInterval[2] = (short) parseInt(arg(args, 65, String.valueOf(unsignedShort(firstLane.struInterval.wInterval[2]))), unsignedShort(firstLane.struInterval.wInterval[2]));
+            firstLane.struInterval.wInterval[3] = (short) parseInt(arg(args, 66, String.valueOf(unsignedShort(firstLane.struInterval.wInterval[3]))), unsignedShort(firstLane.struInterval.wInterval[3]));
             firstLane.bySpeedCapEn = (byte) (parseBooleanFlag(arg(args, 36, unsignedByte(firstLane.bySpeedCapEn) == 1 ? "1" : "0")) ? 1 : 0);
             firstLane.bySignSpeed = (byte) parseInt(arg(args, 37, String.valueOf(unsignedByte(firstLane.bySignSpeed))), unsignedByte(firstLane.bySignSpeed));
             firstLane.bySpeedLimit = (byte) parseInt(arg(args, 38, String.valueOf(unsignedByte(firstLane.bySpeedLimit))), unsignedByte(firstLane.bySpeedLimit));
@@ -1616,6 +1724,7 @@ public class HikvisionTrafficConfigTool {
             firstLane.byBigCarLowSpeedLimit = (byte) parseInt(arg(args, 49, String.valueOf(unsignedByte(firstLane.byBigCarLowSpeedLimit))), unsignedByte(firstLane.byBigCarLowSpeedLimit));
             firstLane.byLowSpeedCapEn = (byte) (parseBooleanFlag(arg(args, 50, unsignedByte(firstLane.byLowSpeedCapEn) == 1 ? "1" : "0")) ? 1 : 0);
             firstLane.byEmergencyCapEn = (byte) (parseBooleanFlag(arg(args, 51, unsignedByte(firstLane.byEmergencyCapEn) == 1 ? "1" : "0")) ? 1 : 0);
+            firstLane.struInterval.write();
             applyPlateRecogRegion(firstLane.struPlateRecog[0], arg(args, 52, String.valueOf(unsignedByte(firstLane.struPlateRecog[0].byMode))), arg(args, 53, buildRegionPointsString(firstLane.struPlateRecog[0])));
             firstLane.write();
             radar.struLane[0] = firstLane;

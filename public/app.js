@@ -1037,14 +1037,19 @@ const DEVICE_PREVIEW_ISAPI_SCHEMAS = {
         platePixelWidthMax: Number(values.platePixelWidthMax || 0) || 0,
         firstLaneEnabled: String(values.firstLaneEnabled || "") === "1" || values.firstLaneEnabled === true,
         firstLaneRelatedDriveWay: Number(values.firstLaneRelatedDriveWay || 0) || 0,
+        firstLaneOverlayDriveWay: Number(values.firstLaneOverlayDriveWay || 0) || 0,
         firstLaneDistance: Number(values.firstLaneDistance || 0) || 0,
         firstLaneTrigDelayTime: Number(values.firstLaneTrigDelayTime || 0) || 0,
         firstLaneTrigDelayDistance: Number(values.firstLaneTrigDelayDistance || 0) || 0,
+        firstLaneIntervalType: Number(values.firstLaneIntervalType || 0) || 0,
+        firstLaneInterval1: Number(values.firstLaneInterval1 || 0) || 0,
+        firstLaneInterval2: Number(values.firstLaneInterval2 || 0) || 0,
+        firstLaneInterval3: Number(values.firstLaneInterval3 || 0) || 0,
+        firstLaneInterval4: Number(values.firstLaneInterval4 || 0) || 0,
         firstLaneSpeedCapEnabled: String(values.firstLaneSpeedCapEnabled || "") === "1" || values.firstLaneSpeedCapEnabled === true,
         firstLaneSignSpeed: Number(values.firstLaneSignSpeed || 0) || 0,
         firstLaneSpeedLimit: Number(values.firstLaneSpeedLimit || 0) || 0,
         firstLaneSnapTimes: Number(values.firstLaneSnapTimes || 0) || 0,
-        firstLaneOverlayDriveWay: Number(values.firstLaneOverlayDriveWay || 0) || 0,
         firstLaneFlashMode: Number(values.firstLaneFlashMode || 0) || 0,
         firstLaneCartSignSpeed: Number(values.firstLaneCartSignSpeed || 0) || 0,
         firstLaneCartSpeedLimit: Number(values.firstLaneCartSpeedLimit || 0) || 0,
@@ -7472,6 +7477,14 @@ function renderSingleIoCopyGroup() {
   return `<div class="devicePreviewTriggerIoGroup" data-isapi-bitmask-field="singleIoCopyMask">${items.join("")}</div>`;
 }
 
+function renderLaneTabs() {
+  return '<div class="devicePreviewTriggerTabs devicePreviewVehicleDetectorOnly"><button type="button" class="active">车道1</button><button type="button" disabled>车道2</button><button type="button" disabled>车道3</button></div>';
+}
+
+function renderLaneIntervalFields() {
+  return `<label class="devicePreviewTriggerField"><span>连拍间隔</span><span class="devicePreviewTriggerControl devicePreviewSingleIoIntervals"><input class="devicePreviewParamInput" type="number" data-isapi-field="firstLaneInterval1" /><input class="devicePreviewParamInput" type="number" data-isapi-field="firstLaneInterval2" /><input class="devicePreviewParamInput" type="number" data-isapi-field="firstLaneInterval3" /><input class="devicePreviewParamInput" type="number" data-isapi-field="firstLaneInterval4" /><em>ms</em></span></label>`;
+}
+
 function renderSingleIoIntervalFields() {
   return `<label class="devicePreviewTriggerField"><span>连拍间隔</span><span class="devicePreviewTriggerControl devicePreviewSingleIoIntervals"><input class="devicePreviewParamInput" type="number" data-isapi-field="singleIoInterval1" /><input class="devicePreviewParamInput" type="number" data-isapi-field="singleIoInterval2" /><input class="devicePreviewParamInput" type="number" data-isapi-field="singleIoInterval3" /><input class="devicePreviewParamInput" type="number" data-isapi-field="singleIoInterval4" /><em>ms</em></span></label>`;
 }
@@ -7525,8 +7538,10 @@ function renderDevicePreviewSdkTriggerConfigControls() {
     '<div class="devicePreviewTriggerGrid">',
     '<div class="devicePreviewTriggerLeft">',
     '<div class="devicePreviewSingleIoOnly"><div class="devicePreviewTriggerIoRow"><span>启用IO</span>' + renderSingleIoInputGroup() + '</div><div class="devicePreviewTriggerTabs"><button type="button" class="active">T1</button><button type="button" disabled>T2</button><button type="button" disabled>T3</button><button type="button" disabled>T4</button></div></div>',
+    renderLaneTabs(),
     '<div class="devicePreviewTriggerSubTitle"><span class="devicePreviewRadarLaneTitle">车道1</span><span class="devicePreviewSingleIoOnly">T1</span></div>',
     renderTriggerFieldRow("关联车道号(也做叠加用)", "firstLaneRelatedDriveWay", { type: "number" }),
+    '<div class="devicePreviewRadarOnly">' + renderTriggerFieldRow("叠加车道号", "firstLaneOverlayDriveWay", { type: "number" }) + '</div>',
     '<div class="devicePreviewRadarOnly">' + renderTriggerFieldRow("车道方向类型", "firstLaneDirectionType", { type: "select", selectOptions: SDK_LANE_DIRECTION_OPTIONS }) + '</div>',
     renderTriggerFieldRow("车道用途", "firstLaneUseageType", { type: "select", selectOptions: SDK_LANE_USAGE_OPTIONS }),
     '<div class="devicePreviewSingleIoOnly">' + renderTriggerFieldRow("触发输入默认状态", "singleIoDefaultStatus", { type: "select", selectOptions: SDK_SINGLE_IO_DEFAULT_STATUS_OPTIONS }) + '</div>',
@@ -7540,6 +7555,8 @@ function renderDevicePreviewSdkTriggerConfigControls() {
     '<div class="devicePreviewRadarOnly">' + renderTriggerCheckboxField("启用低速抓拍", "firstLaneLowSpeedCapEnabled") + '</div>',
     '<div class="devicePreviewSingleIoOnly">' + renderTriggerFieldRow("连拍间隔类型", "singleIoIntervalType", { type: "select", selectOptions: SDK_INTERVAL_TYPE_OPTIONS }) + '</div>',
     '<div class="devicePreviewSingleIoOnly">' + renderSingleIoIntervalFields() + '</div>',
+    '<div class="devicePreviewRadarOnly">' + renderTriggerFieldRow("连拍间隔类型", "firstLaneIntervalType", { type: "select", selectOptions: SDK_INTERVAL_TYPE_OPTIONS }) + '</div>',
+    '<div class="devicePreviewRadarOnly">' + renderLaneIntervalFields() + '</div>',
     '<div class="devicePreviewRadarOnly">' + renderTriggerFieldRow("限速值", "firstLaneSpeedLimit", { type: "number", unit: "km/h" }) + '</div>',
     '<div class="devicePreviewRadarOnly">' + renderTriggerFieldRow("标志限速", "firstLaneSignSpeed", { type: "number", unit: "km/h" }) + '</div>',
     '<div class="devicePreviewRadarOnly">' + renderTriggerFieldRow("大车限高速", "firstLaneCartSpeedLimit", { type: "number", unit: "km/h" }) + '</div>',
@@ -7590,9 +7607,10 @@ function syncDevicePreviewTriggerModeSections() {
   const triggerType = Number(getOnvifControlValue(triggerCodeField) || 0) || 0;
 
   const showSingleIo = triggerType === 2;
-  const showLane = showSingleIo || triggerType === 8;
+  const showVehicleDetector = triggerType === 4;
+  const showLane = showSingleIo || showVehicleDetector || triggerType === 8;
   const showRadar = triggerType === 8;
-  const showSpare = triggerType === 4;
+  const showSpare = showVehicleDetector;
   const showCapture = triggerType === 32;
   const showLaneCount = triggerType === 4 || triggerType === 8 || triggerType === 32;
 
@@ -7601,6 +7619,7 @@ function syncDevicePreviewTriggerModeSections() {
   host.querySelectorAll(".devicePreviewSingleIoOnly").forEach((node) => node.classList.toggle("view-hidden", !showSingleIo));
   host.querySelectorAll(".devicePreviewRadarOnly").forEach((node) => node.classList.toggle("view-hidden", showSingleIo));
   host.querySelectorAll(".devicePreviewRadarLaneTitle").forEach((node) => node.classList.toggle("view-hidden", showSingleIo));
+  host.querySelectorAll(".devicePreviewVehicleDetectorOnly").forEach((node) => node.classList.toggle("view-hidden", !showVehicleDetector));
   host.querySelector('[data-trigger-group="radar"]')?.classList.toggle("view-hidden", !showRadar);
   host.querySelector('[data-trigger-group="spare"]')?.classList.toggle("view-hidden", !showSpare);
   host.querySelector('[data-trigger-group="capture"]')?.classList.toggle("view-hidden", !showCapture);

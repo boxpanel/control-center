@@ -371,7 +371,12 @@ class HikvisionSdkBridge {
       String(Number(values.singleIoInterval2 || 0) || 0),
       String(Number(values.singleIoInterval3 || 0) || 0),
       String(Number(values.singleIoInterval4 || 0) || 0),
-      String(Number(values.singleIoCopyMask || 1) || 1)
+      String(Number(values.singleIoCopyMask || 1) || 1),
+      String(Number(values.firstLaneIntervalType || 0) || 0),
+      String(Number(values.firstLaneInterval1 || 0) || 0),
+      String(Number(values.firstLaneInterval2 || 0) || 0),
+      String(Number(values.firstLaneInterval3 || 0) || 0),
+      String(Number(values.firstLaneInterval4 || 0) || 0)
     ]);
   }
 
