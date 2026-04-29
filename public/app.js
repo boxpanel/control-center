@@ -7478,7 +7478,7 @@ function renderSingleIoCopyGroup() {
 }
 
 function renderLaneTabs() {
-  return '<div class="devicePreviewTriggerTabs devicePreviewVehicleDetectorOnly"><button type="button" class="active">车道1</button><button type="button" disabled>车道2</button><button type="button" disabled>车道3</button></div>';
+  return '<div class="devicePreviewTriggerTabs devicePreviewMultiLaneOnly"><button type="button" class="active">车道1</button><button type="button" disabled>车道2</button><button type="button" disabled>车道3</button></div>';
 }
 
 function renderLaneIntervalFields() {
@@ -7608,10 +7608,10 @@ function syncDevicePreviewTriggerModeSections() {
 
   const showSingleIo = triggerType === 2;
   const showVehicleDetector = triggerType === 4;
-  const showLane = showSingleIo || showVehicleDetector || triggerType === 8;
-  const showRadar = triggerType === 8;
-  const showSpare = showVehicleDetector;
   const showCapture = triggerType === 32;
+  const showLane = showSingleIo || showVehicleDetector || showCapture || triggerType === 8;
+  const showRadar = triggerType === 8 || showCapture;
+  const showSpare = showVehicleDetector;
   const showLaneCount = triggerType === 4 || triggerType === 8 || triggerType === 32;
 
   host.querySelector('[data-isapi-field="laneCount"]')?.closest(".devicePreviewTriggerLaneCount")?.classList.toggle("view-hidden", !showLaneCount);
@@ -7620,6 +7620,7 @@ function syncDevicePreviewTriggerModeSections() {
   host.querySelectorAll(".devicePreviewRadarOnly").forEach((node) => node.classList.toggle("view-hidden", showSingleIo));
   host.querySelectorAll(".devicePreviewRadarLaneTitle").forEach((node) => node.classList.toggle("view-hidden", showSingleIo));
   host.querySelectorAll(".devicePreviewVehicleDetectorOnly").forEach((node) => node.classList.toggle("view-hidden", !showVehicleDetector));
+  host.querySelectorAll(".devicePreviewMultiLaneOnly").forEach((node) => node.classList.toggle("view-hidden", !(showVehicleDetector || showCapture)));
   host.querySelector('[data-trigger-group="radar"]')?.classList.toggle("view-hidden", !showRadar);
   host.querySelector('[data-trigger-group="spare"]')?.classList.toggle("view-hidden", !showSpare);
   host.querySelector('[data-trigger-group="capture"]')?.classList.toggle("view-hidden", !showCapture);

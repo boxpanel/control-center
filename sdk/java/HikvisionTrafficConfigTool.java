@@ -323,6 +323,18 @@ public class HikvisionTrafficConfigTool {
         }
     }
 
+    public static class NET_ITC_LANE_LOGIC_PARAM extends Structure {
+        public byte byUseageType;
+        public byte byDirectionType;
+        public byte byCarDriveDirect;
+        public byte[] byRes = new byte[33];
+
+        @Override
+        protected List<String> getFieldOrder() {
+            return Arrays.asList("byUseageType", "byDirectionType", "byCarDriveDirect", "byRes");
+        }
+    }
+
     public static class NET_ITC_PLATE_RECOG_REGION_PARAM extends Structure {
         public byte byMode;
         public byte[] byRes1 = new byte[3];
@@ -492,6 +504,51 @@ public class HikvisionTrafficConfigTool {
         }
     }
 
+    public static class NET_ITC_LANE_HVT_PARAM_V50 extends Structure {
+        public byte byLaneNO;
+        public byte byFlashMode;
+        public byte bySignSpeed;
+        public byte bySpeedLimit;
+        public byte bySignLowSpeed;
+        public byte byLowSpeedLimit;
+        public byte byBigCarSignSpeed;
+        public byte byBigCarSpeedLimit;
+        public byte byBigCarSignLowSpeed;
+        public byte byBigCarLowSpeedLimit;
+        public byte bySnapTimes;
+        public byte byDriveLineSnapTime;
+        public byte byHighSpeedSnapTime;
+        public byte byLowSpeedSnapTime;
+        public byte byBanSnapTime;
+        public byte byReverseSnapTime;
+        public byte byRelatedDriveWay;
+        public byte byLaneType;
+        public byte byRelaLaneDirectionType;
+        public byte[] byRes1 = new byte[27];
+        public byte byChangeLaneEnable;
+        public byte byChangeLaneCapNo;
+        public int dwVioDetectType;
+        public int dwRelatedIOOut;
+        public byte[] struTrigLine = new byte[24];
+        public byte[] struLineLeft = new byte[24];
+        public byte[] struPlateRecog = new byte[164];
+        public NET_ITC_LANE_LOGIC_PARAM struLane = new NET_ITC_LANE_LOGIC_PARAM();
+        public NET_ITC_INTERVAL_PARAM struInterval = new NET_ITC_INTERVAL_PARAM();
+        public byte[] byRes2 = new byte[280];
+
+        @Override
+        protected List<String> getFieldOrder() {
+            return Arrays.asList(
+                    "byLaneNO", "byFlashMode", "bySignSpeed", "bySpeedLimit", "bySignLowSpeed", "byLowSpeedLimit",
+                    "byBigCarSignSpeed", "byBigCarSpeedLimit", "byBigCarSignLowSpeed", "byBigCarLowSpeedLimit",
+                    "bySnapTimes", "byDriveLineSnapTime", "byHighSpeedSnapTime", "byLowSpeedSnapTime", "byBanSnapTime",
+                    "byReverseSnapTime", "byRelatedDriveWay", "byLaneType", "byRelaLaneDirectionType", "byRes1",
+                    "byChangeLaneEnable", "byChangeLaneCapNo", "dwVioDetectType", "dwRelatedIOOut", "struTrigLine",
+                    "struLineLeft", "struPlateRecog", "struLane", "struInterval", "byRes2"
+            );
+        }
+    }
+
     public static class NET_ITC_POST_HVT_PARAM_V50 extends Structure {
         public byte byLaneNum;
         public byte byCapType;
@@ -500,11 +557,22 @@ public class HikvisionTrafficConfigTool {
         public byte bySpeedMode;
         public byte byLineRuleEffect;
         public byte[] byRes1 = new byte[78];
-        public byte[] byRest = new byte[1872];
+        public byte[] struLeftTrigLine = new byte[24];
+        public byte[] struRigtTrigLine = new byte[24];
+        public byte[] struLaneBoundaryLine = new byte[24];
+        public byte[] struDetectArea = new byte[164];
+        public byte[] struGeogLocation = new byte[12];
+        public NET_ITC_LANE_HVT_PARAM_V50[] struLaneParam = (NET_ITC_LANE_HVT_PARAM_V50[]) new NET_ITC_LANE_HVT_PARAM_V50().toArray(6);
+        public NET_ITC_PLATE_RECOG_PARAM struPlateRecog = new NET_ITC_PLATE_RECOG_PARAM();
+        public byte[] byRes2 = new byte[260];
 
         @Override
         protected List<String> getFieldOrder() {
-            return Arrays.asList("byLaneNum", "byCapType", "byCapMode", "bySecneMode", "bySpeedMode", "byLineRuleEffect", "byRes1", "byRest");
+            return Arrays.asList(
+                    "byLaneNum", "byCapType", "byCapMode", "bySecneMode", "bySpeedMode", "byLineRuleEffect", "byRes1",
+                    "struLeftTrigLine", "struRigtTrigLine", "struLaneBoundaryLine", "struDetectArea", "struGeogLocation",
+                    "struLaneParam", "struPlateRecog", "byRes2"
+            );
         }
     }
 
@@ -1413,6 +1481,38 @@ public class HikvisionTrafficConfigTool {
             sceneModeLabel = getSceneModeLabel(sceneMode);
             speedMode = unsignedByte(hvt.bySpeedMode);
             speedModeLabel = getSpeedModeLabel(speedMode);
+            plateRecogEnabled = unsignedByte(hvt.struPlateRecog.byEnable) == 1;
+            plateRecogMode = hvt.struPlateRecog.dwRecogMode;
+            vehicleLogoRecogEnabled = unsignedByte(hvt.struPlateRecog.byVehicleLogoRecog) == 1;
+            plateProvince = unsignedByte(hvt.struPlateRecog.byProvince);
+            plateRegion = unsignedByte(hvt.struPlateRecog.byRegion);
+            plateCountry = unsignedByte(hvt.struPlateRecog.byCountry);
+            platePixelWidthMin = unsignedShort(hvt.struPlateRecog.wPlatePixelWidthMin);
+            platePixelWidthMax = unsignedShort(hvt.struPlateRecog.wPlatePixelWidthMax);
+            NET_ITC_LANE_HVT_PARAM_V50 firstLane = hvt.struLaneParam[0];
+            firstLaneEnabled = true;
+            firstLaneRelatedDriveWay = unsignedByte(firstLane.byRelatedDriveWay);
+            firstLaneOverlayDriveWay = unsignedByte(firstLane.byLaneNO);
+            firstLaneSignSpeed = unsignedByte(firstLane.bySignSpeed);
+            firstLaneSpeedLimit = unsignedByte(firstLane.bySpeedLimit);
+            firstLaneSnapTimes = unsignedByte(firstLane.bySnapTimes);
+            firstLaneFlashMode = unsignedByte(firstLane.byFlashMode);
+            firstLaneCartSignSpeed = unsignedByte(firstLane.byBigCarSignSpeed);
+            firstLaneCartSpeedLimit = unsignedByte(firstLane.byBigCarSpeedLimit);
+            firstLaneRelatedIOOutEx = firstLane.dwRelatedIOOut;
+            firstLaneLaneType = unsignedByte(firstLane.byLaneType);
+            firstLaneUseageType = unsignedByte(firstLane.struLane.byUseageType);
+            firstLaneDirectionType = unsignedByte(firstLane.byRelaLaneDirectionType);
+            firstLaneLowSpeedLimit = unsignedByte(firstLane.byLowSpeedLimit);
+            firstLaneBigCarLowSpeedLimit = unsignedByte(firstLane.byBigCarLowSpeedLimit);
+            firstLaneSpeedCapEnabled = (firstLane.dwVioDetectType & 0x800) != 0;
+            firstLaneLowSpeedCapEnabled = (firstLane.dwVioDetectType & 0x1000) != 0;
+            firstLaneEmergencyCapEnabled = (firstLane.dwVioDetectType & 0x2000) != 0;
+            firstLaneIntervalType = unsignedByte(firstLane.struInterval.byIntervalType);
+            firstLaneInterval1 = unsignedShort(firstLane.struInterval.wInterval[0]);
+            firstLaneInterval2 = unsignedShort(firstLane.struInterval.wInterval[1]);
+            firstLaneInterval3 = unsignedShort(firstLane.struInterval.wInterval[2]);
+            firstLaneInterval4 = unsignedShort(firstLane.struInterval.wInterval[3]);
             detailSource = "hvtV50";
         }
 
@@ -1750,6 +1850,43 @@ public class HikvisionTrafficConfigTool {
             hvt.byCapMode = (byte) parseInt(arg(args, 15, String.valueOf(unsignedByte(hvt.byCapMode))), unsignedByte(hvt.byCapMode));
             hvt.bySecneMode = (byte) parseInt(arg(args, 13, String.valueOf(unsignedByte(hvt.bySecneMode))), unsignedByte(hvt.bySecneMode));
             hvt.bySpeedMode = (byte) parseInt(arg(args, 16, String.valueOf(unsignedByte(hvt.bySpeedMode))), unsignedByte(hvt.bySpeedMode));
+            hvt.struPlateRecog.byEnable = (byte) (parseBooleanFlag(arg(args, 23, unsignedByte(hvt.struPlateRecog.byEnable) == 1 ? "1" : "0")) ? 1 : 0);
+            hvt.struPlateRecog.dwRecogMode = parseInt(arg(args, 24, String.valueOf(hvt.struPlateRecog.dwRecogMode)), hvt.struPlateRecog.dwRecogMode);
+            hvt.struPlateRecog.byVehicleLogoRecog = (byte) (parseBooleanFlag(arg(args, 25, unsignedByte(hvt.struPlateRecog.byVehicleLogoRecog) == 1 ? "1" : "0")) ? 1 : 0);
+            hvt.struPlateRecog.byProvince = (byte) parseInt(arg(args, 26, String.valueOf(unsignedByte(hvt.struPlateRecog.byProvince))), unsignedByte(hvt.struPlateRecog.byProvince));
+            hvt.struPlateRecog.byRegion = (byte) parseInt(arg(args, 27, String.valueOf(unsignedByte(hvt.struPlateRecog.byRegion))), unsignedByte(hvt.struPlateRecog.byRegion));
+            hvt.struPlateRecog.byCountry = (byte) parseInt(arg(args, 28, String.valueOf(unsignedByte(hvt.struPlateRecog.byCountry))), unsignedByte(hvt.struPlateRecog.byCountry));
+            hvt.struPlateRecog.wPlatePixelWidthMin = (short) parseInt(arg(args, 29, String.valueOf(unsignedShort(hvt.struPlateRecog.wPlatePixelWidthMin))), unsignedShort(hvt.struPlateRecog.wPlatePixelWidthMin));
+            hvt.struPlateRecog.wPlatePixelWidthMax = (short) parseInt(arg(args, 30, String.valueOf(unsignedShort(hvt.struPlateRecog.wPlatePixelWidthMax))), unsignedShort(hvt.struPlateRecog.wPlatePixelWidthMax));
+
+            NET_ITC_LANE_HVT_PARAM_V50 firstLane = hvt.struLaneParam[0];
+            firstLane.byLaneNO = (byte) parseInt(arg(args, 40, String.valueOf(defaultPositive(unsignedByte(firstLane.byLaneNO), 1))), defaultPositive(unsignedByte(firstLane.byLaneNO), 1));
+            firstLane.byRelatedDriveWay = (byte) parseInt(arg(args, 32, String.valueOf(defaultPositive(unsignedByte(firstLane.byRelatedDriveWay), 1))), defaultPositive(unsignedByte(firstLane.byRelatedDriveWay), 1));
+            firstLane.byFlashMode = (byte) parseInt(arg(args, 41, String.valueOf(unsignedByte(firstLane.byFlashMode))), unsignedByte(firstLane.byFlashMode));
+            firstLane.bySignSpeed = (byte) parseInt(arg(args, 37, String.valueOf(unsignedByte(firstLane.bySignSpeed))), unsignedByte(firstLane.bySignSpeed));
+            firstLane.bySpeedLimit = (byte) parseInt(arg(args, 38, String.valueOf(unsignedByte(firstLane.bySpeedLimit))), unsignedByte(firstLane.bySpeedLimit));
+            firstLane.bySnapTimes = (byte) parseInt(arg(args, 39, String.valueOf(defaultPositive(unsignedByte(firstLane.bySnapTimes), 1))), defaultPositive(unsignedByte(firstLane.bySnapTimes), 1));
+            firstLane.byBigCarSignSpeed = (byte) parseInt(arg(args, 42, String.valueOf(unsignedByte(firstLane.byBigCarSignSpeed))), unsignedByte(firstLane.byBigCarSignSpeed));
+            firstLane.byBigCarSpeedLimit = (byte) parseInt(arg(args, 43, String.valueOf(unsignedByte(firstLane.byBigCarSpeedLimit))), unsignedByte(firstLane.byBigCarSpeedLimit));
+            firstLane.dwRelatedIOOut = parseInt(arg(args, 44, String.valueOf(firstLane.dwRelatedIOOut)), firstLane.dwRelatedIOOut);
+            firstLane.byLaneType = (byte) parseInt(arg(args, 45, String.valueOf(unsignedByte(firstLane.byLaneType))), unsignedByte(firstLane.byLaneType));
+            firstLane.struLane.byUseageType = (byte) parseInt(arg(args, 46, String.valueOf(unsignedByte(firstLane.struLane.byUseageType))), unsignedByte(firstLane.struLane.byUseageType));
+            firstLane.byRelaLaneDirectionType = (byte) parseInt(arg(args, 47, String.valueOf(unsignedByte(firstLane.byRelaLaneDirectionType))), unsignedByte(firstLane.byRelaLaneDirectionType));
+            firstLane.byLowSpeedLimit = (byte) parseInt(arg(args, 48, String.valueOf(unsignedByte(firstLane.byLowSpeedLimit))), unsignedByte(firstLane.byLowSpeedLimit));
+            firstLane.byBigCarLowSpeedLimit = (byte) parseInt(arg(args, 49, String.valueOf(unsignedByte(firstLane.byBigCarLowSpeedLimit))), unsignedByte(firstLane.byBigCarLowSpeedLimit));
+            firstLane.struInterval.byIntervalType = (byte) parseInt(arg(args, 62, String.valueOf(unsignedByte(firstLane.struInterval.byIntervalType))), unsignedByte(firstLane.struInterval.byIntervalType));
+            firstLane.struInterval.wInterval[0] = (short) parseInt(arg(args, 63, String.valueOf(unsignedShort(firstLane.struInterval.wInterval[0]))), unsignedShort(firstLane.struInterval.wInterval[0]));
+            firstLane.struInterval.wInterval[1] = (short) parseInt(arg(args, 64, String.valueOf(unsignedShort(firstLane.struInterval.wInterval[1]))), unsignedShort(firstLane.struInterval.wInterval[1]));
+            firstLane.struInterval.wInterval[2] = (short) parseInt(arg(args, 65, String.valueOf(unsignedShort(firstLane.struInterval.wInterval[2]))), unsignedShort(firstLane.struInterval.wInterval[2]));
+            firstLane.struInterval.wInterval[3] = (short) parseInt(arg(args, 66, String.valueOf(unsignedShort(firstLane.struInterval.wInterval[3]))), unsignedShort(firstLane.struInterval.wInterval[3]));
+            firstLane.dwVioDetectType = setBit(firstLane.dwVioDetectType, 0x800, parseBooleanFlag(arg(args, 36, (firstLane.dwVioDetectType & 0x800) != 0 ? "1" : "0")));
+            firstLane.dwVioDetectType = setBit(firstLane.dwVioDetectType, 0x1000, parseBooleanFlag(arg(args, 50, (firstLane.dwVioDetectType & 0x1000) != 0 ? "1" : "0")));
+            firstLane.dwVioDetectType = setBit(firstLane.dwVioDetectType, 0x2000, parseBooleanFlag(arg(args, 51, (firstLane.dwVioDetectType & 0x2000) != 0 ? "1" : "0")));
+            firstLane.struLane.write();
+            firstLane.struInterval.write();
+            firstLane.write();
+            hvt.struLaneParam[0] = firstLane;
+            hvt.struPlateRecog.write();
             hvt.write();
             writeStructureToUnion(trigger.uTriggerParam, hvt);
         }
@@ -1971,6 +2108,10 @@ public class HikvisionTrafficConfigTool {
     private static boolean parseBooleanFlag(String value) {
         String normalized = withDefault(value, "0").toLowerCase(Locale.ROOT);
         return "1".equals(normalized) || "true".equals(normalized) || "yes".equals(normalized) || "on".equals(normalized);
+    }
+
+    private static int setBit(int value, int bit, boolean enabled) {
+        return enabled ? (value | bit) : (value & ~bit);
     }
 
     private static void fillBytes(byte[] buffer, String value) {
