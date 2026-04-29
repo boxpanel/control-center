@@ -28,6 +28,8 @@ public class HikvisionTrafficConfigTool {
     private static final int NET_ITC_SET_FTPCFG = 3122;
     private static final int NET_ITC_GET_TRIGGERCFG = 3003;
     private static final int NET_ITC_SET_TRIGGERCFG = 3004;
+    private static final int NET_ITC_GET_VIDEO_TRIGGERCFG = 3017;
+    private static final int NET_ITC_SET_VIDEO_TRIGGERCFG = 3018;
     private static final int NET_DVR_GET_TRIGGEREX_CFG = 5074;
     private static final int NET_DVR_SET_TRIGGEREX_CFG = 5075;
     private static final int NET_DVR_GET_SNAPENABLECFG = 1086;
@@ -243,6 +245,18 @@ public class HikvisionTrafficConfigTool {
         }
     }
 
+    public static class NET_ITC_VIDEO_TRIGGER_COND extends Structure {
+        public int dwSize;
+        public int dwChannel;
+        public int dwTriggerMode;
+        public byte[] byRes = new byte[16];
+
+        @Override
+        protected List<String> getFieldOrder() {
+            return Arrays.asList("dwSize", "dwChannel", "dwTriggerMode", "byRes");
+        }
+    }
+
     public static class NET_ITC_POST_RS485_PARAM extends Structure {
         public byte byRelatedLaneNum;
         public byte byTriggerSpareMode;
@@ -399,6 +413,166 @@ public class HikvisionTrafficConfigTool {
         @Override
         protected List<String> getFieldOrder() {
             return Arrays.asList("byUseageType", "byDirectionType", "byCarDriveDirect", "byRes");
+        }
+    }
+
+    public static class NET_VCA_LINE extends Structure {
+        public NET_VCA_POINT struStart = new NET_VCA_POINT();
+        public NET_VCA_POINT struEnd = new NET_VCA_POINT();
+
+        @Override
+        protected List<String> getFieldOrder() {
+            return Arrays.asList("struStart", "struEnd");
+        }
+    }
+
+    public static class NET_ITC_LINE extends Structure {
+        public NET_VCA_LINE struLine = new NET_VCA_LINE();
+        public byte byLineType;
+        public byte[] byRes = new byte[7];
+
+        @Override
+        protected List<String> getFieldOrder() {
+            return Arrays.asList("struLine", "byLineType", "byRes");
+        }
+    }
+
+    public static class NET_ITC_TRAFFIC_LIGHT_PARAM extends Structure {
+        public byte bySource;
+        public byte[] byRes1 = new byte[3];
+        public int[] struLightAccess = new int[122];
+        public byte[] byRes = new byte[32];
+
+        @Override
+        protected List<String> getFieldOrder() {
+            return Arrays.asList("bySource", "byRes1", "struLightAccess", "byRes");
+        }
+    }
+
+    public static class NET_ITC_VIOLATION_DETECT_LINE extends Structure {
+        public NET_ITC_LINE struLaneLine = new NET_ITC_LINE();
+        public NET_ITC_LINE struStopLine = new NET_ITC_LINE();
+        public NET_ITC_LINE struRedLightLine = new NET_ITC_LINE();
+        public NET_ITC_LINE struCancelLine = new NET_ITC_LINE();
+        public NET_ITC_LINE struWaitLine = new NET_ITC_LINE();
+        public NET_ITC_LINE[] struRes = (NET_ITC_LINE[]) new NET_ITC_LINE().toArray(8);
+
+        @Override
+        protected List<String> getFieldOrder() {
+            return Arrays.asList("struLaneLine", "struStopLine", "struRedLightLine", "struCancelLine", "struWaitLine", "struRes");
+        }
+    }
+
+    public static class NET_ITC_VIOLATION_DETECT_PARAM extends Structure {
+        public int dwVioDetectType;
+        public byte byDriveLineSnapTimes;
+        public byte byReverseSnapTimes;
+        public short wStayTime;
+        public byte byNonDriveSnapTimes;
+        public byte byChangeLaneTimes;
+        public byte bybanTimes;
+        public byte byDriveLineSnapSen;
+        public short wSnapPosFixPixel;
+        public byte bySpeedTimes;
+        public byte byTurnAroundEnable;
+        public byte byThirdPlateRecogTime;
+        public byte byPostSnapTimes;
+        public byte[] byRes1 = new byte[18];
+        public short wStopLineDis;
+        public byte[] byRes = new byte[14];
+
+        @Override
+        protected List<String> getFieldOrder() {
+            return Arrays.asList(
+                    "dwVioDetectType", "byDriveLineSnapTimes", "byReverseSnapTimes", "wStayTime",
+                    "byNonDriveSnapTimes", "byChangeLaneTimes", "bybanTimes", "byDriveLineSnapSen",
+                    "wSnapPosFixPixel", "bySpeedTimes", "byTurnAroundEnable", "byThirdPlateRecogTime",
+                    "byPostSnapTimes", "byRes1", "wStopLineDis", "byRes"
+            );
+        }
+    }
+
+    public static class NET_ITC_LANE_VIDEO_EPOLICE_PARAM extends Structure {
+        public byte byLaneNO;
+        public byte bySensitivity;
+        public byte byEnableRadar;
+        public byte byRelaLaneDirectionType;
+        public NET_ITC_LANE_LOGIC_PARAM struLane = new NET_ITC_LANE_LOGIC_PARAM();
+        public NET_ITC_VIOLATION_DETECT_PARAM struVioDetect = new NET_ITC_VIOLATION_DETECT_PARAM();
+        public NET_ITC_VIOLATION_DETECT_LINE struLine = new NET_ITC_VIOLATION_DETECT_LINE();
+        public NET_ITC_POLYGON struPlateRecog = new NET_ITC_POLYGON();
+        public byte byRecordEnable;
+        public byte byRecordType;
+        public byte byPreRecordTime;
+        public byte byRecordDelayTime;
+        public byte byRecordTimeOut;
+        public byte byCarSpeedLimit;
+        public byte byCarSignSpeed;
+        public byte bySnapPicPreRecord;
+        public NET_ITC_INTERVAL_PARAM struInterval = new NET_ITC_INTERVAL_PARAM();
+        public byte[] byRes = new byte[36];
+
+        @Override
+        protected List<String> getFieldOrder() {
+            return Arrays.asList(
+                    "byLaneNO", "bySensitivity", "byEnableRadar", "byRelaLaneDirectionType", "struLane",
+                    "struVioDetect", "struLine", "struPlateRecog", "byRecordEnable", "byRecordType",
+                    "byPreRecordTime", "byRecordDelayTime", "byRecordTimeOut", "byCarSpeedLimit",
+                    "byCarSignSpeed", "bySnapPicPreRecord", "struInterval", "byRes"
+            );
+        }
+    }
+
+    public static class NET_ITC_VIDEO_EPOLICE_PARAM extends Structure {
+        public byte byEnable;
+        public byte byLaneNum;
+        public byte byLogicJudge;
+        public byte byRes1;
+        public NET_ITC_PLATE_RECOG_PARAM struPlateRecog = new NET_ITC_PLATE_RECOG_PARAM();
+        public NET_ITC_TRAFFIC_LIGHT_PARAM struTrafficLight = new NET_ITC_TRAFFIC_LIGHT_PARAM();
+        public NET_ITC_LANE_VIDEO_EPOLICE_PARAM[] struLaneParam = (NET_ITC_LANE_VIDEO_EPOLICE_PARAM[]) new NET_ITC_LANE_VIDEO_EPOLICE_PARAM().toArray(6);
+        public NET_ITC_LINE struLaneBoundaryLine = new NET_ITC_LINE();
+        public NET_ITC_LINE struLeftLine = new NET_ITC_LINE();
+        public NET_ITC_LINE struRightLine = new NET_ITC_LINE();
+        public NET_ITC_LINE struTopZebraLine = new NET_ITC_LINE();
+        public NET_ITC_LINE struBotZebraLine = new NET_ITC_LINE();
+        public byte[] byRes = new byte[32];
+
+        @Override
+        protected List<String> getFieldOrder() {
+            return Arrays.asList(
+                    "byEnable", "byLaneNum", "byLogicJudge", "byRes1", "struPlateRecog", "struTrafficLight",
+                    "struLaneParam", "struLaneBoundaryLine", "struLeftLine", "struRightLine",
+                    "struTopZebraLine", "struBotZebraLine", "byRes"
+            );
+        }
+    }
+
+    public static class NET_ITC_VIDEO_TRIGGER_PARAM_UNION extends Structure {
+        public int[] uLen = new int[1150];
+
+        @Override
+        protected List<String> getFieldOrder() {
+            return Collections.singletonList("uLen");
+        }
+
+        public NET_ITC_VIDEO_EPOLICE_PARAM asVideoEpolice() {
+            NET_ITC_VIDEO_EPOLICE_PARAM value = new NET_ITC_VIDEO_EPOLICE_PARAM();
+            value.getPointer().write(0, this.getPointer().getByteArray(0, value.size()), 0, value.size());
+            value.read();
+            return value;
+        }
+    }
+
+    public static class NET_ITC_VIDEO_TRIGGER_PARAM extends Structure {
+        public int dwSize;
+        public int dwMode;
+        public NET_ITC_VIDEO_TRIGGER_PARAM_UNION uVideoTrigger = new NET_ITC_VIDEO_TRIGGER_PARAM_UNION();
+        public byte[] byRes = new byte[32];
+
+        @Override
+        protected List<String> getFieldOrder() {
+            return Arrays.asList("dwSize", "dwMode", "uVideoTrigger", "byRes");
         }
     }
 
@@ -1247,6 +1421,9 @@ public class HikvisionTrafficConfigTool {
     private static String buildTriggerConfig(int userId) {
         NET_DVR_CURTRIGGERMODE currentMode = loadCurrentTriggerModeStruct(userId);
         int currentTriggerType = currentMode == null ? 0 : currentMode.dwTriggerType;
+        if (currentTriggerType == 0x20000) {
+            return buildVideoEpoliceTriggerConfig(userId);
+        }
         NET_ITC_TRIGGERCFG config = loadTriggerConfigStruct(userId, currentTriggerType);
         if (config == null) {
             // Basic trigger types without configurable parameters
@@ -1818,7 +1995,76 @@ public class HikvisionTrafficConfigTool {
                 + "}";
     }
 
+    private static String buildVideoEpoliceTriggerConfig(int userId) {
+        NET_ITC_VIDEO_TRIGGER_PARAM config = loadVideoTriggerConfigStruct(userId, 0x20000);
+        if (config == null) {
+            return "{"
+                    + "\"success\":true,"
+                    + "\"message\":\"SDK video ePolice trigger config loaded (empty)\","
+                    + "\"sdkAvailable\":true,"
+                    + "\"triggerConfig\":{\"enabled\":true,\"triggerTypeCode\":131072,\"triggerTypeHex\":\"0x20000\",\"triggerTypeLabel\":\"Video ePolice\",\"summary\":\"Video ePolice\"}"
+                    + "}";
+        }
+        NET_ITC_VIDEO_EPOLICE_PARAM video = config.uVideoTrigger.asVideoEpolice();
+        NET_ITC_LANE_VIDEO_EPOLICE_PARAM lane = video.struLaneParam[0];
+        NET_ITC_VIOLATION_DETECT_PARAM vio = lane.struVioDetect;
+        int vioType = vio.dwVioDetectType;
+        int laneCount = defaultPositive(unsignedByte(video.byLaneNum), 1);
+        String summary = "Enabled / Video ePolice / lanes=" + laneCount;
+        return "{"
+                + "\"success\":true,"
+                + "\"message\":\"SDK video ePolice trigger config loaded\","
+                + "\"sdkAvailable\":true,"
+                + "\"triggerConfig\":{"
+                + "\"enabled\":" + (unsignedByte(video.byEnable) == 1) + ","
+                + "\"enabledLabel\":\"" + json(boolNullableLabel(unsignedByte(video.byEnable) == 1)) + "\","
+                + "\"triggerTypeCode\":131072,"
+                + "\"triggerTypeHex\":\"0x20000\","
+                + "\"triggerTypeLabel\":\"Video ePolice\","
+                + "\"detailSource\":\"videoEpolice\","
+                + "\"laneCount\":" + laneCount + ","
+                + "\"firstLaneRelatedDriveWay\":" + defaultPositive(unsignedByte(lane.byLaneNO), 1) + ","
+                + "\"firstLaneDirectionType\":" + unsignedByte(lane.byRelaLaneDirectionType) + ","
+                + "\"firstLaneUseageType\":" + unsignedByte(lane.struLane.byUseageType) + ","
+                + "\"videoEpoliceCarDriveDirect\":" + unsignedByte(lane.struLane.byCarDriveDirect) + ","
+                + "\"firstLaneSpeedLimit\":" + unsignedByte(lane.byCarSpeedLimit) + ","
+                + "\"firstLaneSignSpeed\":" + unsignedByte(lane.byCarSignSpeed) + ","
+                + "\"epoliceSnapPicPreRecord\":" + unsignedByte(lane.bySnapPicPreRecord) + ","
+                + "\"videoEpoliceIntervalType\":" + unsignedByte(lane.struInterval.byIntervalType) + ","
+                + "\"videoEpoliceIntervalMs\":" + unsignedShort(lane.struInterval.wInterval[0]) + ","
+                + "\"videoEpoliceCheckpointEnabled\":" + ((vioType & 0x01) != 0) + ","
+                + "\"videoEpoliceCheckpointLevel\":" + defaultPositive(unsignedByte(vio.byPostSnapTimes), 1) + ","
+                + "\"videoEpoliceWrongDirectionEnabled\":" + ((vioType & 0x10) != 0) + ","
+                + "\"videoEpoliceIllegalUTurnEnabled\":" + ((vioType & 0x8000) != 0) + ","
+                + "\"videoEpoliceIllegalUTurnLevel\":" + defaultPositive(unsignedByte(vio.byTurnAroundEnable), 1) + ","
+                + "\"videoEpoliceIllegalLaneChangeEnabled\":" + ((vioType & 0x80) != 0) + ","
+                + "\"videoEpoliceIllegalLaneChangeLevel\":" + defaultPositive(unsignedByte(vio.byChangeLaneTimes), 1) + ","
+                + "\"videoEpoliceReverseEnabled\":" + ((vioType & 0x04) != 0) + ","
+                + "\"videoEpoliceReverseLevel\":" + defaultPositive(unsignedByte(vio.byReverseSnapTimes), 1) + ","
+                + "\"videoEpoliceLaneLineEnabled\":" + ((vioType & 0x02) != 0) + ","
+                + "\"videoEpoliceLaneLineLevel\":" + defaultPositive(unsignedByte(vio.byDriveLineSnapTimes), 1) + ","
+                + "\"videoEpoliceLaneLineSensitivity\":" + unsignedByte(vio.byDriveLineSnapSen) + ","
+                + "\"videoEpoliceMotorOccupyNonMotorEnabled\":" + ((vioType & 0x40) != 0) + ","
+                + "\"videoEpoliceMotorOccupyNonMotorLevel\":" + defaultPositive(unsignedByte(vio.byNonDriveSnapTimes), 1) + ","
+                + "\"videoEpoliceStopSeconds\":" + unsignedShort(vio.wStayTime) + ","
+                + "\"videoEpoliceIntersectionStopEnabled\":" + ((vioType & 0x200) != 0) + ","
+                + "\"videoEpoliceGreenLightStopEnabled\":" + ((vioType & 0x400) != 0) + ","
+                + "\"videoEpoliceProhibitionSignEnabled\":" + ((vioType & 0x100) != 0) + ","
+                + "\"videoEpoliceProhibitionSignLevel\":" + defaultPositive(unsignedByte(vio.bybanTimes), 1) + ","
+                + "\"videoEpoliceSpeedingEnabled\":" + ((vioType & 0x800) != 0) + ","
+                + "\"videoEpoliceSpeedingLevel\":" + defaultPositive(unsignedByte(vio.bySpeedTimes), 1) + ","
+                + "\"videoEpoliceRedLightEnabled\":" + ((vioType & 0x08) != 0) + ","
+                + "\"videoEpoliceTrafficLightDetect\":" + unsignedByte(video.struTrafficLight.bySource) + ","
+                + "\"videoEpoliceCopyParamMask\":1,"
+                + "\"summary\":\"" + json(summary) + "\""
+                + "}}";
+    }
+
     private static String applyTriggerConfig(int userId, String[] args) {
+        int requestedType = parseInt(arg(args, 6, "0"), 0);
+        if (requestedType == 0x20000) {
+            return applyVideoEpoliceTriggerConfig(userId, args);
+        }
         NET_DVR_CURTRIGGERMODE currentMode = loadCurrentTriggerModeStruct(userId);
         int currentTriggerType = currentMode == null ? 0 : currentMode.dwTriggerType;
         NET_ITC_TRIGGERCFG config = loadTriggerConfigStruct(userId, currentTriggerType);
@@ -2151,6 +2397,89 @@ public class HikvisionTrafficConfigTool {
         return buildTriggerConfig(userId);
     }
 
+    private static String applyVideoEpoliceTriggerConfig(int userId, String[] args) {
+        NET_ITC_VIDEO_TRIGGER_PARAM config = loadVideoTriggerConfigStruct(userId, 0x20000);
+        if (config == null) {
+            config = new NET_ITC_VIDEO_TRIGGER_PARAM();
+            config.dwSize = config.size();
+            config.dwMode = 0x20000;
+        }
+        config.dwSize = config.size();
+        config.dwMode = 0x20000;
+        NET_ITC_VIDEO_EPOLICE_PARAM video = config.uVideoTrigger.asVideoEpolice();
+        video.byEnable = (byte) (parseBooleanFlag(arg(args, 5, unsignedByte(video.byEnable) == 1 ? "1" : "0")) ? 1 : 0);
+        video.byLaneNum = (byte) parseInt(arg(args, 7, String.valueOf(defaultPositive(unsignedByte(video.byLaneNum), 1))), defaultPositive(unsignedByte(video.byLaneNum), 1));
+        video.struTrafficLight.bySource = (byte) parseInt(arg(args, 101, String.valueOf(unsignedByte(video.struTrafficLight.bySource))), unsignedByte(video.struTrafficLight.bySource));
+
+        NET_ITC_LANE_VIDEO_EPOLICE_PARAM lane = video.struLaneParam[0];
+        lane.byLaneNO = (byte) parseInt(arg(args, 32, String.valueOf(defaultPositive(unsignedByte(lane.byLaneNO), 1))), defaultPositive(unsignedByte(lane.byLaneNO), 1));
+        lane.byRelaLaneDirectionType = (byte) parseInt(arg(args, 47, String.valueOf(unsignedByte(lane.byRelaLaneDirectionType))), unsignedByte(lane.byRelaLaneDirectionType));
+        lane.struLane.byUseageType = (byte) parseInt(arg(args, 46, String.valueOf(unsignedByte(lane.struLane.byUseageType))), unsignedByte(lane.struLane.byUseageType));
+        lane.struLane.byCarDriveDirect = (byte) parseInt(arg(args, 100, String.valueOf(unsignedByte(lane.struLane.byCarDriveDirect))), unsignedByte(lane.struLane.byCarDriveDirect));
+        lane.byCarSpeedLimit = (byte) parseInt(arg(args, 38, String.valueOf(unsignedByte(lane.byCarSpeedLimit))), unsignedByte(lane.byCarSpeedLimit));
+        lane.byCarSignSpeed = (byte) parseInt(arg(args, 37, String.valueOf(unsignedByte(lane.byCarSignSpeed))), unsignedByte(lane.byCarSignSpeed));
+        lane.bySnapPicPreRecord = (byte) parseInt(arg(args, 68, String.valueOf(unsignedByte(lane.bySnapPicPreRecord))), unsignedByte(lane.bySnapPicPreRecord));
+        lane.struInterval.byIntervalType = (byte) parseInt(arg(args, 76, String.valueOf(unsignedByte(lane.struInterval.byIntervalType))), unsignedByte(lane.struInterval.byIntervalType));
+        lane.struInterval.wInterval[0] = (short) parseInt(arg(args, 77, String.valueOf(unsignedShort(lane.struInterval.wInterval[0]))), unsignedShort(lane.struInterval.wInterval[0]));
+
+        NET_ITC_VIOLATION_DETECT_PARAM vio = lane.struVioDetect;
+        vio.dwVioDetectType = setBit(vio.dwVioDetectType, 0x01, parseBooleanFlag(arg(args, 78, (vio.dwVioDetectType & 0x01) != 0 ? "1" : "0")));
+        vio.byPostSnapTimes = (byte) parseInt(arg(args, 79, String.valueOf(defaultPositive(unsignedByte(vio.byPostSnapTimes), 1))), defaultPositive(unsignedByte(vio.byPostSnapTimes), 1));
+        vio.dwVioDetectType = setBit(vio.dwVioDetectType, 0x10, parseBooleanFlag(arg(args, 80, (vio.dwVioDetectType & 0x10) != 0 ? "1" : "0")));
+        vio.dwVioDetectType = setBit(vio.dwVioDetectType, 0x8000, parseBooleanFlag(arg(args, 81, (vio.dwVioDetectType & 0x8000) != 0 ? "1" : "0")));
+        vio.byTurnAroundEnable = (byte) parseInt(arg(args, 82, String.valueOf(defaultPositive(unsignedByte(vio.byTurnAroundEnable), 1))), defaultPositive(unsignedByte(vio.byTurnAroundEnable), 1));
+        vio.dwVioDetectType = setBit(vio.dwVioDetectType, 0x80, parseBooleanFlag(arg(args, 83, (vio.dwVioDetectType & 0x80) != 0 ? "1" : "0")));
+        vio.byChangeLaneTimes = (byte) parseInt(arg(args, 84, String.valueOf(defaultPositive(unsignedByte(vio.byChangeLaneTimes), 1))), defaultPositive(unsignedByte(vio.byChangeLaneTimes), 1));
+        vio.dwVioDetectType = setBit(vio.dwVioDetectType, 0x04, parseBooleanFlag(arg(args, 85, (vio.dwVioDetectType & 0x04) != 0 ? "1" : "0")));
+        vio.byReverseSnapTimes = (byte) parseInt(arg(args, 86, String.valueOf(defaultPositive(unsignedByte(vio.byReverseSnapTimes), 1))), defaultPositive(unsignedByte(vio.byReverseSnapTimes), 1));
+        vio.dwVioDetectType = setBit(vio.dwVioDetectType, 0x02, parseBooleanFlag(arg(args, 87, (vio.dwVioDetectType & 0x02) != 0 ? "1" : "0")));
+        vio.byDriveLineSnapTimes = (byte) parseInt(arg(args, 88, String.valueOf(defaultPositive(unsignedByte(vio.byDriveLineSnapTimes), 1))), defaultPositive(unsignedByte(vio.byDriveLineSnapTimes), 1));
+        vio.byDriveLineSnapSen = (byte) parseInt(arg(args, 89, String.valueOf(unsignedByte(vio.byDriveLineSnapSen))), unsignedByte(vio.byDriveLineSnapSen));
+        vio.dwVioDetectType = setBit(vio.dwVioDetectType, 0x40, parseBooleanFlag(arg(args, 90, (vio.dwVioDetectType & 0x40) != 0 ? "1" : "0")));
+        vio.byNonDriveSnapTimes = (byte) parseInt(arg(args, 91, String.valueOf(defaultPositive(unsignedByte(vio.byNonDriveSnapTimes), 1))), defaultPositive(unsignedByte(vio.byNonDriveSnapTimes), 1));
+        vio.wStayTime = (short) parseInt(arg(args, 92, String.valueOf(unsignedShort(vio.wStayTime))), unsignedShort(vio.wStayTime));
+        vio.dwVioDetectType = setBit(vio.dwVioDetectType, 0x200, parseBooleanFlag(arg(args, 93, (vio.dwVioDetectType & 0x200) != 0 ? "1" : "0")));
+        vio.dwVioDetectType = setBit(vio.dwVioDetectType, 0x400, parseBooleanFlag(arg(args, 94, (vio.dwVioDetectType & 0x400) != 0 ? "1" : "0")));
+        vio.dwVioDetectType = setBit(vio.dwVioDetectType, 0x100, parseBooleanFlag(arg(args, 95, (vio.dwVioDetectType & 0x100) != 0 ? "1" : "0")));
+        vio.bybanTimes = (byte) parseInt(arg(args, 96, String.valueOf(defaultPositive(unsignedByte(vio.bybanTimes), 1))), defaultPositive(unsignedByte(vio.bybanTimes), 1));
+        vio.dwVioDetectType = setBit(vio.dwVioDetectType, 0x800, parseBooleanFlag(arg(args, 97, (vio.dwVioDetectType & 0x800) != 0 ? "1" : "0")));
+        vio.bySpeedTimes = (byte) parseInt(arg(args, 98, String.valueOf(defaultPositive(unsignedByte(vio.bySpeedTimes), 1))), defaultPositive(unsignedByte(vio.bySpeedTimes), 1));
+        vio.dwVioDetectType = setBit(vio.dwVioDetectType, 0x08, parseBooleanFlag(arg(args, 99, (vio.dwVioDetectType & 0x08) != 0 ? "1" : "0")));
+
+        lane.struLane.write();
+        lane.struVioDetect.write();
+        lane.struInterval.write();
+        lane.write();
+        video.struLaneParam[0] = lane;
+        int copyMask = parseInt(arg(args, 102, "1"), 1) | 1;
+        for (int i = 1; i < Math.min(video.struLaneParam.length, 3); i += 1) {
+            if ((copyMask & (1 << i)) == 0) continue;
+            NET_ITC_LANE_VIDEO_EPOLICE_PARAM target = video.struLaneParam[i];
+            byte originalLaneNo = target.byLaneNO;
+            byte[] data = lane.getPointer().getByteArray(0, lane.size());
+            target.getPointer().write(0, data, 0, Math.min(data.length, target.size()));
+            target.read();
+            target.byLaneNO = originalLaneNo == 0 ? (byte) (i + 1) : originalLaneNo;
+            target.write();
+            video.struLaneParam[i] = target;
+        }
+        video.struTrafficLight.write();
+        video.write();
+        writeStructureToUnion(config.uVideoTrigger, video);
+        config.write();
+
+        if (!saveVideoTriggerConfigStruct(userId, config)) {
+            return "";
+        }
+        NET_DVR_CURTRIGGERMODE currentMode = loadCurrentTriggerModeStruct(userId);
+        NET_DVR_CURTRIGGERMODE targetMode = currentMode == null ? new NET_DVR_CURTRIGGERMODE() : currentMode;
+        targetMode.dwSize = targetMode.size();
+        if (!setCurrentTriggerModeStruct(userId, targetMode, 0x20000)) {
+            return "";
+        }
+        return buildVideoEpoliceTriggerConfig(userId);
+    }
+
     private static int countRegionPoints(String raw) {
         String text = String.valueOf(raw == null ? "" : raw).trim();
         if (text.isEmpty()) return 0;
@@ -2320,6 +2649,11 @@ public class HikvisionTrafficConfigTool {
         union.getPointer().write(0, data, 0, Math.min(data.length, union.size()));
     }
 
+    private static void writeStructureToUnion(NET_ITC_VIDEO_TRIGGER_PARAM_UNION union, Structure value) {
+        byte[] data = value.getPointer().getByteArray(0, value.size());
+        union.getPointer().write(0, data, 0, Math.min(data.length, union.size()));
+    }
+
     private static void copySingleIoParams(NET_ITC_SINGLEIO_PARAM source, NET_ITC_SINGLEIO_PARAM target) {
         byte originalEnable = target.byEnable;
         byte[] data = source.getPointer().getByteArray(0, source.size());
@@ -2436,6 +2770,84 @@ public class HikvisionTrafficConfigTool {
 
         // Fallback to old method
         return loadTriggerConfigOldMethod(userId, currentTriggerType);
+    }
+
+    private static NET_ITC_VIDEO_TRIGGER_PARAM loadVideoTriggerConfigStruct(int userId, int triggerType) {
+        int[][] combos = {
+            {1, triggerType},
+            {0, triggerType},
+            {1, 0},
+            {0, 0}
+        };
+        for (int[] combo : combos) {
+            NET_ITC_VIDEO_TRIGGER_PARAM config = new NET_ITC_VIDEO_TRIGGER_PARAM();
+            config.dwSize = config.size();
+            config.dwMode = triggerType;
+            config.write();
+
+            NET_ITC_VIDEO_TRIGGER_COND condition = new NET_ITC_VIDEO_TRIGGER_COND();
+            condition.dwSize = condition.size();
+            condition.dwChannel = combo[0];
+            condition.dwTriggerMode = combo[1];
+            condition.write();
+
+            IntByReference statusList = new IntByReference(0);
+            boolean ok = sdk.NET_DVR_GetDeviceConfig(
+                    userId,
+                    NET_ITC_GET_VIDEO_TRIGGERCFG,
+                    1,
+                    condition.getPointer(),
+                    condition.size(),
+                    statusList.getPointer(),
+                    config.getPointer(),
+                    config.size()
+            );
+            if (ok) {
+                int status = statusList.getValue();
+                if (status == 0 || status == 1) {
+                    config.read();
+                    return config;
+                }
+            }
+        }
+        return null;
+    }
+
+    private static boolean saveVideoTriggerConfigStruct(int userId, NET_ITC_VIDEO_TRIGGER_PARAM config) {
+        int[][] combos = {
+            {1, 0x20000},
+            {0, 0x20000},
+            {1, 0},
+            {0, 0}
+        };
+        int lastError = 0;
+        int lastStatus = 0;
+        for (int[] combo : combos) {
+            NET_ITC_VIDEO_TRIGGER_COND condition = new NET_ITC_VIDEO_TRIGGER_COND();
+            condition.dwSize = condition.size();
+            condition.dwChannel = combo[0];
+            condition.dwTriggerMode = combo[1];
+            condition.write();
+            config.write();
+            IntByReference statusList = new IntByReference(0);
+            boolean ok = sdk.NET_DVR_SetDeviceConfig(
+                    userId,
+                    NET_ITC_SET_VIDEO_TRIGGERCFG,
+                    1,
+                    condition.getPointer(),
+                    condition.size(),
+                    statusList.getPointer(),
+                    config.getPointer(),
+                    config.size()
+            );
+            lastError = ok ? 0 : sdk.NET_DVR_GetLastError();
+            lastStatus = statusList.getValue();
+            if (ok && (lastStatus == 0 || lastStatus == 1)) {
+                return true;
+            }
+        }
+        fail("NET_DVR_SetDeviceConfig(VIDEO_TRIGGERCFG) failed/status=" + lastStatus, lastError);
+        return false;
     }
 
     private static NET_ITC_TRIGGERCFG loadTriggerConfigOldMethod(int userId, int currentTriggerType) {
