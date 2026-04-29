@@ -822,6 +822,20 @@ else
   npm install --omit=dev
 fi
 
+step "Clearing previous activation data"
+node -e "
+const Database = require('better-sqlite3');
+const path = require('path');
+const dbPath = path.resolve('data', 'plates.sqlite3');
+try {
+  const db = new Database(dbPath);
+  db.exec('DELETE FROM activation');
+  db.close();
+} catch (e) {
+  // database or table may not exist yet
+}
+" 2>/dev/null || true
+
 if [[ "$ENABLE_SERVICE" -eq 1 ]]; then
   write_systemd_service
 fi
