@@ -257,7 +257,7 @@ class HikvisionSdkBridge {
 
     if (parsed && parsed.success === false) {
       const errMsg = parsed.error || parsed.message || `SDK action "${action}" failed`;
-      const errCode = parsed.errorCode != null ? ` (错误码: ${parsed.errorCode})` : "";
+      const errCode = parsed.errorCode != null ? ` (error code ${parsed.errorCode})` : "";
       throw new Error(`${errMsg}${errCode}`);
     }
 

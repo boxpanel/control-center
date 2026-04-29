@@ -2339,8 +2339,9 @@ async function fetchJson(url, body, method = "POST") {
   // 为重启请求设置较短的超时时间
   const isRestartRequest = url === "/api/device/restart";
   const isSdkFtpSaveRequest = url === "/api/sdk/ftp-config/set";
+  const isSdkTriggerSaveRequest = url === "/api/sdk/trigger-config/set";
   const controller = new AbortController();
-  const timeoutMs = isRestartRequest ? 3000 : (isSdkFtpSaveRequest ? 120000 : 30000);
+  const timeoutMs = isRestartRequest ? 3000 : ((isSdkFtpSaveRequest || isSdkTriggerSaveRequest) ? 120000 : 30000);
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
   
   try {
@@ -2355,7 +2356,7 @@ async function fetchJson(url, body, method = "POST") {
     
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
-      throw new Error(data?.error || `HTTP ${res.status}`);
+      throw new Error(data?.message || data?.error || `HTTP ${res.status}`);
     }
     return data;
   } catch (error) {
@@ -8214,7 +8215,7 @@ async function saveDevicePreviewSdkPreset() {
   try {
     const response = await fetchJson(schema.saveApiPath, sdkPayload);
     if (!isSdkApiSuccess(response)) {
-      throw new Error(response?.error || response?.message || "SDK参数保存失败");
+      throw new Error(response?.message || response?.error || "SDK参数保存失败");
     }
     if (els.devicePreviewIsapiHint) {
       els.devicePreviewIsapiHint.textContent = "保存成功，正在刷新参数...";
