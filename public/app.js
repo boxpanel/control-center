@@ -7615,6 +7615,14 @@ function renderEpoliceCopyGroup(fieldName) {
   return `<div class="devicePreviewTriggerIoGroup" data-isapi-bitmask-field="${fieldName}">${items.join("")}</div>`;
 }
 
+function renderVideoEpoliceCopyGroup() {
+  const items = [];
+  for (let bit = 2; bit <= 3; bit += 1) {
+    items.push(`<label class="devicePreviewTriggerIoItem"><input type="checkbox" data-isapi-bitmask-item="${bit}" /><span>车道${bit}</span></label>`);
+  }
+  return `<div class="devicePreviewTriggerIoGroup" data-isapi-bitmask-field="videoEpoliceCopyParamMask">${items.join("")}</div>`;
+}
+
 function renderRadarCopyGroup() {
   return '<div class="devicePreviewTriggerIoGroup" data-isapi-bitmask-field="radarCopyParamMask"><label class="devicePreviewTriggerIoItem"><input type="checkbox" data-isapi-bitmask-item="1" disabled /><span>车道1</span></label></div>';
 }
@@ -7629,6 +7637,16 @@ function renderMixedLaneViolationField(label, enabledKey, levelKey) {
 
 function renderSingleIoIntervalFields() {
   return `<label class="devicePreviewTriggerField"><span>连拍间隔</span><span class="devicePreviewTriggerControl devicePreviewSingleIoIntervals"><input class="devicePreviewParamInput" type="number" data-isapi-field="singleIoInterval1" /><input class="devicePreviewParamInput" type="number" data-isapi-field="singleIoInterval2" /><input class="devicePreviewParamInput" type="number" data-isapi-field="singleIoInterval3" /><input class="devicePreviewParamInput" type="number" data-isapi-field="singleIoInterval4" /><em>ms</em></span></label>`;
+}
+
+function renderVideoEpoliceTrafficLightControls() {
+  return `<div class="devicePreviewVideoTrafficLightBox">
+    ${renderTriggerFieldRow("红绿灯检测", "videoEpoliceTrafficLightDetect", { type: "select", selectOptions: SDK_VIDEO_EPOLICE_TRAFFIC_LIGHT_OPTIONS })}
+    <div class="devicePreviewVideoTrafficLightButtons">
+      <button type="button" class="devicePreviewTriggerGhostBtn" disabled>设置</button>
+      <button type="button" class="devicePreviewTriggerGhostBtn" disabled>信号灯检测</button>
+    </div>
+  </div>`;
 }
 
 function renderDevicePreviewSdkCurrentTriggerModeControls() {
@@ -7816,12 +7834,12 @@ function renderDevicePreviewSdkTriggerConfigControls() {
     '<div class="devicePreviewVehicleDetectorOnly"><div class="devicePreviewTriggerIoRow"><span>参数复制到</span>' + renderEpoliceCopyGroup("epoliceCopyParamMask") + '</div></div>',
     '<div class="devicePreviewMixedLaneOnly"><div class="devicePreviewTriggerIoRow"><span>参数复制到</span>' + renderEpoliceCopyGroup("epoliceCopyParamMask") + '</div></div>',
     '<div class="devicePreviewMixedLaneOnly devicePreviewTriggerSectionTitle">雷达参数</div>',
-    '<div class="devicePreviewVideoEpoliceOnly"><div class="devicePreviewTriggerIoRow"><span>参数复制到</span>' + renderEpoliceCopyGroup("videoEpoliceCopyParamMask") + '</div></div>',
-    '<div class="devicePreviewVideoEpoliceOnly">' + renderTriggerFieldRow("红绿灯检测", "videoEpoliceTrafficLightDetect", { type: "select", selectOptions: SDK_VIDEO_EPOLICE_TRAFFIC_LIGHT_OPTIONS }) + '</div>',
+    '<div class="devicePreviewVideoEpoliceOnly"><div class="devicePreviewTriggerIoRow"><span>参数复制到</span>' + renderVideoEpoliceCopyGroup() + '</div></div>',
+    '<div class="devicePreviewVideoEpoliceOnly">' + renderVideoEpoliceTrafficLightControls() + '</div>',
     '</div>',
     '<div class="devicePreviewTriggerRight">',
     '<div class="devicePreviewTriggerPreviewBox"><svg class="devicePreviewTriggerCanvas" viewBox="0 0 100 100" preserveAspectRatio="none" aria-label="识别区域绘制画布"></svg><div class="devicePreviewTriggerPreviewLabel">识别区域1</div></div>',
-    '<div class="devicePreviewTriggerPreviewToolbar"><div class="devicePreviewTriggerPreviewButtons"><button type="button" class="devicePreviewTriggerGhostBtn devicePreviewTriggerDrawBtn">绘制区域</button><button type="button" class="devicePreviewTriggerGhostBtn devicePreviewTriggerClearBtn">清除区域</button></div><label class="devicePreviewTriggerCheck devicePreviewTriggerInlineCheck"><input type="checkbox" disabled /><span>显示全部绘图</span></label></div>',
+    '<div class="devicePreviewTriggerPreviewToolbar"><div class="devicePreviewTriggerPreviewButtons"><button type="button" class="devicePreviewTriggerGhostBtn devicePreviewTriggerDrawBtn">绘制区域</button><button type="button" class="devicePreviewTriggerGhostBtn devicePreviewTriggerClearBtn">清除区域</button><button type="button" class="devicePreviewTriggerGhostBtn devicePreviewVideoEpoliceOnly" disabled>高级设置</button></div><label class="devicePreviewTriggerCheck devicePreviewTriggerInlineCheck"><input type="checkbox" disabled /><span>显示全部绘图</span></label></div>',
     '<div class="devicePreviewTriggerRegionStatus">尚未绘制识别区域</div>',
     '<div class="devicePreviewVehicleDetectorOnly">' + renderTriggerFieldRow("异常超速", "firstLaneSpeedLimit", { type: "number", unit: "km/h" }) + '</div>',
     '<div class="devicePreviewVehicleDetectorOnly">' + renderTriggerFieldRow("异常低速", "firstLaneLowSpeedLimit", { type: "number", unit: "km/h" }) + '</div>',

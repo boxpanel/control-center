@@ -1693,6 +1693,17 @@ canvas {
   padding: 8px 0;
 }
 
+.devicePreviewVideoTrafficLightBox {
+  display: grid;
+  gap: 8px;
+}
+
+.devicePreviewVideoTrafficLightButtons {
+  display: flex;
+  gap: 8px;
+  padding-left: 128px;
+}
+
 .devicePreviewSingleIoIntervals {
   gap: 4px;
 }
