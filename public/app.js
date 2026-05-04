@@ -3583,6 +3583,8 @@ function initPlateModule() {
   initPlateDashboardUi();
   loadPlateHistoryToUi().catch(() => {});
   const runQuery = () => {
+    clearPlateSelections();
+    plateTableState.page = 1;
     applyPlateFiltersFromUi().catch(err => console.error("查询失败:", err));
   };
   if (els.plateQueryBtn) els.plateQueryBtn.addEventListener("click", runQuery);
