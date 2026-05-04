@@ -892,11 +892,20 @@ function resolvePreferredLanIp(systemCfg) {
   const ifaces = listPrivateIPv4();
   const manual = String(cfg.manualIp || "").trim();
   const preferred = String(cfg.preferredIp || "").trim();
-  if (cfg.ipMode === "manual" && manual) return manual;
+  if (cfg.ipMode === "manual" && manual && ifaces.some((item) => item.address === manual)) return manual;
   if (preferred && ifaces.some((item) => item.address === preferred)) return preferred;
   return ifaces[0]?.address || "127.0.0.1";
 }
 
+async function resolveCurrentFtpPasvIp(systemCfg, remoteAddress) {
+  if (isLoopbackIp(remoteAddress)) return "127.0.0.1";
+  try {
+    const latestInfo = await loadOrInitDeviceInfo();
+    return resolvePreferredLanIp(latestInfo?.system || systemCfg);
+  } catch {
+    return resolvePreferredLanIp(systemCfg);
+  }
+}
 function isFtpImageFile(filePath) {
   return /\.(jpe?g|png|bmp|webp)$/i.test(String(filePath || ""));
 }
@@ -2311,7 +2320,7 @@ async function ensureFtpServer(cfg) {
   const srv = new FtpSrv({
     url,
     anonymous: !conf.username,
-    pasv_url: (remoteAddress) => (isLoopbackIp(remoteAddress) ? "127.0.0.1" : preferredLanIp),
+    pasv_url: (remoteAddress) => resolveCurrentFtpPasvIp(info?.system, remoteAddress),
     pasv_min: FTP_PASV_MIN_PORT,
     pasv_max: FTP_PASV_MAX_PORT,
     greeting: ["Control Center FTP ready"]
