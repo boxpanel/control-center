@@ -7623,6 +7623,10 @@ function renderVideoEpoliceViolationField(label, enabledKey, levelKey) {
   return `<label class="devicePreviewTriggerField"><span>${label}</span><span class="devicePreviewTriggerControl devicePreviewTriggerMixedControl"><input type="checkbox" data-isapi-field="${enabledKey}" /><select class="devicePreviewParamSelect" data-isapi-field="${levelKey}">${renderPreviewSelectOptions(SDK_VIDEO_EPOLICE_LEVEL_OPTIONS)}</select></span></label>`;
 }
 
+function renderMixedLaneViolationField(label, enabledKey, levelKey) {
+  return `<label class="devicePreviewTriggerField devicePreviewMixedViolationField"><span>${label}</span><span class="devicePreviewTriggerControl devicePreviewTriggerMixedControl"><input type="checkbox" data-isapi-field="${enabledKey}" /><select class="devicePreviewParamSelect" data-isapi-field="${levelKey}">${renderPreviewSelectOptions(SDK_VIDEO_EPOLICE_LEVEL_OPTIONS)}</select></span></label>`;
+}
+
 function renderSingleIoIntervalFields() {
   return `<label class="devicePreviewTriggerField"><span>连拍间隔</span><span class="devicePreviewTriggerControl devicePreviewSingleIoIntervals"><input class="devicePreviewParamInput" type="number" data-isapi-field="singleIoInterval1" /><input class="devicePreviewParamInput" type="number" data-isapi-field="singleIoInterval2" /><input class="devicePreviewParamInput" type="number" data-isapi-field="singleIoInterval3" /><input class="devicePreviewParamInput" type="number" data-isapi-field="singleIoInterval4" /><em>ms</em></span></label>`;
 }
@@ -7658,16 +7662,30 @@ function renderDevicePreviewSdkTriggerConfigControls() {
     '</div>',
     '</div>',
     '<div class="devicePreviewTriggerSection view-hidden" data-trigger-group="capture">',
-    '<div class="devicePreviewTriggerSectionTitle">抓拍参数</div>',
+    '<div class="devicePreviewTriggerSectionTitle">混合抓拍配置</div>',
     '<div class="devicePreviewTriggerGrid">',
     '<div class="devicePreviewTriggerLeft">',
-    renderTriggerFieldRow("显示辅助线", "displayEnabled", { type: "select", selectOptions: SDK_BOOLEAN_OPTIONS }),
-    renderTriggerFieldRow("抓拍模式", "snapMode", { type: "select", selectOptions: SDK_SNAP_MODE_OPTIONS }),
-    renderTriggerFieldRow("测速方式", "speedDetector", { type: "select", selectOptions: SDK_SPEED_DETECTOR_OPTIONS }),
-    renderTriggerFieldRow("场景模式", "sceneMode", { type: "select", selectOptions: SDK_SCENE_MODE_OPTIONS }),
-    renderTriggerFieldRow("抓拍类型", "capType", { type: "select", selectOptions: SDK_CAP_TYPE_OPTIONS }),
+    renderTriggerFieldRow("连拍间隔类型", "firstLaneIntervalType", { type: "select", selectOptions: SDK_INTERVAL_TYPE_OPTIONS }),
+    renderMixedLaneViolationField("卡口", "firstLaneEmergencyCapEnabled", "mixedCheckpointLevel"),
+    renderMixedLaneViolationField("超速", "firstLaneSpeedCapEnabled", "mixedSpeedLevel"),
+    renderMixedLaneViolationField("压车道线", "mixedLaneLineEnabled", "mixedLaneLineLevel"),
+    '</div>',
+    '<div class="devicePreviewTriggerLeft">',
+    renderTriggerFieldRow("连拍间隔", "firstLaneInterval1", { type: "number", unit: "ms" }),
+    renderMixedLaneViolationField("逆行", "mixedReverseEnabled", "mixedReverseLevel"),
+    renderMixedLaneViolationField("低速", "firstLaneLowSpeedCapEnabled", "mixedLowSpeedLevel"),
+    renderMixedLaneViolationField("闯禁令", "mixedBanEnabled", "mixedBanLevel"),
+    '</div>',
+    '</div>',
+    '<div class="devicePreviewTriggerSectionTitle">线路和抓拍配置</div>',
+    '<div class="devicePreviewTriggerGrid">',
+    '<div class="devicePreviewTriggerLeft">',
+    renderTriggerFieldRow("线路模式", "sceneMode", { type: "select", selectOptions: SDK_SCENE_MODE_OPTIONS }),
     renderTriggerFieldRow("抓拍方式", "capMode", { type: "select", selectOptions: SDK_CAP_MODE_OPTIONS }),
-    renderTriggerFieldRow("速度模式", "speedMode", { type: "select", selectOptions: SDK_SPEED_MODE_OPTIONS }),
+    '</div>',
+    '<div class="devicePreviewTriggerLeft">',
+    renderTriggerFieldRow("抓拍类型", "capType", { type: "select", selectOptions: SDK_CAP_TYPE_OPTIONS }),
+    renderTriggerFieldRow("测速模式", "speedMode", { type: "select", selectOptions: SDK_SPEED_MODE_OPTIONS }),
     '</div>',
     '</div>',
     '</div>',
@@ -7731,6 +7749,8 @@ function renderDevicePreviewSdkTriggerConfigControls() {
     '<div class="devicePreviewNotSingleIoOnly">' + renderTriggerFieldRow("关联车道号(也做叠加用)", "firstLaneRelatedDriveWay", { type: "number" }) + '</div>',
     '<div class="devicePreviewEpoliceOnly">' + renderTriggerFieldRow("叠加车道号", "firstLaneOverlayDriveWay", { type: "number" }) + '</div>',
     '<div class="devicePreviewCardEpoliceOnly">' + renderTriggerFieldRow("叠加车道号", "firstLaneOverlayDriveWay", { type: "number" }) + '</div>',
+    '<div class="devicePreviewMixedLaneOnly">' + renderTriggerFieldRow("车道方向类型", "firstLaneDirectionType", { type: "select", selectOptions: SDK_LANE_DIRECTION_OPTIONS }) + '</div>',
+    '<div class="devicePreviewMixedLaneOnly">' + renderTriggerFieldRow("叠加车道号", "firstLaneOverlayDriveWay", { type: "number" }) + '</div>',
     '<div class="devicePreviewRadarOnly">' + renderTriggerFieldRow("叠加车道号", "firstLaneOverlayDriveWay", { type: "number" }) + '</div>',
     '<div class="devicePreviewVehicleDetectorOnly">' + renderTriggerFieldRow("车道方向类型", "firstLaneDirectionType", { type: "select", selectOptions: SDK_LANE_DIRECTION_OPTIONS }) + '</div>',
     '<div class="devicePreviewRadarOnly">' + renderTriggerFieldRow("车道方向类型", "firstLaneDirectionType", { type: "select", selectOptions: SDK_LANE_DIRECTION_OPTIONS }) + '</div>',
@@ -7741,6 +7761,8 @@ function renderDevicePreviewSdkTriggerConfigControls() {
     '<div class="devicePreviewRadarOnly">' + renderTriggerFieldRow("触发延迟时间", "firstLaneTrigDelayTime", { type: "number", unit: "ms" }) + '</div>',
     '<div class="devicePreviewRadarOnly">' + renderTriggerFieldRow("触发延迟距离", "firstLaneTrigDelayDistance", { type: "number", unit: "dm" }) + '</div>',
     '<div class="devicePreviewVehicleDetectorOnly">' + renderTriggerFieldRow("车道属性", "firstLaneLaneType", { type: "select", selectOptions: SDK_LANE_PROPERTY_OPTIONS }) + '</div>',
+    '<div class="devicePreviewMixedLaneOnly">' + renderTriggerFieldRow("车道属性", "firstLaneLaneType", { type: "select", selectOptions: SDK_LANE_PROPERTY_OPTIONS }) + '</div>',
+    '<div class="devicePreviewMixedLaneOnly">' + renderTriggerFieldRow("车道行驶方向", "videoEpoliceCarDriveDirect", { type: "select", selectOptions: SDK_VIDEO_EPOLICE_DRIVE_DIRECT_OPTIONS }) + '</div>',
     '<div class="devicePreviewRadarOnly">' + renderTriggerFieldRow("车道属性", "firstLaneLaneType", { type: "select", selectOptions: SDK_LANE_PROPERTY_OPTIONS }) + '</div>',
     '<div class="devicePreviewStandardLaneOnly">' + renderTriggerFieldRow("连拍张数", "firstLaneSnapTimes", { type: "select", selectOptions: SDK_SNAP_TIMES_OPTIONS }) + '</div>',
     '<div class="devicePreviewStandardLaneOnly">' + renderTriggerCheckboxField("应急车道抓拍", "firstLaneEmergencyCapEnabled") + '</div>',
@@ -7758,6 +7780,12 @@ function renderDevicePreviewSdkTriggerConfigControls() {
     '<div class="devicePreviewVehicleDetectorOnly">' + renderTriggerFieldRow("大车标志限速", "firstLaneCartSignSpeed", { type: "number", unit: "km/h" }) + '</div>',
     '<div class="devicePreviewVehicleDetectorOnly">' + renderTriggerFieldRow("小车限低速", "firstLaneLowSpeedLimit", { type: "number", unit: "km/h" }) + '</div>',
     '<div class="devicePreviewVehicleDetectorOnly">' + renderTriggerFieldRow("大车限低速", "firstLaneBigCarLowSpeedLimit", { type: "number", unit: "km/h" }) + '</div>',
+    '<div class="devicePreviewMixedLaneOnly">' + renderTriggerFieldRow("小车标志限速", "firstLaneSignSpeed", { type: "number", unit: "km/h" }) + '</div>',
+    '<div class="devicePreviewMixedLaneOnly">' + renderTriggerFieldRow("限速值", "firstLaneSpeedLimit", { type: "number", unit: "km/h" }) + '</div>',
+    '<div class="devicePreviewMixedLaneOnly">' + renderTriggerFieldRow("小车限低速", "firstLaneLowSpeedLimit", { type: "number", unit: "km/h" }) + '</div>',
+    '<div class="devicePreviewMixedLaneOnly">' + renderTriggerFieldRow("大车标志限速", "firstLaneCartSignSpeed", { type: "number", unit: "km/h" }) + '</div>',
+    '<div class="devicePreviewMixedLaneOnly">' + renderTriggerFieldRow("大车限高速", "firstLaneCartSpeedLimit", { type: "number", unit: "km/h" }) + '</div>',
+    '<div class="devicePreviewMixedLaneOnly">' + renderTriggerFieldRow("大车限低速", "firstLaneBigCarLowSpeedLimit", { type: "number", unit: "km/h" }) + '</div>',
     '<div class="devicePreviewRadarOnly">' + renderTriggerFieldRow("限速值", "firstLaneSpeedLimit", { type: "number", unit: "km/h" }) + '</div>',
     '<div class="devicePreviewRadarOnly">' + renderTriggerFieldRow("标志限速", "firstLaneSignSpeed", { type: "number", unit: "km/h" }) + '</div>',
     '<div class="devicePreviewRadarOnly">' + renderTriggerFieldRow("大车限高速", "firstLaneCartSpeedLimit", { type: "number", unit: "km/h" }) + '</div>',
@@ -7780,6 +7808,8 @@ function renderDevicePreviewSdkTriggerConfigControls() {
     '<div class="devicePreviewCardEpoliceOnly"><div class="devicePreviewTriggerIoRow"><span>参数复制到</span>' + renderEpoliceCopyGroup("epoliceCopyParamMask") + '</div></div>',
     '<div class="devicePreviewVehicleDetectorOnly"><a class="devicePreviewTriggerAdvancedLink" href="javascript:void(0)">高级设置</a></div>',
     '<div class="devicePreviewVehicleDetectorOnly"><div class="devicePreviewTriggerIoRow"><span>参数复制到</span>' + renderEpoliceCopyGroup("epoliceCopyParamMask") + '</div></div>',
+    '<div class="devicePreviewMixedLaneOnly"><div class="devicePreviewTriggerIoRow"><span>参数复制到</span>' + renderEpoliceCopyGroup("epoliceCopyParamMask") + '</div></div>',
+    '<div class="devicePreviewMixedLaneOnly devicePreviewTriggerSectionTitle">雷达参数</div>',
     '<div class="devicePreviewVideoEpoliceOnly"><div class="devicePreviewTriggerIoRow"><span>参数复制到</span>' + renderEpoliceCopyGroup("videoEpoliceCopyParamMask") + '</div></div>',
     '<div class="devicePreviewVideoEpoliceOnly">' + renderTriggerFieldRow("红绿灯检测", "videoEpoliceTrafficLightDetect", { type: "select", selectOptions: SDK_VIDEO_EPOLICE_TRAFFIC_LIGHT_OPTIONS }) + '</div>',
     '</div>',
@@ -7791,6 +7821,10 @@ function renderDevicePreviewSdkTriggerConfigControls() {
     '<div class="devicePreviewVehicleDetectorOnly">' + renderTriggerFieldRow("异常低速", "firstLaneLowSpeedLimit", { type: "number", unit: "km/h" }) + '</div>',
     '<div class="devicePreviewVehicleDetectorOnly">' + renderTriggerFieldRow("大车异常超速", "firstLaneCartSpeedLimit", { type: "number", unit: "km/h" }) + '</div>',
     '<div class="devicePreviewVehicleDetectorOnly">' + renderTriggerFieldRow("大车异常低速", "firstLaneBigCarLowSpeedLimit", { type: "number", unit: "km/h" }) + '</div>',
+    '<div class="devicePreviewMixedLaneOnly">' + renderTriggerFieldRow("异常超速", "firstLaneSpeedLimit", { type: "number", unit: "km/h" }) + '</div>',
+    '<div class="devicePreviewMixedLaneOnly">' + renderTriggerFieldRow("异常低速", "firstLaneLowSpeedLimit", { type: "number", unit: "km/h" }) + '</div>',
+    '<div class="devicePreviewMixedLaneOnly">' + renderTriggerFieldRow("大车异常超速", "firstLaneCartSpeedLimit", { type: "number", unit: "km/h" }) + '</div>',
+    '<div class="devicePreviewMixedLaneOnly">' + renderTriggerFieldRow("大车异常低速", "firstLaneBigCarLowSpeedLimit", { type: "number", unit: "km/h" }) + '</div>',
     '<div class="devicePreviewRadarOnly">' + renderTriggerFieldRow("异常超速", "firstLaneSpeedLimit", { type: "number", unit: "km/h" }) + '</div>',
     '<div class="devicePreviewRadarOnly">' + renderTriggerFieldRow("异常低速", "firstLaneLowSpeedLimit", { type: "number", unit: "km/h" }) + '</div>',
     '<div class="devicePreviewRadarOnly">' + renderTriggerFieldRow("大车异常超速", "firstLaneCartSpeedLimit", { type: "number", unit: "km/h" }) + '</div>',
@@ -7831,12 +7865,13 @@ function syncDevicePreviewTriggerModeSections() {
   const showSingleIo = triggerType === 2;
   const showVehicleDetector = triggerType === 4;
   const showCapture = triggerType === 32;
+  const showRs485Radar = triggerType === 8;
   const showEpolice = triggerType === 512;
   const showCardEpolice = triggerType === 65536;
   const showVideoEpolice = triggerType === 131072;
   const showAnyEpolice = showEpolice || showCardEpolice || showVideoEpolice;
-  const showLane = showSingleIo || showVehicleDetector || showCapture || showAnyEpolice || triggerType === 8;
-  const showRadar = triggerType === 8 || showCapture;
+  const showLane = showSingleIo || showVehicleDetector || showCapture || showAnyEpolice || showRs485Radar;
+  const showRadar = showRs485Radar || showCapture;
   const showSpare = showVehicleDetector;
   const showLaneCount = triggerType === 4 || triggerType === 8 || triggerType === 32 || showAnyEpolice;
 
@@ -7844,13 +7879,14 @@ function syncDevicePreviewTriggerModeSections() {
   host.querySelector('[data-trigger-group="lane"]')?.classList.toggle("view-hidden", !showLane);
   host.querySelectorAll(".devicePreviewSingleIoOnly").forEach((node) => node.classList.toggle("view-hidden", !showSingleIo));
   host.querySelectorAll(".devicePreviewNotSingleIoOnly").forEach((node) => node.classList.toggle("view-hidden", showSingleIo));
-  host.querySelectorAll(".devicePreviewRadarOnly").forEach((node) => node.classList.toggle("view-hidden", showSingleIo || showAnyEpolice));
+  host.querySelectorAll(".devicePreviewRadarOnly").forEach((node) => node.classList.toggle("view-hidden", !showRs485Radar));
   host.querySelectorAll(".devicePreviewRadarLaneTitle").forEach((node) => node.classList.toggle("view-hidden", showSingleIo));
   host.querySelectorAll(".devicePreviewVehicleDetectorOnly").forEach((node) => node.classList.toggle("view-hidden", !showVehicleDetector));
+  host.querySelectorAll(".devicePreviewMixedLaneOnly").forEach((node) => node.classList.toggle("view-hidden", !showCapture));
   host.querySelectorAll(".devicePreviewEpoliceOnly").forEach((node) => node.classList.toggle("view-hidden", !showEpolice));
   host.querySelectorAll(".devicePreviewCardEpoliceOnly").forEach((node) => node.classList.toggle("view-hidden", !showCardEpolice));
   host.querySelectorAll(".devicePreviewVideoEpoliceOnly").forEach((node) => node.classList.toggle("view-hidden", !showVideoEpolice));
-  host.querySelectorAll(".devicePreviewStandardLaneOnly").forEach((node) => node.classList.toggle("view-hidden", showSingleIo || showCardEpolice || showVideoEpolice));
+  host.querySelectorAll(".devicePreviewStandardLaneOnly").forEach((node) => node.classList.toggle("view-hidden", showSingleIo || showCapture || showCardEpolice || showVideoEpolice));
   host.querySelectorAll(".devicePreviewMultiLaneOnly").forEach((node) => node.classList.toggle("view-hidden", !(showVehicleDetector || showCapture || showAnyEpolice)));
   host.querySelector('[data-trigger-group="radar"]')?.classList.toggle("view-hidden", !showRadar);
   host.querySelector('[data-trigger-group="spare"]')?.classList.toggle("view-hidden", !showSpare);
