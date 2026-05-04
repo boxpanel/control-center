@@ -147,10 +147,15 @@ const stmtPlateFilteredCount = plateDb.prepare(
   `SELECT COUNT(*) as total
    FROM plate_records
    WHERE (plate LIKE ? OR ? IS NULL)
-     AND ((receivedAt >= ? AND receivedAt < ?) OR ? IS NULL)`
+     AND (((CASE WHEN eventAt > 0 THEN eventAt ELSE receivedAt END) >= ? AND (CASE WHEN eventAt > 0 THEN eventAt ELSE receivedAt END) < ?) OR ? IS NULL)`
 );
 const stmtPlateSearch = plateDb.prepare(
-  `SELECT id, plate, receivedAt, eventAt, imagePath, ftpRemotePath, serialSentAt, parsedMetaJson FROM plate_records WHERE (plate LIKE ? OR ? IS NULL) AND (receivedAt >= ? AND receivedAt < ? OR ? IS NULL) ORDER BY receivedAt DESC LIMIT 10000`
+  `SELECT id, plate, receivedAt, eventAt, imagePath, ftpRemotePath, serialSentAt, parsedMetaJson
+   FROM plate_records
+   WHERE (plate LIKE ? OR ? IS NULL)
+     AND (((CASE WHEN eventAt > 0 THEN eventAt ELSE receivedAt END) >= ? AND (CASE WHEN eventAt > 0 THEN eventAt ELSE receivedAt END) < ?) OR ? IS NULL)
+   ORDER BY (CASE WHEN eventAt > 0 THEN eventAt ELSE receivedAt END) DESC, receivedAt DESC
+   LIMIT 10000`
 );
 const stmtPlateListPaged = plateDb.prepare(
   `SELECT id, plate, receivedAt, eventAt, imagePath, ftpRemotePath, serialSentAt, parsedMetaJson FROM plate_records ORDER BY receivedAt DESC LIMIT ? OFFSET ?`
@@ -4588,18 +4593,29 @@ app.get("/api/plates/count", (req, res) => {
   }
 });
 
+function parsePlateSearchDateRange(date) {
+  const text = String(date || "").trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(text)) return { start: null, end: null };
+  const [year, month, day] = text.split("-").map((part) => Number(part));
+  const startDate = new Date(year, month - 1, day, 0, 0, 0, 0);
+  if (
+    startDate.getFullYear() !== year ||
+    startDate.getMonth() !== month - 1 ||
+    startDate.getDate() !== day
+  ) {
+    return { start: null, end: null };
+  }
+  const endDate = new Date(year, month - 1, day + 1, 0, 0, 0, 0);
+  return { start: startDate.getTime(), end: endDate.getTime() };
+}
+
 app.get("/api/plates/stats", (req, res) => {
   try {
     const plate = String(req.query?.plate || "").trim();
     const date = String(req.query?.date || "").trim();
     const plateParam = plate ? `%${plate}%` : null;
 
-    let dateStart = null;
-    let dateEnd = null;
-    if (/^\d{4}-\d{2}-\d{2}$/.test(date)) {
-      dateStart = new Date(`${date}T00:00:00`).getTime();
-      dateEnd = new Date(`${date}T23:59:59.999`).getTime();
-    }
+    const { start: dateStart, end: dateEnd } = parsePlateSearchDateRange(date);
 
     const nowMs = Date.now();
     const todayStart = new Date();
@@ -4682,26 +4698,7 @@ app.get("/api/plates/search", (req, res) => {
   const date = String(req.query?.date || "").trim();
   
   const plateParam = plate ? `%${plate}%` : null;
-  
-  // 将日期字符串转换为时间戳范围
-  let startTimestamp = null;
-  let endTimestamp = null;
-  
-  if (date) {
-    try {
-      // 解析日期字符串，支持格式：YYYY-MM-DD
-      const dateObj = new Date(date);
-      if (!isNaN(dateObj.getTime())) {
-        startTimestamp = dateObj.getTime();
-        // 计算下一天的开始时间
-        const nextDay = new Date(dateObj);
-        nextDay.setDate(nextDay.getDate() + 1);
-        endTimestamp = nextDay.getTime();
-      }
-    } catch (error) {
-      console.error(`日期解析错误: ${date}`, error);
-    }
-  }
+  const { start: startTimestamp, end: endTimestamp } = parsePlateSearchDateRange(date);
   
   const rows = stmtPlateSearch.all(plateParam, plateParam, startTimestamp, endTimestamp, startTimestamp);
   const items = rows.map(rowToPlateDto);
