@@ -1670,6 +1670,29 @@ canvas {
   font-weight: 700;
 }
 
+.devicePreviewTriggerAdvancedLink {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: #2563eb;
+  cursor: pointer;
+  font: inherit;
+  padding: 0;
+  text-align: left;
+  text-decoration: underline;
+}
+
+.devicePreviewTriggerAdvancedLink.active {
+  color: #1d4ed8;
+  font-weight: 700;
+}
+
+.devicePreviewTriggerAdvancedPanel {
+  display: grid;
+  gap: 10px;
+  padding: 8px 0;
+}
+
 .devicePreviewSingleIoIntervals {
   gap: 4px;
 }

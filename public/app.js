@@ -7806,7 +7806,14 @@ function renderDevicePreviewSdkTriggerConfigControls() {
     '<div class="devicePreviewCardEpoliceOnly"><div class="devicePreviewTriggerIoRow"><span>复制车检器协议到车道</span>' + renderEpoliceCopyGroup("epoliceCopyProtocolMask") + '</div></div>',
     '<div class="devicePreviewEpoliceOnly"><div class="devicePreviewTriggerIoRow"><span>参数复制到</span>' + renderEpoliceCopyGroup("epoliceCopyParamMask") + '</div></div>',
     '<div class="devicePreviewCardEpoliceOnly"><div class="devicePreviewTriggerIoRow"><span>参数复制到</span>' + renderEpoliceCopyGroup("epoliceCopyParamMask") + '</div></div>',
-    '<div class="devicePreviewVehicleDetectorOnly"><a class="devicePreviewTriggerAdvancedLink" href="javascript:void(0)">高级设置</a></div>',
+    '<div class="devicePreviewVehicleDetectorOnly"><button type="button" class="devicePreviewTriggerAdvancedLink" data-trigger-advanced-toggle="vehicleDetector">高级设置</button></div>',
+    '<div class="devicePreviewVehicleDetectorOnly devicePreviewTriggerAdvancedPanel view-hidden" data-trigger-advanced-panel="vehicleDetector">',
+    renderTriggerFieldRow("线圈距离", "firstLaneDistance", { type: "number", unit: "cm" }),
+    renderTriggerFieldRow("延迟间隔类型", "firstLaneTrigDelayDistance", { type: "select", selectOptions: SDK_INTERVAL_TYPE_OPTIONS }),
+    renderTriggerFieldRow("延迟间隔", "firstLaneTrigDelayTime", { type: "number", unit: "ms" }),
+    renderTriggerCheckboxField("连续录像", "vehicleDetectorContinuousRecordEnabled"),
+    '</div>',
+    '<div class="devicePreviewVehicleDetectorOnly"><div class="devicePreviewTriggerIoRow"><span>复制车检器协议到车道</span>' + renderEpoliceCopyGroup("epoliceCopyProtocolMask") + '</div></div>',
     '<div class="devicePreviewVehicleDetectorOnly"><div class="devicePreviewTriggerIoRow"><span>参数复制到</span>' + renderEpoliceCopyGroup("epoliceCopyParamMask") + '</div></div>',
     '<div class="devicePreviewMixedLaneOnly"><div class="devicePreviewTriggerIoRow"><span>参数复制到</span>' + renderEpoliceCopyGroup("epoliceCopyParamMask") + '</div></div>',
     '<div class="devicePreviewMixedLaneOnly devicePreviewTriggerSectionTitle">雷达参数</div>',
@@ -7911,6 +7918,22 @@ function bindDevicePreviewTriggerTypeChange() {
   });
 }
 
+function bindDevicePreviewTriggerAdvancedToggles() {
+  const host = ensureDevicePreviewOnvifControlsHost();
+  if (!host || host.dataset.triggerAdvancedBound === "1") return;
+  host.dataset.triggerAdvancedBound = "1";
+  host.addEventListener("click", (event) => {
+    const target = event.target instanceof HTMLElement ? event.target.closest("[data-trigger-advanced-toggle]") : null;
+    if (!(target instanceof HTMLElement)) return;
+    event.preventDefault();
+    const key = target.getAttribute("data-trigger-advanced-toggle") || "";
+    const panel = host.querySelector(`[data-trigger-advanced-panel="${CSS.escape(key)}"]`);
+    if (!panel) return;
+    const hidden = panel.classList.toggle("view-hidden");
+    target.classList.toggle("active", !hidden);
+  });
+}
+
 function fillDevicePreviewOnvifControls(values = {}) {
   const host = ensureDevicePreviewOnvifControlsHost();
   if (!host) return;
@@ -8011,6 +8034,7 @@ function renderDevicePreviewIsapiControls(schemaKey = "") {
     host.innerHTML = renderDevicePreviewSdkTriggerConfigControls();
     bindDevicePreviewTriggerRegionEditor();
     bindDevicePreviewTriggerTypeChange();
+    bindDevicePreviewTriggerAdvancedToggles();
     return;
   }
   const schema = DEVICE_PREVIEW_ISAPI_SCHEMAS[schemaKey] || DEVICE_PREVIEW_ISAPI_SCHEMAS.deviceInfo;
