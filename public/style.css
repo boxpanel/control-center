@@ -1644,6 +1644,11 @@ canvas {
   grid-template-columns: repeat(3, minmax(0, max-content));
 }
 
+.devicePreviewSingleIoParamBlock {
+  display: grid;
+  gap: 10px;
+}
+
 .devicePreviewTriggerTabs {
   display: inline-flex;
   align-items: center;
