@@ -20,7 +20,7 @@ const rootJsFiles = [
 
 const publicJsFiles = ["app.js", "login.js"];
 const publicStaticFiles = ["index.html", "login.html", "style.css"];
-const rootStaticFiles = ["install.sh", "manage.sh", "README.md", "package-lock.json"];
+const rootStaticFiles = ["install.sh", "manage.sh", "README.md", "package-lock.json", "features.json"];
 
 const nodeObfuscationOptions = {
   compact: true,
