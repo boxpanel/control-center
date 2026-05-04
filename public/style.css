@@ -1681,6 +1681,10 @@ canvas {
   padding: 12px;
 }
 
+.devicePreviewRadarCopyRow {
+  grid-column: 1 / -1;
+}
+
 .devicePreviewTriggerSummary {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

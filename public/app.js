@@ -438,6 +438,14 @@ const SDK_RADAR_TYPE_OPTIONS = [
   { value: 255, label: "自定义" }
 ];
 
+const SDK_RADAR_PORT_OPTIONS = [
+  { value: 1, label: "485口 1" },
+  { value: 2, label: "485口 2" },
+  { value: 3, label: "485口 3" },
+  { value: 4, label: "485口 4" },
+  { value: 5, label: "485口 5" }
+];
+
 const SDK_TRIGGER_LANE_COUNT_OPTIONS = [
   { value: 1, label: "1" },
   { value: 2, label: "2" },
@@ -1013,6 +1021,7 @@ const DEVICE_PREVIEW_ISAPI_SCHEMAS = {
       { key: "capTypeLabel", label: "抓拍类型", type: "text", readOnly: true },
       { key: "capModeLabel", label: "抓拍方式", type: "text", readOnly: true },
       { key: "speedModeLabel", label: "速度模式", type: "text", readOnly: true },
+      { key: "radarUsePort", label: "使用雷达", type: "select", options: SDK_RADAR_PORT_OPTIONS },
       { key: "radarType", label: "雷达类型", type: "select", options: SDK_RADAR_TYPE_OPTIONS },
       { key: "radarTypeLabel", label: "雷达类型", type: "text", readOnly: true },
       { key: "levelAngle", label: "水平夹角", type: "number" },
@@ -1058,7 +1067,12 @@ const DEVICE_PREVIEW_ISAPI_SCHEMAS = {
       { key: "summary", label: "摘要", type: "text", readOnly: true }
     ],
     mapLoadResult(result = {}) {
-      return result && typeof result === "object" ? result : {};
+      if (!result || typeof result !== "object") return {};
+      return {
+        ...result,
+        radarUsePort: result.radarUsePort ?? 1,
+        radarCopyParamMask: result.radarCopyParamMask ?? 1
+      };
     },
     buildSavePayload(values = {}) {
       return {
@@ -1074,6 +1088,8 @@ const DEVICE_PREVIEW_ISAPI_SCHEMAS = {
         capType: Number(values.capType || 0) || 0,
         capMode: Number(values.capMode || 0) || 0,
         speedMode: Number(values.speedMode || 0) || 0,
+        radarUsePort: Number(values.radarUsePort || 1) || 1,
+        radarCopyParamMask: Number(values.radarCopyParamMask || 1) || 1,
         radarType: Number(values.radarType || 0) || 0,
         levelAngle: Number(values.levelAngle || 0) || 0,
         radarSensitivity: Number(values.radarSensitivity || 0) || 0,
@@ -7599,6 +7615,10 @@ function renderEpoliceCopyGroup(fieldName) {
   return `<div class="devicePreviewTriggerIoGroup" data-isapi-bitmask-field="${fieldName}">${items.join("")}</div>`;
 }
 
+function renderRadarCopyGroup() {
+  return '<div class="devicePreviewTriggerIoGroup" data-isapi-bitmask-field="radarCopyParamMask"><label class="devicePreviewTriggerIoItem"><input type="checkbox" data-isapi-bitmask-item="1" disabled /><span>车道1</span></label></div>';
+}
+
 function renderVideoEpoliceViolationField(label, enabledKey, levelKey) {
   return `<label class="devicePreviewTriggerField"><span>${label}</span><span class="devicePreviewTriggerControl devicePreviewTriggerMixedControl"><input type="checkbox" data-isapi-field="${enabledKey}" /><select class="devicePreviewParamSelect" data-isapi-field="${levelKey}">${renderPreviewSelectOptions(SDK_VIDEO_EPOLICE_LEVEL_OPTIONS)}</select></span></label>`;
 }
@@ -7754,12 +7774,14 @@ function renderDevicePreviewSdkTriggerConfigControls() {
     '<div class="devicePreviewTriggerSection" data-trigger-group="radar">',
     '<div class="devicePreviewTriggerSectionTitle">雷达参数</div>',
     '<div class="devicePreviewTriggerRadarGrid">',
+    renderTriggerFieldRow("使用雷达", "radarUsePort", { type: "select", selectOptions: SDK_RADAR_PORT_OPTIONS }),
     renderTriggerFieldRow("雷达类型", "radarType", { type: "select", selectOptions: SDK_RADAR_TYPE_OPTIONS }),
     renderTriggerFieldRow("灵敏度", "radarSensitivity", { type: "number" }),
     renderTriggerFieldRow("雷达与水平方向角度", "levelAngle", { type: "number" }),
     renderTriggerFieldRow("线性矫正系数", "lineCorrectParam", { type: "text", unit: "[0.001-2]" }),
     renderTriggerFieldRow("常量矫正系数", "constCorrectParam", { type: "number" }),
     renderTriggerFieldRow("雷达速度有效时间", "radarSpeedValidTime", { type: "number", unit: "s" }),
+    '<div class="devicePreviewTriggerIoRow devicePreviewRadarCopyRow"><span>参数复制到</span>' + renderRadarCopyGroup() + '</div>',
     '</div>',
     '</div>',
     '<input type="hidden" data-isapi-field="enabled" />',
