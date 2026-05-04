@@ -1,7 +1,7 @@
 import { execFile, spawn } from "node:child_process";
 import crypto from "node:crypto";
 import dgram from "node:dgram";
-import { watch as fsWatch } from "node:fs";
+import { watch as fsWatch, readFileSync } from "node:fs";
 import fs from "node:fs/promises";
 import net from "node:net";
 import path from "node:path";
@@ -4433,7 +4433,19 @@ app.get("/api/status", (req, res) => {
   res.json({ ok: true, status: "running", timestamp: Date.now() });
 });
 
-const FEATURES_LIST = ["network", "serial"];
+const FEATURES_LIST = loadFeaturesList();
+
+function loadFeaturesList() {
+  try {
+    const featuresPath = path.resolve(__dirname, "features.json");
+    const raw = readFileSync(featuresPath, "utf8");
+    const list = JSON.parse(raw);
+    if (Array.isArray(list) && list.length > 0) {
+      return list.map(f => String(f.id || "").trim()).filter(Boolean);
+    }
+  } catch {}
+  return ["network", "serial"];
+}
 
 async function computeCurrentFingerprint() {
   try {
