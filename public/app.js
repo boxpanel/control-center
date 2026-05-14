@@ -13,6 +13,8 @@ function updatePageTitle(systemName) {
   }
 }
 
+const DEFAULT_DEVICE_FALLBACK_IP = "192.168.88.88";
+
 // 显示加载动画
 function showLoading(message = "正在处理，请稍候...") {
   if (els.loadingOverlay) {
@@ -1924,7 +1926,7 @@ function pickFirstIfaceIp(ifaces) {
     const addr = String(i?.address || "").trim();
     if (addr) return addr;
   }
-  return "";
+  return DEFAULT_DEVICE_FALLBACK_IP;
 }
 
 function prefixToNetmask(prefix) {
@@ -2013,7 +2015,7 @@ async function initSystemUi() {
     if (mode === "manual") {
       els.systemIpInput.readOnly = false;
       els.systemIpInput.value = manualIp || els.systemIpInput.value || "";
-      els.systemIpInput.placeholder = "例如：192.168.1.22";
+      els.systemIpInput.placeholder = `例如：${DEFAULT_DEVICE_FALLBACK_IP}`;
       els.systemPrefixInput.readOnly = false;
       els.systemPrefixInput.value = manualNetmask || els.systemPrefixInput.value || "";
       els.systemPrefixInput.placeholder = "例如：255.255.255.0";
@@ -2218,7 +2220,7 @@ async function initSystemUi() {
 
   if (els.ftpIngestUrl) {
     const ipShown = ipMode === "manual" ? (manualIp || autoIp) : autoIp;
-    const addr = ipShown || "127.0.0.1";
+    const addr = ipShown || DEFAULT_DEVICE_FALLBACK_IP;
     els.ftpIngestUrl.textContent = `ftp://${addr}:${ftpPort}/`;
   }
   if (els.ftpIngestDir) {
@@ -2248,7 +2250,7 @@ async function initSystemUi() {
         const data = await fetchJson("/api/device/config", payload);
         setFtpHint("保存成功");
         if (els.ftpIngestUrl) {
-          const ipShownNow = String(els.systemIpInput?.value || "").trim() || autoIp || "127.0.0.1";
+          const ipShownNow = String(els.systemIpInput?.value || "").trim() || autoIp || DEFAULT_DEVICE_FALLBACK_IP;
           els.ftpIngestUrl.textContent = `ftp://${ipShownNow}:${port}/`;
         }
         if (els.ftpIngestDir) {
