@@ -681,6 +681,7 @@ const FTP_INGEST_SETTLE_MS = 800;
 const FTP_INGEST_SCAN_INTERVAL_MS = 1500;
 const FTP_INGEST_TRIGGER_DELAY_MS = 250;
 const FTP_INGEST_ARCHIVE_DIRNAME = "_ingested";
+const DEFAULT_DEVICE_FALLBACK_IP = "192.168.88.88";
 
 let backendSerialPort = null;
 let backendSerialKey = "";
@@ -899,7 +900,7 @@ function resolvePreferredLanIp(systemCfg) {
   const preferred = String(cfg.preferredIp || "").trim();
   if (cfg.ipMode === "manual" && manual && ifaces.some((item) => item.address === manual)) return manual;
   if (preferred && ifaces.some((item) => item.address === preferred)) return preferred;
-  return ifaces[0]?.address || "127.0.0.1";
+  return ifaces[0]?.address || DEFAULT_DEVICE_FALLBACK_IP;
 }
 
 async function resolveCurrentFtpPasvIp(systemCfg, remoteAddress) {
@@ -3031,7 +3032,7 @@ function buildSelfHttpBase({ port, ipMode, preferredIp, manualIp }) {
     (mode === "manual" && manual ? manual : "") ||
     (preferred && ifaces.some((i) => i.address === preferred) ? preferred : "") ||
     ifaces[0]?.address ||
-    "127.0.0.1";
+    DEFAULT_DEVICE_FALLBACK_IP;
   return `http://${ip}:${port}`;
 }
 
@@ -3114,7 +3115,7 @@ async function startRegistryReporter({ port }) {
       });
       return { name, httpBase };
     } catch {
-      return { name: os.hostname(), httpBase: `http://127.0.0.1:${port}` };
+      return { name: os.hostname(), httpBase: `http://${DEFAULT_DEVICE_FALLBACK_IP}:${port}` };
     }
   };
 
@@ -5945,7 +5946,7 @@ async function scanSubnet({ base, start, end, ports, timeoutMs }) {
 app.post("/api/onvif/scan-subnet", async (req, res, next) => {
   try {
     const ifaces = listPrivateIPv4();
-    const pick = ifaces[0]?.address || "192.168.1.1";
+    const pick = ifaces[0]?.address || DEFAULT_DEVICE_FALLBACK_IP;
     const parts = pick.split(".");
     const base = (req.body?.base && String(req.body.base)) || `${parts[0]}.${parts[1]}.${parts[2]}.`;
     const portsInput = Array.isArray(req.body?.ports) ? req.body.ports : undefined;
