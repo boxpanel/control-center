@@ -682,6 +682,7 @@ const FTP_INGEST_SCAN_INTERVAL_MS = 1500;
 const FTP_INGEST_TRIGGER_DELAY_MS = 250;
 const FTP_INGEST_ARCHIVE_DIRNAME = "_ingested";
 const DEFAULT_DEVICE_FALLBACK_IP = "192.168.88.88";
+const DEFAULT_DEVICE_FALLBACK_PREFIX = 24;
 
 let backendSerialPort = null;
 let backendSerialKey = "";
@@ -4074,6 +4075,85 @@ function execFileAsync(command, args = [], options = {}) {
   });
 }
 
+function isIgnoredNetworkInterface(name) {
+  const value = String(name || "").trim();
+  return (
+    !value ||
+    value === "lo" ||
+    /^docker/i.test(value) ||
+    /^br-/i.test(value) ||
+    /^veth/i.test(value) ||
+    /^virbr/i.test(value) ||
+    /^wg/i.test(value) ||
+    /^tun/i.test(value) ||
+    /^tailscale/i.test(value)
+  );
+}
+
+async function readLinuxInterfaceState(name) {
+  try {
+    return String(await fs.readFile(`/sys/class/net/${name}/operstate`, "utf8")).trim();
+  } catch {
+    return "";
+  }
+}
+
+async function pickFallbackIpInterface() {
+  const names = new Set();
+  try {
+    for (const name of await fs.readdir("/sys/class/net")) {
+      if (!isIgnoredNetworkInterface(name)) names.add(name);
+    }
+  } catch {}
+  for (const name of Object.keys(os.networkInterfaces())) {
+    if (!isIgnoredNetworkInterface(name)) names.add(name);
+  }
+
+  const candidates = [];
+  for (const name of names) {
+    const state = await readLinuxInterfaceState(name);
+    candidates.push({ name, state });
+  }
+  candidates.sort((a, b) => {
+    const score = (item) => (item.state === "up" ? 0 : item.state === "unknown" ? 1 : 2);
+    return score(a) - score(b) || a.name.localeCompare(b.name);
+  });
+  return candidates[0]?.name || "";
+}
+
+async function ensureFallbackIpAddress() {
+  if (process.platform !== "linux") return;
+  if (String(process.env.DISABLE_FALLBACK_IP || "").trim() === "1") return;
+  if (listPrivateIPv4().length > 0) return;
+
+  const ifaceName = await pickFallbackIpInterface();
+  if (!ifaceName) {
+    console.warn(`[Network] 未找到可绑定 ${DEFAULT_DEVICE_FALLBACK_IP} 的网卡`);
+    return;
+  }
+
+  try {
+    await execFileAsync("ip", ["link", "set", "dev", ifaceName, "up"]);
+  } catch (error) {
+    console.warn(`[Network] 启用网卡 ${ifaceName} 失败: ${error?.message || error}`);
+  }
+
+  try {
+    const { stdout } = await execFileAsync("ip", ["-o", "-4", "addr", "show", "dev", ifaceName]);
+    if (new RegExp(`\\b${DEFAULT_DEVICE_FALLBACK_IP.replace(/\./g, "\\.")}\\/${DEFAULT_DEVICE_FALLBACK_PREFIX}\\b`).test(stdout)) {
+      console.log(`[Network] fallback IP already active: ${DEFAULT_DEVICE_FALLBACK_IP}/${DEFAULT_DEVICE_FALLBACK_PREFIX} dev ${ifaceName}`);
+      return;
+    }
+  } catch {}
+
+  try {
+    await execFileAsync("ip", ["addr", "add", `${DEFAULT_DEVICE_FALLBACK_IP}/${DEFAULT_DEVICE_FALLBACK_PREFIX}`, "dev", ifaceName]);
+    console.log(`[Network] fallback IP added: ${DEFAULT_DEVICE_FALLBACK_IP}/${DEFAULT_DEVICE_FALLBACK_PREFIX} dev ${ifaceName}`);
+  } catch (error) {
+    console.warn(`[Network] 添加 fallback IP ${DEFAULT_DEVICE_FALLBACK_IP}/${DEFAULT_DEVICE_FALLBACK_PREFIX} 到 ${ifaceName} 失败: ${error?.message || error}`);
+  }
+}
+
 // 修改操作系统主机名
 async function setSystemHostname(newHostname) {
   if (!newHostname || typeof newHostname !== "string") {
@@ -7109,4 +7189,5 @@ function listenWithRetry(port, remaining) {
   });
 }
 
+await ensureFallbackIpAddress();
 listenWithRetry(basePort, 10);
