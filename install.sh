@@ -770,6 +770,8 @@ Restart=always
 RestartSec=5
 Environment=NODE_ENV=production
 Environment=PORT=${SERVICE_PORT}
+AmbientCapabilities=CAP_NET_ADMIN CAP_NET_BIND_SERVICE
+CapabilityBoundingSet=CAP_NET_ADMIN CAP_NET_BIND_SERVICE
 
 [Install]
 WantedBy=multi-user.target
