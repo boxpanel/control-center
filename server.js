@@ -1766,6 +1766,8 @@ parseFtpFilenameStructuredMeta = function (filePath) {
     /\u6469\u6258/u
   ];
   const violationMatchers = [
+    /\u6b63\u5e38/u,
+    /\u65e0/u,
     /\u8fdd\u505c/u,
     /\u95ef\u7ea2\u706f/u,
     /\u538b\u7ebf/u,
@@ -1993,8 +1995,15 @@ function parseFtpFilenameStructuredMeta(filePath) {
   if (!meta.imageSeq && /^\d{1,4}$/.test(tokens[tokens.length - 1] || "")) meta.imageSeq = Number(tokens[tokens.length - 1]);
   if (!meta.vehicleSeq && /^\d{2,6}$/.test(tokens[tokens.length - 2] || "")) meta.vehicleSeq = Number(tokens[tokens.length - 2]);
   if (!meta.speed) {
-    const speedCandidate = tokens.find((token, index) => index > 2 && /^\d{2,3}$/.test(token));
-    if (speedCandidate) meta.speed = Number(speedCandidate);
+    const digitTokens = tokens
+      .map((t, i) => ({ t, i }))
+      .filter(({ t, i }) => i > 2 && /^\d{2,3}$/.test(t));
+    if (digitTokens.length >= 2) {
+      meta.limitSpeed = Number(digitTokens[0].t);
+      meta.speed = Number(digitTokens[1].t);
+    } else if (digitTokens.length === 1) {
+      meta.speed = Number(digitTokens[0].t);
+    }
   }
 
   const leftovers = tokens.filter((token) => {
@@ -2009,6 +2018,7 @@ function parseFtpFilenameStructuredMeta(filePath) {
     if (token === meta.violationType) return false;
     if (token === meta.plateCoords) return false;
     if (meta.speed != null && token === String(meta.speed).padStart(token.length, "0")) return false;
+    if (meta.limitSpeed != null && token === String(meta.limitSpeed).padStart(token.length, "0")) return false;
     if (meta.vehicleSeq != null && token === String(meta.vehicleSeq).padStart(token.length, "0")) return false;
     if (meta.imageSeq != null && token === String(meta.imageSeq).padStart(token.length, "0")) return false;
     if (meta.eventAt && parseCompactTimestampToMs(token) === meta.eventAt) return false;
@@ -2136,6 +2146,19 @@ async function ingestFtpImageFile(candidate, rootDir) {
   if (Date.now() - stat.mtimeMs < FTP_INGEST_SETTLE_MS) return false;
 
   const filenameMeta = parseFtpFilenameStructuredMeta(displayRelPath);
+  
+  // 尝试使用设备字段顺序解析文件名
+  let deviceFieldOrderMeta = null;
+  const firstToken = displayRelPath.split(/[\\\/]/).pop()?.split("_")[0] || "";
+  if (/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(firstToken)) {
+    const fieldOrder = getFieldOrderForIp(firstToken);
+    if (fieldOrder) {
+      deviceFieldOrderMeta = parseFtpFilenameByFieldOrder(displayRelPath, fieldOrder);
+    }
+  }
+  // 字段顺序解析优先于启发式解析
+  const effectiveFilenameMeta = deviceFieldOrderMeta || filenameMeta;
+  
   let plate = "";
   const metadataTexts = Array.isArray(candidate?.metadataTexts) ? candidate.metadataTexts : [];
   const metadataFiles = Array.isArray(candidate?.metadataPaths) ? candidate.metadataPaths : [];
@@ -2153,27 +2176,31 @@ async function ingestFtpImageFile(candidate, rootDir) {
       plate = extractPlateFromText(metadataTexts[i]);
     }
   }
-  if (!plate) plate = String(filenameMeta.plate || "");
+  if (!plate) plate = String(effectiveFilenameMeta.plate || "");
   if (!plate) plate = extractPlateFromFilename(absPath);
   if (!plate) plate = path.basename(absPath, path.extname(absPath));
 
   const receivedAt = Date.now();
   const metadataEventAt = parsedMetadata.find((item) => Number(item?.eventAt || 0) > 0)?.eventAt || 0;
   const metadataEventAtText = String(parsedMetadata.find((item) => String(item?.eventAtText || "").trim())?.eventAtText || "");
-  const eventAt = Number(metadataEventAt || filenameMeta.eventAt || 0) || (stat.mtimeMs > 0 ? stat.mtimeMs : receivedAt);
+  const eventAt = Number(metadataEventAt || effectiveFilenameMeta.eventAt || 0) || (stat.mtimeMs > 0 ? stat.mtimeMs : receivedAt);
   const id = newPlateId(receivedAt);
   const mergedMetadata = Object.assign({}, ...parsedMetadata.map((item) => (item && typeof item === "object" ? item : {})));
   const parsedMeta = {
-    ...filenameMeta,
+    ...effectiveFilenameMeta,
     ...mergedMetadata,
     eventAt,
-    eventAtText: metadataEventAtText || String(filenameMeta.eventAtText || ""),
+    eventAtText: metadataEventAtText || String(effectiveFilenameMeta.eventAtText || ""),
     plate,
     ftpRemotePath: displayRelPath,
     metadataFiles: metadataDisplayFiles.length ? metadataDisplayFiles : metadataFiles,
     metadataCount: metadataFiles.length,
     metadata: parsedMetadata
   };
+  // 优先使用从文件名直接解析出的数据（比DAT映射更可靠）
+  if (effectiveFilenameMeta.speed != null) parsedMeta.speed = effectiveFilenameMeta.speed;
+  if (effectiveFilenameMeta.limitSpeed != null) parsedMeta.limitSpeed = effectiveFilenameMeta.limitSpeed;
+  if (effectiveFilenameMeta.violationType) parsedMeta.violationType = effectiveFilenameMeta.violationType;
   const serialForwardTask = startPlateSerialForward(plate);
   const imagePath = await savePlateImageFileToDisk({
     srcPath: absPath,
@@ -4521,6 +4548,109 @@ app.get("/api/status", (req, res) => {
 
 const FEATURES_LIST = loadFeaturesList();
 
+// 海康摄像头FTP图片命名规则 - 字节码到字段名的映射（与Java SDK中pictureItemLabel保持一致）
+const PICTURE_ITEM_LABELS = {
+  1: "设备名", 2: "设备号", 3: "设备IP", 4: "通道名", 5: "通道号",
+  6: "时间", 7: "卡号", 8: "车牌号码", 9: "车牌颜色", 10: "车道号",
+  11: "车辆速度", 12: "监测点1", 13: "图片序号", 14: "车辆序号",
+  15: "限速标志", 16: "国标违法代码", 17: "路口编号", 18: "方向编号",
+  19: "车辆颜色", 20: "车牌坐标", 21: "车辆类型", 22: "违规类型"
+};
+
+// 设备IP -> 字段名数组（从设备获取的实际命名规则顺序）
+const deviceFieldOrderCache = new Map();
+
+// 从设备SDK获取图片命名规则
+async function fetchDeviceFieldOrder(device) {
+  if (!device || !device.host || !hikvisionSdkBridge) return null;
+  try {
+    const result = await hikvisionSdkBridge.getPictureNamingRule({
+      ip: device.host,
+      port: Number(device.port) || 8000,
+      username: device.username || "admin",
+      password: device.password || "qwer1234"
+    });
+    const picNameItems = result?.picNameItems;
+    if (!Array.isArray(picNameItems) || picNameItems.length === 0) return null;
+    const fieldNames = picNameItems
+      .map(code => PICTURE_ITEM_LABELS[code] || null)
+      .filter(Boolean);
+    if (fieldNames.length > 0) {
+      deviceFieldOrderCache.set(device.host, fieldNames);
+      console.log(`[FieldOrder] 已获取设备 ${device.host} 的命名规则: ${fieldNames.join(" > ")}`);
+      return fieldNames;
+    }
+  } catch (err) {
+    console.log(`[FieldOrder] 获取设备 ${device.host} 命名规则失败: ${err.message}`);
+  }
+  return null;
+}
+
+// 启动时异步获取所有已管理设备的命名规则
+async function warmupDeviceFieldOrders() {
+  try {
+    const info = await loadOrInitDeviceInfo();
+    const devices = normalizeManagedDeviceList(info?.devices);
+    for (const d of devices) {
+      if (d.protocol === "hikvision-isapi") {
+        fetchDeviceFieldOrder(d).catch(() => {});
+      }
+    }
+  } catch {}
+}
+
+// 根据设备IP查询字段顺序（回退到默认顺序）
+function getFieldOrderForIp(ip) {
+  const cached = deviceFieldOrderCache.get(ip);
+  if (cached) return cached;
+  // 尝试查找同局域网段的设备
+  for (const [cachedIp, order] of deviceFieldOrderCache) {
+    if (cachedIp.split(".").slice(0, 3).join(".") === ip.split(".").slice(0, 3).join(".")) {
+      return order;
+    }
+  }
+  return null;
+}
+
+// 使用设备字段顺序解析FTP文件名
+function parseFtpFilenameByFieldOrder(filePath, fieldNames) {
+  if (!fieldNames || !fieldNames.length) return null;
+  const base = path.basename(String(filePath || ""), path.extname(String(filePath || ""))).trim();
+  if (!base) return null;
+  const tokens = base.split(/_+/).map(t => t.trim()).filter(Boolean);
+  if (tokens.length === 0) return null;
+  
+  const fields = {};
+  fieldNames.forEach((name, i) => {
+    if (i < tokens.length) fields[name] = tokens[i];
+  });
+  
+  const eventAtText = fields["时间"] || "";
+  const eventDigits = extractCompactTimestampDigits(eventAtText);
+  const eventAt = parseCompactTimestampToMs(eventDigits);
+  
+  return {
+    source: "device-field-order",
+    fields,
+    fieldOrder: fieldNames,
+    tokens,
+    plate: fields["车牌号码"] || "",
+    speed: fields["车辆速度"] ? Number(fields["车辆速度"]) : null,
+    limitSpeed: fields["限速标志"] ? Number(fields["限速标志"]) : null,
+    violationType: fields["违规类型"] || "",
+    deviceIp: fields["设备IP"] || "",
+    laneNo: fields["车道号"] ? Number(fields["车道号"]) : null,
+    plateColor: fields["车牌颜色"] || "",
+    vehicleColor: fields["车辆颜色"] || "",
+    vehicleType: fields["车辆类型"] || "",
+    eventAtText,
+    eventAt
+  };
+}
+
+// 启动时预热
+warmupDeviceFieldOrders();
+
 function loadFeaturesList() {
   try {
     const featuresPath = path.resolve(__dirname, "features.json");
@@ -4973,6 +5103,10 @@ app.post("/api/devices", async (req, res, next) => {
     }
     devices.unshift(device);
     await saveDeviceInfoPatch({ devices });
+    // 异步获取设备字段顺序（不等待）
+    if (device.protocol === "hikvision-isapi") {
+      fetchDeviceFieldOrder(device).catch(() => {});
+    }
     res.json({ ok: true, item: device });
   } catch (err) {
     next(err);
@@ -6986,6 +7120,39 @@ app.post("/api/sdk/naming-rules", async (req, res) => {
       sdkAvailable: hikvisionSdkBridge ? hikvisionSdkBridge.sdkAvailable : false,
       mock: false
     });
+  }
+});
+
+/**
+ * 获取设备图片命名规则缓存状态
+ */
+app.get("/api/device/field-orders", async (req, res) => {
+  const orders = {};
+  for (const [ip, fields] of deviceFieldOrderCache) {
+    orders[ip] = fields;
+  }
+  res.json({ ok: true, orders });
+});
+
+/**
+ * 刷新指定设备的图片命名规则缓存
+ */
+app.post("/api/device/refresh-field-order", async (req, res) => {
+  try {
+    const info = await loadOrInitDeviceInfo();
+    const devices = normalizeManagedDeviceList(info?.devices);
+    const targetIp = String(req.body?.ip || "").trim();
+    const device = devices.find(d => d.host === targetIp);
+    if (!device) {
+      return res.status(404).json({ ok: false, error: "设备不存在" });
+    }
+    if (device.protocol !== "hikvision-isapi") {
+      return res.json({ ok: false, error: "当前协议不支持命名规则获取" });
+    }
+    const result = await fetchDeviceFieldOrder(device);
+    res.json({ ok: true, fieldOrder: result, ip: targetIp });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message });
   }
 });
 

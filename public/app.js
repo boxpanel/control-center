@@ -1835,7 +1835,7 @@ function logSerialLine(text) {
 }
 
 const mainViewState = { view: "home" };
-const featureState = { network: false, serial: false };
+const featureState = { network: true, serial: false };
 
 function setMainView(view) {
   const v = view === "serial" ? "serial" : view === "network" ? "network" : view === "system" ? "system" : "home";
@@ -2807,6 +2807,70 @@ function updatePlateCardMeta(id) {
     serialEl.classList.toggle("ok", serialSent);
     serialEl.classList.toggle("muted", !serialSent);
   }
+
+  // 更新速度/限速/状态
+  const meta = rec.parsedMeta || {};
+  let vehicleSpeed = "";
+  if (meta.speed != null) {
+    vehicleSpeed = String(meta.speed);
+  } else if (meta.fields && meta.fields["车辆速度"]) {
+    vehicleSpeed = String(Number(meta.fields["车辆速度"]));
+  }
+  let limitSpeed = "";
+  if (meta.limitSpeed != null) {
+    limitSpeed = String(meta.limitSpeed);
+  } else if (meta.fields && meta.fields["限速标志"]) {
+    limitSpeed = String(Number(meta.fields["限速标志"]));
+  }
+  let statusText = "";
+  let isOverspeed = false;
+  if (meta.violationType) {
+    statusText = meta.violationType;
+    isOverspeed = meta.violationType === "超速";
+  } else if (vehicleSpeed && limitSpeed) {
+    const vs = Number(vehicleSpeed);
+    const ls = Number(limitSpeed);
+    if (vs > 0 && ls > 0) {
+      isOverspeed = vs > ls;
+      statusText = isOverspeed ? "超速" : "正常";
+    }
+  }
+
+  const speedEl = card.querySelector(".plate-metaSpeed");
+  if (speedEl instanceof HTMLElement) {
+    if (vehicleSpeed) {
+      speedEl.textContent = `速度：${vehicleSpeed}`;
+      speedEl.classList.remove("muted");
+    } else {
+      speedEl.textContent = "速度：--";
+      speedEl.classList.add("muted");
+    }
+  }
+
+  const limitEl = card.querySelector(".plate-metaLimitSpeed");
+  if (limitEl instanceof HTMLElement) {
+    if (limitSpeed) {
+      limitEl.textContent = `限速：${limitSpeed}`;
+      limitEl.classList.remove("muted");
+    } else {
+      limitEl.textContent = "限速：--";
+      limitEl.classList.add("muted");
+    }
+  }
+
+  const statusEl = card.querySelector(".plate-metaStatus");
+  if (statusEl instanceof HTMLElement) {
+    if (statusText) {
+      statusEl.textContent = statusText;
+      statusEl.className = "plate-metaTag plate-metaStatus";
+      if (isOverspeed) statusEl.classList.add("overspeed");
+      else statusEl.classList.add("normal");
+      statusEl.classList.remove("muted");
+    } else {
+      statusEl.textContent = "--";
+      statusEl.className = "plate-metaTag plate-metaStatus muted";
+    }
+  }
 }
 
 function renderPlateCard(record, { prepend, skipFilterApply } = {}) {
@@ -2833,7 +2897,9 @@ function renderPlateCard(record, { prepend, skipFilterApply } = {}) {
     vehicleSpeed = String(Number(meta.fields["车辆速度"]));
   }
   let limitSpeed = "";
-  if (meta.fields && meta.fields["限速标志"]) {
+  if (meta.limitSpeed != null) {
+    limitSpeed = String(meta.limitSpeed);
+  } else if (meta.fields && meta.fields["限速标志"]) {
     limitSpeed = String(Number(meta.fields["限速标志"]));
   }
   let statusText = "";
@@ -3123,9 +3189,21 @@ function formatParsedMetaText(meta) {
     // 按字段顺序显示字段
     fieldOrder.forEach(fieldName => {
       if (meta.fields[fieldName] !== undefined && meta.fields[fieldName] !== '') {
-        parts.push(`${fieldName} : ${meta.fields[fieldName]}`);
+        // 优先使用从文件名直接解析出的数据覆盖DAT映射的字段
+        if (fieldName === "车辆速度" && meta.speed != null) {
+          parts.push(`${fieldName} : ${meta.speed}`);
+        } else if (fieldName === "限速标志" && meta.limitSpeed != null) {
+          parts.push(`${fieldName} : ${meta.limitSpeed}`);
+        } else {
+          parts.push(`${fieldName} : ${meta.fields[fieldName]}`);
+        }
       }
     });
+    
+    // 如果文件名解析出了状态（正常/超速）但fields中没有，额外显示
+    if (meta.violationType && !fieldOrder.includes("状态")) {
+      parts.push(`状态 : ${meta.violationType}`);
+    }
     
     // 显示识别码信息
     if (meta.identificationCode) {
@@ -3140,6 +3218,8 @@ function formatParsedMetaText(meta) {
     if (meta.deviceIp) parts.push(`设备IP：${meta.deviceIp}`);
     if (meta.vehicleType) parts.push(`车辆类型：${meta.vehicleType}`);
     if (meta.speed) parts.push(`车辆速度：${meta.speed}`);
+    if (meta.limitSpeed != null) parts.push(`限速标志：${meta.limitSpeed}`);
+    if (meta.violationType) parts.push(`状态：${meta.violationType}`);
     
     // 处理其余字段（unmatchedTokens）
     if (Array.isArray(meta.unmatchedTokens) && meta.unmatchedTokens.length) {
@@ -3578,7 +3658,9 @@ function renderPlateTable() {
       vehicleSpeed = String(Number(meta.fields["车辆速度"]));
     }
     let limitSpeed = "";
-    if (meta.fields && meta.fields["限速标志"]) {
+    if (meta.limitSpeed != null) {
+      limitSpeed = String(meta.limitSpeed);
+    } else if (meta.fields && meta.fields["限速标志"]) {
       limitSpeed = String(Number(meta.fields["限速标志"]));
     }
     let statusText = "";
