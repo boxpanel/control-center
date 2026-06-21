@@ -191,8 +191,8 @@ button:disabled {
   display: none !important;
 }
 
-.serial-hidden .plate-table th:nth-child(5),
-.serial-hidden .plate-table td:nth-child(5) {
+.serial-hidden .plate-table th:nth-child(8),
+.serial-hidden .plate-table td:nth-child(8) {
   display: none;
 }
 .serial-hidden .plate-metaSerial {
@@ -863,6 +863,20 @@ canvas {
   border-color: rgba(17, 24, 39, 0.10);
   background: rgba(17, 24, 39, 0.04);
   color: #6b7280;
+}
+
+.plate-metaStatus.overspeed {
+  border-color: rgba(220, 38, 38, 0.35);
+  background: rgba(220, 38, 38, 0.10);
+  color: #b91c1c;
+  font-weight: 600;
+}
+
+.plate-metaStatus.normal {
+  border-color: rgba(16, 185, 129, 0.35);
+  background: rgba(16, 185, 129, 0.10);
+  color: #065f46;
+  font-weight: 600;
 }
 
 .hidden {

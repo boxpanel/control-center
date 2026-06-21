@@ -2825,6 +2825,30 @@ function renderPlateCard(record, { prepend, skipFilterApply } = {}) {
   const plateText = String(record.plate || "");
   const hasImage = Boolean(String(record.imageDataUrl || ""));
   const serialSent = Boolean(Number(record.serialSentAt || 0));
+  const meta = record.parsedMeta || {};
+  let vehicleSpeed = "";
+  if (meta.speed != null) {
+    vehicleSpeed = String(meta.speed);
+  } else if (meta.fields && meta.fields["车辆速度"]) {
+    vehicleSpeed = String(Number(meta.fields["车辆速度"]));
+  }
+  let limitSpeed = "";
+  if (meta.fields && meta.fields["限速标志"]) {
+    limitSpeed = String(Number(meta.fields["限速标志"]));
+  }
+  let statusText = "";
+  let isOverspeed = false;
+  if (meta.violationType) {
+    statusText = meta.violationType;
+    isOverspeed = meta.violationType === "超速";
+  } else if (vehicleSpeed && limitSpeed) {
+    const vs = Number(vehicleSpeed);
+    const ls = Number(limitSpeed);
+    if (vs > 0 && ls > 0) {
+      isOverspeed = vs > ls;
+      statusText = isOverspeed ? "超速" : "正常";
+    }
+  }
 
   const checkWrap = document.createElement("div");
   checkWrap.className = "plate-checkWrap";
@@ -2851,6 +2875,15 @@ function renderPlateCard(record, { prepend, skipFilterApply } = {}) {
   timeEl.textContent = timeStr;
   metaRow.appendChild(timeEl);
   metaRow.appendChild(createPlateMetaTag({ className: "plate-metaImage", text: hasImage ? "图片：有" : "图片：无", muted: !hasImage }));
+  if (vehicleSpeed) {
+    metaRow.appendChild(createPlateMetaTag({ className: "plate-metaSpeed", text: `速度：${vehicleSpeed}`, muted: false }));
+  }
+  if (limitSpeed) {
+    metaRow.appendChild(createPlateMetaTag({ className: "plate-metaLimitSpeed", text: `限速：${limitSpeed}`, muted: false }));
+  }
+  if (statusText) {
+    metaRow.appendChild(createPlateMetaTag({ className: isOverspeed ? "plate-metaStatus overspeed" : "plate-metaStatus normal", text: statusText, muted: false }));
+  }
   metaRow.appendChild(createPlateMetaTag({ className: "plate-metaSerial", text: serialSent ? "串口：已发送" : "串口：未发送", muted: !serialSent }));
   info.append(textEl, metaRow);
 
@@ -3476,7 +3509,7 @@ function updatePlatePageInfoLight() {
 function updatePlateSortHeaderUi() {
   const wrap = els.plateTableWrap;
   if (!wrap) return;
-  const labelMap = { plate: "车牌号", time: "时间", image: "图片", serial: "串口发送" };
+  const labelMap = { plate: "车牌号", time: "时间", image: "图片", speed: "速度", limitSpeed: "限速", status: "状态", serial: "串口发送" };
   const btns = Array.from(wrap.querySelectorAll(".thBtn"));
   for (const b of btns) {
     if (!(b instanceof HTMLButtonElement)) continue;
@@ -3536,17 +3569,50 @@ function renderPlateTable() {
     tdTime.textContent = timeText;
     const tdImage = document.createElement("td");
     tdImage.textContent = hasImage;
+    // 速度/限速/状态
+    const meta = rec.parsedMeta || {};
+    let vehicleSpeed = "";
+    if (meta.speed != null) {
+      vehicleSpeed = String(meta.speed);
+    } else if (meta.fields && meta.fields["车辆速度"]) {
+      vehicleSpeed = String(Number(meta.fields["车辆速度"]));
+    }
+    let limitSpeed = "";
+    if (meta.fields && meta.fields["限速标志"]) {
+      limitSpeed = String(Number(meta.fields["限速标志"]));
+    }
+    let statusText = "";
+    let isOverspeed = false;
+    if (meta.violationType) {
+      statusText = meta.violationType;
+      isOverspeed = meta.violationType === "超速";
+    } else if (vehicleSpeed && limitSpeed) {
+      const vs = Number(vehicleSpeed);
+      const ls = Number(limitSpeed);
+      if (vs > 0 && ls > 0) {
+        isOverspeed = vs > ls;
+        statusText = isOverspeed ? "超速" : "正常";
+      }
+    }
+    const tdSpeed = document.createElement("td");
+    tdSpeed.textContent = vehicleSpeed || "--";
+    const tdLimitSpeed = document.createElement("td");
+    tdLimitSpeed.textContent = limitSpeed || "--";
+    const tdStatus = document.createElement("td");
+    tdStatus.textContent = statusText || "--";
+    if (isOverspeed) tdStatus.style.color = "#dc2626";
+    else if (statusText === "正常") tdStatus.style.color = "#16a34a";
     const tdSerial = document.createElement("td");
     tdSerial.textContent = serialText;
 
-    tr.append(tdCheck, tdPlate, tdTime, tdImage, tdSerial);
+    tr.append(tdCheck, tdPlate, tdTime, tdImage, tdSpeed, tdLimitSpeed, tdStatus, tdSerial);
     els.plateTableBody.appendChild(tr);
   }
 
   if (!pageItems.length) {
     const tr = document.createElement("tr");
     const td = document.createElement("td");
-    td.colSpan = featureState.serial ? 5 : 4;
+    td.colSpan = featureState.serial ? 8 : 7;
     td.style.padding = "18px";
     td.style.color = "#6b7280";
     td.style.textAlign = "center";
