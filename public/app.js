@@ -2835,19 +2835,12 @@ function updatePlateCardMeta(id) {
       statusText = isOverspeed ? "超速" : "正常";
     }
   }
-  // 状态标签中附加速度/限速值
-  if (statusText) {
-    const detail = [];
-    if (vehicleSpeed) detail.push(vehicleSpeed);
-    if (limitSpeed) detail.push(limitSpeed);
-    const label = statusText;
-    statusText = detail.length ? `${label} ${detail.join("/")}` : label;
-  }
+
 
   const speedEl = card.querySelector(".plate-metaSpeed");
   if (speedEl instanceof HTMLElement) {
     if (vehicleSpeed) {
-      speedEl.textContent = `速度：${vehicleSpeed}`;
+      speedEl.textContent = `速度：${vehicleSpeed}km/h`;
       speedEl.classList.remove("muted");
     } else {
       speedEl.textContent = "速度：--";
@@ -2858,7 +2851,7 @@ function updatePlateCardMeta(id) {
   const limitEl = card.querySelector(".plate-metaLimitSpeed");
   if (limitEl instanceof HTMLElement) {
     if (limitSpeed) {
-      limitEl.textContent = `限速：${limitSpeed}`;
+      limitEl.textContent = `限速：${limitSpeed}km/h`;
       limitEl.classList.remove("muted");
     } else {
       limitEl.textContent = "限速：--";
@@ -2923,13 +2916,6 @@ function renderPlateCard(record, { prepend, skipFilterApply } = {}) {
       statusText = isOverspeed ? "超速" : "正常";
     }
   }
-  // 状态标签中附加速度/限速值
-  if (statusText) {
-    const detail = [];
-    if (vehicleSpeed) detail.push(vehicleSpeed);
-    if (limitSpeed) detail.push(limitSpeed);
-    statusText = detail.length ? `${statusText} ${detail.join("/")}` : statusText;
-  }
 
   const checkWrap = document.createElement("div");
   checkWrap.className = "plate-checkWrap";
@@ -2957,10 +2943,10 @@ function renderPlateCard(record, { prepend, skipFilterApply } = {}) {
   metaRow.appendChild(timeEl);
   metaRow.appendChild(createPlateMetaTag({ className: "plate-metaImage", text: hasImage ? "图片：有" : "图片：无", muted: !hasImage }));
   if (vehicleSpeed) {
-    metaRow.appendChild(createPlateMetaTag({ className: "plate-metaSpeed", text: `速度：${vehicleSpeed}`, muted: false }));
+    metaRow.appendChild(createPlateMetaTag({ className: "plate-metaSpeed", text: `速度：${vehicleSpeed}km/h`, muted: false }));
   }
   if (limitSpeed) {
-    metaRow.appendChild(createPlateMetaTag({ className: "plate-metaLimitSpeed", text: `限速：${limitSpeed}`, muted: false }));
+    metaRow.appendChild(createPlateMetaTag({ className: "plate-metaLimitSpeed", text: `限速：${limitSpeed}km/h`, muted: false }));
   }
   if (statusText) {
     metaRow.appendChild(createPlateMetaTag({ className: isOverspeed ? "plate-metaStatus overspeed" : "plate-metaStatus normal", text: statusText, muted: false }));
@@ -3692,9 +3678,9 @@ function renderPlateTable() {
       }
     }
     const tdSpeed = document.createElement("td");
-    tdSpeed.textContent = vehicleSpeed || "--";
+    tdSpeed.textContent = vehicleSpeed ? `${vehicleSpeed}km/h` : "--";
     const tdLimitSpeed = document.createElement("td");
-    tdLimitSpeed.textContent = limitSpeed || "--";
+    tdLimitSpeed.textContent = limitSpeed ? `${limitSpeed}km/h` : "--";
     const tdStatus = document.createElement("td");
     tdStatus.textContent = statusText || "--";
     if (isOverspeed) tdStatus.style.color = "#dc2626";
