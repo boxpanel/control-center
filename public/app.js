@@ -6674,6 +6674,32 @@ function createPlateCardElement(record) {
   const plateText = String(record.plate || "");
   const hasImage = Boolean(String(record.imageDataUrl || ""));
   const serialSent = Boolean(Number(record.serialSentAt || 0));
+  const meta = record.parsedMeta || {};
+  let vehicleSpeed = "";
+  if (meta.speed != null) {
+    vehicleSpeed = String(meta.speed);
+  } else if (meta.fields && meta.fields["车辆速度"]) {
+    vehicleSpeed = String(Number(meta.fields["车辆速度"]));
+  }
+  let limitSpeed = "";
+  if (meta.limitSpeed != null) {
+    limitSpeed = String(meta.limitSpeed);
+  } else if (meta.fields && meta.fields["限速标志"]) {
+    limitSpeed = String(Number(meta.fields["限速标志"]));
+  }
+  let statusText = "";
+  let isOverspeed = false;
+  if (meta.violationType) {
+    statusText = meta.violationType === "正常" ? "未超速" : meta.violationType;
+    isOverspeed = statusText === "超速";
+  } else if (vehicleSpeed && limitSpeed) {
+    const vs = Number(vehicleSpeed);
+    const ls = Number(limitSpeed);
+    if (vs > 0 && ls > 0) {
+      isOverspeed = vs > ls;
+      statusText = isOverspeed ? "超速" : "未超速";
+    }
+  }
 
   const checkWrap = document.createElement("div");
   checkWrap.className = "plate-checkWrap";
@@ -6700,6 +6726,15 @@ function createPlateCardElement(record) {
   timeEl.textContent = timeStr;
   metaRow.appendChild(timeEl);
   metaRow.appendChild(createPlateMetaTag({ className: "plate-metaImage", text: hasImage ? "图片：有" : "图片：无", muted: !hasImage }));
+  if (vehicleSpeed) {
+    metaRow.appendChild(createPlateMetaTag({ className: "plate-metaSpeed", text: `速度：${vehicleSpeed}km/h`, muted: false }));
+  }
+  if (limitSpeed) {
+    metaRow.appendChild(createPlateMetaTag({ className: "plate-metaLimitSpeed", text: `限速：${limitSpeed}km/h`, muted: false }));
+  }
+  if (statusText) {
+    metaRow.appendChild(createPlateMetaTag({ className: isOverspeed ? "plate-metaStatus overspeed" : "plate-metaStatus normal", text: statusText, muted: false }));
+  }
   metaRow.appendChild(createPlateMetaTag({ className: "plate-metaSerial", text: serialSent ? "串口：已发送" : "串口：未发送", muted: !serialSent }));
   info.append(textEl, metaRow);
 
