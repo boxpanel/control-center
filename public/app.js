@@ -2667,6 +2667,7 @@ async function applyPlateFilters({ plateText, date, status } = {}) {
   lastPlateQueryState = { plateText: String(plateText || ""), date: String(date || ""), status: String(status || "") };
   const q = String(plateText || "").trim();
   const dateVal = String(date || "").trim();
+  const statusVal = String(status || "").trim();
   const plateListEl = document.getElementById("plateList");
   if (!plateListEl) return;
   
