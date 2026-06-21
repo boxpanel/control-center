@@ -3184,34 +3184,51 @@ function formatParsedMetaText(meta) {
   
   // 优先使用识别码解析器返回的字段映射
   if (meta.fields && typeof meta.fields === 'object' && Object.keys(meta.fields).length > 0) {
-    // 使用识别码解析器返回的字段映射
-    const fieldOrder = meta.fieldOrder || getDefaultFieldOrder();
+    // 检测字段映射是否明显错误（车牌号对不上）
+    const plateFromFields = meta.fields["车牌号码"] || "";
+    const actualPlate = meta.plate || "";
+    const fieldsAreMismatched = actualPlate && plateFromFields && plateFromFields !== actualPlate && plateFromFields.length >= 2;
     
-    // 按字段顺序显示字段
-    fieldOrder.forEach(fieldName => {
-      if (meta.fields[fieldName] !== undefined && meta.fields[fieldName] !== '') {
-        // 优先使用从文件名直接解析出的数据覆盖DAT映射的字段
-        if (fieldName === "车辆速度" && meta.speed != null) {
-          parts.push(`${fieldName} : ${meta.speed}`);
-        } else if (fieldName === "限速标志" && meta.limitSpeed != null) {
-          parts.push(`${fieldName} : ${meta.limitSpeed}`);
-        } else {
-          parts.push(`${fieldName} : ${meta.fields[fieldName]}`);
-        }
+    if (fieldsAreMismatched) {
+      // 字段映射错误，改用原始数据展示
+      if (meta.deviceIp) parts.push(`设备IP：${meta.deviceIp}`);
+      if (meta.speed != null) parts.push(`车辆速度：${meta.speed}`);
+      if (meta.limitSpeed != null) parts.push(`限速标志：${meta.limitSpeed}`);
+      if (meta.violationType) parts.push(`状态：${meta.violationType}`);
+      if (meta.laneNo != null) parts.push(`车道号：${meta.laneNo}`);
+      if (Array.isArray(meta.unmatchedTokens) && meta.unmatchedTokens.length) {
+        parts.push(`原始字段：${meta.unmatchedTokens.join(" ")}`);
       }
-    });
-    
-    // 如果文件名解析出了状态（正常/超速）但fields中没有，额外显示
-    if (meta.violationType && !fieldOrder.includes("状态")) {
-      parts.push(`状态 : ${meta.violationType}`);
-    }
-    
-    // 显示识别码信息
-    if (meta.identificationCode) {
-      parts.push(`识别码 : ${meta.identificationCode.byte44},${meta.identificationCode.byte45}`);
-    }
-    if (meta.config && meta.config !== '未找到配置') {
-      parts.push(`配置 : ${meta.config}`);
+    } else {
+      // 使用识别码解析器返回的字段映射
+      const fieldOrder = meta.fieldOrder || getDefaultFieldOrder();
+      
+      // 按字段顺序显示字段
+      fieldOrder.forEach(fieldName => {
+        if (meta.fields[fieldName] !== undefined && meta.fields[fieldName] !== '') {
+          // 优先使用从文件名直接解析出的数据覆盖DAT映射的字段
+          if (fieldName === "车辆速度" && meta.speed != null) {
+            parts.push(`${fieldName} : ${meta.speed}`);
+          } else if (fieldName === "限速标志" && meta.limitSpeed != null) {
+            parts.push(`${fieldName} : ${meta.limitSpeed}`);
+          } else {
+            parts.push(`${fieldName} : ${meta.fields[fieldName]}`);
+          }
+        }
+      });
+      
+      // 如果文件名解析出了状态（正常/超速）但fields中没有，额外显示
+      if (meta.violationType && !fieldOrder.includes("状态")) {
+        parts.push(`状态 : ${meta.violationType}`);
+      }
+      
+      // 显示识别码信息
+      if (meta.identificationCode) {
+        parts.push(`识别码 : ${meta.identificationCode.byte44},${meta.identificationCode.byte45}`);
+      }
+      if (meta.config && meta.config !== '未找到配置') {
+        parts.push(`配置 : ${meta.config}`);
+      }
     }
   } else {
     // 回退到原有逻辑

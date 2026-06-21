@@ -2053,6 +2053,11 @@ async function ingestFtpImageFile(candidate, rootDir) {
   if (effectiveFilenameMeta.speed != null) parsedMeta.speed = effectiveFilenameMeta.speed;
   if (effectiveFilenameMeta.limitSpeed != null) parsedMeta.limitSpeed = effectiveFilenameMeta.limitSpeed;
   if (effectiveFilenameMeta.violationType) parsedMeta.violationType = effectiveFilenameMeta.violationType;
+  // 如果使用了设备字段顺序解析，优先使用其fields（防止DAT的fields覆盖）
+  if (effectiveFilenameMeta.source === "device-field-order" && effectiveFilenameMeta.fields) {
+    parsedMeta.fields = effectiveFilenameMeta.fields;
+    parsedMeta.fieldOrder = effectiveFilenameMeta.fieldOrder;
+  }
   const serialForwardTask = startPlateSerialForward(plate);
   const imagePath = await savePlateImageFileToDisk({
     srcPath: absPath,
