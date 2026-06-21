@@ -179,6 +179,7 @@ const els = {
   dashTotal: document.getElementById("dashTotal"),
   dashToday: document.getElementById("dashToday"),
   dashOverspeedToday: document.getElementById("dashOverspeedToday"),
+  dashOverspeedTotal: document.getElementById("dashOverspeedTotal"),
   dashFiltered: document.getElementById("dashFiltered"),
   dashLatest: document.getElementById("dashLatest"),
   hostInput: document.getElementById("hostInput"),
@@ -2684,7 +2685,7 @@ async function applyPlateFilters({ plateText, date, status } = {}) {
     let pagination = null;
     
     // 如果查询条件为空，则使用分页API加载数据
-    if (!q && !dateVal) {
+    if (!q && !dateVal && !statusVal) {
       const page = Math.max(1, Number(plateTableState.page) || 1);
       const pageSize = Math.max(1, Math.min(500, Number(plateTableState.pageSize) || 100));
       
@@ -2701,11 +2702,11 @@ async function applyPlateFilters({ plateText, date, status } = {}) {
       if (q) params.set("plate", q);
       if (dateVal) params.set("date", dateVal);
       
-      // 调用搜索API
+      // 调用搜索API（返回所有匹配记录，用于客户端状态筛选）
       const r = await fetchJsonGet(`/api/plates/search?${params.toString()}`);
       items = Array.isArray(r?.items) ? r.items : [];
       totalCount = items.length;
-      console.log(`[调试] applyPlateFilters: 搜索到 ${items.length} 条记录`);
+      console.log(`[调试] applyPlateFilters: 搜索到 ${items.length} 条记录${statusVal ? `（含状态筛选）` : ''}`);
     }
     
     // 清空当前数据
@@ -3486,6 +3487,7 @@ async function updatePlateDashboard() {
   let todayCount = 0;
   let filteredCount = 0;
   let overspeedToday = 0;
+  let overspeedTotal = 0;
   let latest = null;
   const nowMs = Date.now();
 
@@ -3521,22 +3523,25 @@ async function updatePlateDashboard() {
   // 筛选结果始终使用本地数据计算（支持状态筛选）
   filteredCount = filterPlateRecords(getAllPlateRecords(), lastPlateQueryState).length;
 
-  // 计算今日超速统计（使用本地数据）
+  // 计算超速统计（使用本地数据）
   const allRecords = getAllPlateRecords();
   const startOfToday = new Date();
   startOfToday.setHours(0, 0, 0, 0);
   const todayStartMs = startOfToday.getTime();
   overspeedToday = 0;
+  overspeedTotal = 0;
   for (const rec of allRecords) {
     if (isOverspeedRecord(rec)) {
+      overspeedTotal++;
       const ts = getRecordTs(rec);
       if (ts >= todayStartMs) overspeedToday++;
     }
   }
 
-  if (els.dashTotal) els.dashTotal.textContent = String(totalCount);
   if (els.dashToday) els.dashToday.textContent = String(todayCount);
   if (els.dashOverspeedToday) els.dashOverspeedToday.textContent = String(overspeedToday);
+  if (els.dashOverspeedTotal) els.dashOverspeedTotal.textContent = String(overspeedTotal);
+  if (els.dashTotal) els.dashTotal.textContent = String(totalCount);
   if (els.dashFiltered) els.dashFiltered.textContent = String(filteredCount);
   if (els.dashLatest) {
     if (!latest) els.dashLatest.textContent = "--";
