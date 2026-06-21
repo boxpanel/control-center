@@ -199,6 +199,7 @@ const els = {
   updateDeviceBtn: document.getElementById("updateDeviceBtn"),
   deleteDeviceBtn: document.getElementById("deleteDeviceBtn"),
   checkDeviceBtn: document.getElementById("checkDeviceBtn"),
+  refreshNamingBtn: document.getElementById("refreshNamingBtn"),
   managedDeviceHint: document.getElementById("managedDeviceHint"),
   managedDeviceTableBody: document.getElementById("managedDeviceTableBody"),
   deviceConfigModal: document.getElementById("deviceConfigModal"),
@@ -5214,6 +5215,7 @@ function updateManagedDeviceActionButtons() {
   if (els.updateDeviceBtn) els.updateDeviceBtn.disabled = !hasSelection;
   if (els.deleteDeviceBtn) els.deleteDeviceBtn.disabled = !hasSelection;
   if (els.checkDeviceBtn) els.checkDeviceBtn.disabled = false;
+  if (els.refreshNamingBtn) els.refreshNamingBtn.disabled = !hasSelection;
 }
 
 function renderManagedDeviceList() {
@@ -6547,6 +6549,28 @@ if (els.checkDeviceBtn) {
     } catch (e) {
       setManagedDeviceHint(`检测失败：${e?.message || e}`, true);
       logLine(`设备在线检测失败：${e?.message || e}`);
+    } finally {
+      updateManagedDeviceActionButtons();
+    }
+  });
+}
+if (els.refreshNamingBtn) {
+  els.refreshNamingBtn.addEventListener("click", async () => {
+    const item = managedDeviceState.items.find(d => d.id === managedDeviceState.selectedId);
+    if (!item) return;
+    try {
+      els.refreshNamingBtn.disabled = true;
+      setManagedDeviceHint(`正在获取设备 ${item.name} 的命名规则...`);
+      const r = await fetchJson("/api/device/refresh-field-order", { ip: item.host });
+      if (r.ok) {
+        const orderStr = (r.fieldOrder || []).join(" → ");
+        setManagedDeviceHint(`已获取设备 ${item.name} 的命名规则顺序: ${orderStr}`);
+        logLine(`[命名规则] ${item.host} → ${orderStr}`);
+      } else {
+        setManagedDeviceHint(`获取失败: ${r.error || "未知错误"}`, true);
+      }
+    } catch (e) {
+      setManagedDeviceHint(`获取命名规则失败: ${e?.message || e}`, true);
     } finally {
       updateManagedDeviceActionButtons();
     }

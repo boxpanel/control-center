@@ -1,7 +1,7 @@
 import { execFile, spawn } from "node:child_process";
 import crypto from "node:crypto";
 import dgram from "node:dgram";
-import { watch as fsWatch, readFileSync } from "node:fs";
+import { watch as fsWatch, readFileSync, writeFileSync } from "node:fs";
 import fs from "node:fs/promises";
 import net from "node:net";
 import path from "node:path";
@@ -4416,6 +4416,40 @@ const PICTURE_ITEM_LABELS = {
 
 // 设备IP -> 字段名数组（从设备获取的实际命名规则顺序）
 const deviceFieldOrderCache = new Map();
+const deviceFieldOrderPath = path.join(__dirname, ".device-field-orders.json");
+
+// 从文件加载缓存的命名规则
+function loadDeviceFieldOrders() {
+  try {
+    const raw = readFileSync(deviceFieldOrderPath, "utf8");
+    const data = JSON.parse(raw);
+    if (data && typeof data === "object") {
+      for (const [ip, order] of Object.entries(data)) {
+        if (Array.isArray(order) && order.length > 0) {
+          deviceFieldOrderCache.set(ip, order);
+        }
+      }
+      console.log(`[FieldOrder] 从文件加载了 ${deviceFieldOrderCache.size} 个设备的命名规则`);
+    }
+  } catch (err) {
+    if (err.code !== "ENOENT") {
+      console.error("[FieldOrder] 加载持久化命名规则失败:", err.message);
+    }
+  }
+}
+
+// 保存命名规则到文件
+function saveDeviceFieldOrders() {
+  try {
+    const data = {};
+    for (const [ip, order] of deviceFieldOrderCache) {
+      data[ip] = order;
+    }
+    writeFileSync(deviceFieldOrderPath, JSON.stringify(data, null, 2), "utf8");
+  } catch (err) {
+    console.error("[FieldOrder] 持久化命名规则失败:", err.message);
+  }
+}
 
 // 从设备SDK获取图片命名规则
 async function fetchDeviceFieldOrder(device) {
@@ -4434,6 +4468,7 @@ async function fetchDeviceFieldOrder(device) {
       .filter(Boolean);
     if (fieldNames.length > 0) {
       deviceFieldOrderCache.set(device.host, fieldNames);
+      saveDeviceFieldOrders();
       console.log(`[FieldOrder] 已获取设备 ${device.host} 的命名规则: ${fieldNames.join(" > ")}`);
       return fieldNames;
     }
@@ -4443,13 +4478,16 @@ async function fetchDeviceFieldOrder(device) {
   return null;
 }
 
-// 启动时异步获取所有已管理设备的命名规则
+// 启动时加载缓存的命名规则，再异步刷新在线设备的规则
+loadDeviceFieldOrders();
 async function warmupDeviceFieldOrders() {
   try {
     const info = await loadOrInitDeviceInfo();
     const devices = normalizeManagedDeviceList(info?.devices);
     for (const d of devices) {
       if (d.protocol === "hikvision-isapi") {
+        // 如果已有缓存，跳过（用户可手动刷新）
+        if (deviceFieldOrderCache.has(d.host)) continue;
         fetchDeviceFieldOrder(d).catch(() => {});
       }
     }
