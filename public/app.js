@@ -2717,23 +2717,36 @@ async function applyPlateFilters({ plateText, date, status } = {}) {
       plateById.set(String(rec.id), rec);
     }
     
+    // 应用状态筛选（客户端过滤）
+    let filteredItems = items;
+    if (statusVal) {
+      const all = getAllPlateRecords();
+      const filtered = filterPlateRecords(all, { plateText: q, date: dateVal, status: statusVal });
+      // 重建 plateById 只保留筛选后的数据
+      plateById.clear();
+      for (const rec of filtered) {
+        plateById.set(String(rec.id), rec);
+      }
+      filteredItems = filtered;
+    }
+    
     // 渲染卡片
-    for (const rec of items) {
+    for (const rec of filteredItems) {
       renderPlateCard(rec, { prepend: false, skipFilterApply: true });
     }
     
     // 更新分页信息
     if (plateUiState.view === "cards") {
-      // 如果使用分页API，更新分页状态
-      if (pagination) {
+      if (pagination && !statusVal) {
         plateTableState.page = pagination.page;
         plateTableState.pageSize = pagination.pageSize;
         plateTableState.total = pagination.total;
       } else {
-        // 对于搜索查询，使用前端分页
+        // 对于搜索查询或状态筛选，使用前端分页
       const pageSize = Math.max(1, Math.min(200, Number(plateTableState.pageSize) || 10));
-      plateTableState.total = items.length;
-      const totalPages = Math.max(1, Math.ceil(items.length / pageSize));
+      const totalItems = statusVal ? filteredItems.length : items.length;
+      plateTableState.total = totalItems;
+      const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
       plateTableState.page = Math.max(1, Math.min(totalPages, Number(plateTableState.page) || 1));
       
       const allCards = Array.from(plateListEl.querySelectorAll(".plate-card"));
@@ -3486,7 +3499,6 @@ async function updatePlateDashboard() {
 
     totalCount = Number(statsResponse?.total || 0);
     todayCount = Number(statsResponse?.today || 0);
-    filteredCount = Number(statsResponse?.filtered || 0);
     latest = statsResponse?.latest || null;
   } catch (error) {
     console.warn("获取服务器统计失败，使用本地数据:", error);
@@ -3504,6 +3516,9 @@ async function updatePlateDashboard() {
       if (!latest || ts > getRecordTs(latest)) latest = rec;
     }
   }
+
+  // 筛选结果始终使用本地数据计算（支持状态筛选）
+  filteredCount = filterPlateRecords(getAllPlateRecords(), lastPlateQueryState).length;
 
   // 计算今日超速统计（使用本地数据）
   const allRecords = getAllPlateRecords();
