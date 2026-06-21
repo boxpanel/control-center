@@ -178,8 +178,7 @@ const els = {
   dashUpdatedAt: document.getElementById("dashUpdatedAt"),
   dashTotal: document.getElementById("dashTotal"),
   dashToday: document.getElementById("dashToday"),
-  dashLastHour: document.getElementById("dashLastHour"),
-  dashUniqueToday: document.getElementById("dashUniqueToday"),
+  dashOverspeedToday: document.getElementById("dashOverspeedToday"),
   dashFiltered: document.getElementById("dashFiltered"),
   dashLatest: document.getElementById("dashLatest"),
   hostInput: document.getElementById("hostInput"),
@@ -223,6 +222,7 @@ const els = {
   plateSelectAllBtn: document.getElementById("plateSelectAllBtn"),
   plateSearchInput: document.getElementById("plateSearchInput"),
   plateDateInput: document.getElementById("plateDateInput"),
+  plateStatusFilter: document.getElementById("plateStatusFilter"),
   plateQueryBtn: document.getElementById("plateQueryBtn"),
   plateDeleteBtn: document.getElementById("plateDeleteBtn"),
   plateDownloadBtn: document.getElementById("plateDownloadBtn"),
@@ -2430,7 +2430,7 @@ const plateTableState = {
   sortDir: "desc"
 };
 let plateTableVisibleIds = [];
-let lastPlateQueryState = { plateText: "", date: "" };
+let lastPlateQueryState = { plateText: "", date: "", status: "" };
 
 function idbRequestToPromise(req) {
   return new Promise((resolve, reject) => {
@@ -2630,7 +2630,8 @@ function toLocalIsoDate(ms) {
 function getPlateQueryStateFromUi() {
   return {
     plateText: String(els.plateSearchInput?.value || ""),
-    date: String(els.plateDateInput?.value || "")
+    date: String(els.plateDateInput?.value || ""),
+    status: String(els.plateStatusFilter?.value || "")
   };
 }
 
@@ -2643,9 +2644,10 @@ function getAllPlateRecords() {
   return out;
 }
 
-function filterPlateRecords(records, { plateText, date } = {}) {
+function filterPlateRecords(records, { plateText, date, status } = {}) {
   const q = String(plateText || "").trim().toLowerCase();
   const dateVal = String(date || "").trim();
+  const statusVal = String(status || "").trim();
   const out = [];
   for (const rec of records || []) {
     const plate = String(rec?.plate || "").toLowerCase();
@@ -2653,13 +2655,16 @@ function filterPlateRecords(records, { plateText, date } = {}) {
     const day = toLocalIsoDate(ts);
     const matchPlate = !q || plate.includes(q);
     const matchDate = !dateVal || day === dateVal;
-    if (matchPlate && matchDate) out.push(rec);
+    let matchStatus = true;
+    if (statusVal === "overspeed") matchStatus = isOverspeedRecord(rec);
+    else if (statusVal === "normal") matchStatus = !isOverspeedRecord(rec);
+    if (matchPlate && matchDate && matchStatus) out.push(rec);
   }
   return out;
 }
 
-async function applyPlateFilters({ plateText, date } = {}) {
-  lastPlateQueryState = { plateText: String(plateText || ""), date: String(date || "") };
+async function applyPlateFilters({ plateText, date, status } = {}) {
+  lastPlateQueryState = { plateText: String(plateText || ""), date: String(date || ""), status: String(status || "") };
   const q = String(plateText || "").trim();
   const dateVal = String(date || "").trim();
   const plateListEl = document.getElementById("plateList");
@@ -3451,13 +3456,23 @@ function compareRecords(a, b, key, dir) {
   return (av - bv) * direction;
 }
 
+// 判断记录是否为超速
+function isOverspeedRecord(rec) {
+  if (!rec) return false;
+  const meta = rec.parsedMeta || {};
+  if (meta.violationType === "超速") return true;
+  const vs = meta.speed != null ? Number(meta.speed) : (meta.fields && meta.fields["车辆速度"] ? Number(meta.fields["车辆速度"]) : null);
+  const ls = meta.limitSpeed != null ? Number(meta.limitSpeed) : (meta.fields && meta.fields["限速标志"] ? Number(meta.fields["限速标志"]) : null);
+  if (vs != null && ls != null && vs > 0 && ls > 0) return vs > ls;
+  return false;
+}
+
 async function updatePlateDashboard() {
   let totalCount = 0;
   let todayCount = 0;
-  let lastHourCount = 0;
   let filteredCount = 0;
+  let overspeedToday = 0;
   let latest = null;
-  let uniqueTodayCount = 0;
   const nowMs = Date.now();
 
   try {
@@ -3471,9 +3486,7 @@ async function updatePlateDashboard() {
 
     totalCount = Number(statsResponse?.total || 0);
     todayCount = Number(statsResponse?.today || 0);
-    lastHourCount = Number(statsResponse?.lastHour || 0);
     filteredCount = Number(statsResponse?.filtered || 0);
-    uniqueTodayCount = Number(statsResponse?.uniqueToday || 0);
     latest = statsResponse?.latest || null;
   } catch (error) {
     console.warn("获取服务器统计失败，使用本地数据:", error);
@@ -3481,28 +3494,33 @@ async function updatePlateDashboard() {
     const startOfToday = new Date();
     startOfToday.setHours(0, 0, 0, 0);
     const todayStartMs = startOfToday.getTime();
-    const lastHourStart = nowMs - 60 * 60 * 1000;
-    const uniqueToday = new Set();
     totalCount = all.length;
     filteredCount = filterPlateRecords(all, lastPlateQueryState).length;
 
     for (const rec of all) {
       const ts = getRecordTs(rec);
       if (ts <= 0) continue;
-      if (ts >= todayStartMs) {
-        todayCount += 1;
-        uniqueToday.add(String(rec.plate || ""));
-      }
-      if (ts >= lastHourStart) lastHourCount += 1;
+      if (ts >= todayStartMs) todayCount += 1;
       if (!latest || ts > getRecordTs(latest)) latest = rec;
     }
-    uniqueTodayCount = uniqueToday.size;
+  }
+
+  // 计算今日超速统计（使用本地数据）
+  const allRecords = getAllPlateRecords();
+  const startOfToday = new Date();
+  startOfToday.setHours(0, 0, 0, 0);
+  const todayStartMs = startOfToday.getTime();
+  overspeedToday = 0;
+  for (const rec of allRecords) {
+    if (isOverspeedRecord(rec)) {
+      const ts = getRecordTs(rec);
+      if (ts >= todayStartMs) overspeedToday++;
+    }
   }
 
   if (els.dashTotal) els.dashTotal.textContent = String(totalCount);
   if (els.dashToday) els.dashToday.textContent = String(todayCount);
-  if (els.dashLastHour) els.dashLastHour.textContent = String(lastHourCount);
-  if (els.dashUniqueToday) els.dashUniqueToday.textContent = String(uniqueTodayCount);
+  if (els.dashOverspeedToday) els.dashOverspeedToday.textContent = String(overspeedToday);
   if (els.dashFiltered) els.dashFiltered.textContent = String(filteredCount);
   if (els.dashLatest) {
     if (!latest) els.dashLatest.textContent = "--";
@@ -3624,7 +3642,7 @@ function renderPlateTable() {
   if (!els.plateTableWrap || !els.plateTableBody) return;
   const all = getAllPlateRecords();
   const query = getPlateQueryStateFromUi();
-  lastPlateQueryState = { plateText: query.plateText, date: query.date };
+  lastPlateQueryState = { plateText: query.plateText, date: query.date, status: query.status };
   const filtered = filterPlateRecords(all, query);
 
   filtered.sort((a, b) => compareRecords(a, b, plateTableState.sortKey, plateTableState.sortDir));
@@ -3833,6 +3851,9 @@ function initPlateModule() {
     els.plateDateInput.addEventListener("keydown", (ev) => {
       if (ev.key === "Enter") runQuery();
     });
+  }
+  if (els.plateStatusFilter) {
+    els.plateStatusFilter.addEventListener("change", () => runQuery());
   }
   if (els.plateSelectAll) {
     els.plateSelectAll.addEventListener("change", () => {

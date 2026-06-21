@@ -429,7 +429,7 @@ canvas {
 
 .plate-dashboard .dashGrid {
   display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 10px;
 }
 
@@ -2165,8 +2165,9 @@ body.app-page .plate-dashboard .dashGrid {
   grid-template-columns: repeat(5, minmax(0, 1fr));
 }
 
-body.app-page .plate-dashboard .dashCard:has(#dashUniqueToday) {
-  display: none;
+body.app-page .plate-dashboard .dashCard:has(#dashOverspeedToday)::before {
+  background: linear-gradient(90deg, #dc2626, #f87171);
+  opacity: 0.9;
 }
 
 body.app-page .plate-dashboard .dashCard::before {
