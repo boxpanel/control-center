@@ -1763,7 +1763,6 @@ function parseFtpFilenameStructuredMeta(filePath) {
   ];
   const violationMatchers = [
     /\u6b63\u5e38/u,
-    /\u65e0/u,
     /\u8fdd\u505c/u,
     /\u95ef\u7ea2\u706f/u,
     /\u538b\u7ebf/u,

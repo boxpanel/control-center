@@ -2825,14 +2825,14 @@ function updatePlateCardMeta(id) {
   let statusText = "";
   let isOverspeed = false;
   if (meta.violationType) {
-    statusText = meta.violationType;
+    statusText = meta.violationType === "正常" ? "未超速" : meta.violationType;
     isOverspeed = meta.violationType === "超速";
   } else if (vehicleSpeed && limitSpeed) {
     const vs = Number(vehicleSpeed);
     const ls = Number(limitSpeed);
     if (vs > 0 && ls > 0) {
       isOverspeed = vs > ls;
-      statusText = isOverspeed ? "超速" : "正常";
+      statusText = isOverspeed ? "超速" : "未超速";
     }
   }
 
@@ -2906,14 +2906,14 @@ function renderPlateCard(record, { prepend, skipFilterApply } = {}) {
   let statusText = "";
   let isOverspeed = false;
   if (meta.violationType) {
-    statusText = meta.violationType;
+    statusText = meta.violationType === "正常" ? "未超速" : meta.violationType;
     isOverspeed = meta.violationType === "超速";
   } else if (vehicleSpeed && limitSpeed) {
     const vs = Number(vehicleSpeed);
     const ls = Number(limitSpeed);
     if (vs > 0 && ls > 0) {
       isOverspeed = vs > ls;
-      statusText = isOverspeed ? "超速" : "正常";
+      statusText = isOverspeed ? "超速" : "未超速";
     }
   }
 
@@ -3667,14 +3667,14 @@ function renderPlateTable() {
     let statusText = "";
     let isOverspeed = false;
     if (meta.violationType) {
-      statusText = meta.violationType;
+      statusText = meta.violationType === "正常" ? "未超速" : meta.violationType;
       isOverspeed = meta.violationType === "超速";
     } else if (vehicleSpeed && limitSpeed) {
       const vs = Number(vehicleSpeed);
       const ls = Number(limitSpeed);
       if (vs > 0 && ls > 0) {
         isOverspeed = vs > ls;
-        statusText = isOverspeed ? "超速" : "正常";
+        statusText = isOverspeed ? "超速" : "未超速";
       }
     }
     const tdSpeed = document.createElement("td");
@@ -3684,7 +3684,7 @@ function renderPlateTable() {
     const tdStatus = document.createElement("td");
     tdStatus.textContent = statusText || "--";
     if (isOverspeed) tdStatus.style.color = "#dc2626";
-    else if (statusText === "正常") tdStatus.style.color = "#16a34a";
+    else if (statusText === "未超速") tdStatus.style.color = "#16a34a";
     const tdSerial = document.createElement("td");
     tdSerial.textContent = serialText;
 
