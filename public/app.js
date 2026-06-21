@@ -2835,6 +2835,14 @@ function updatePlateCardMeta(id) {
       statusText = isOverspeed ? "超速" : "正常";
     }
   }
+  // 状态标签中附加速度/限速值
+  if (statusText) {
+    const detail = [];
+    if (vehicleSpeed) detail.push(vehicleSpeed);
+    if (limitSpeed) detail.push(limitSpeed);
+    const label = statusText;
+    statusText = detail.length ? `${label} ${detail.join("/")}` : label;
+  }
 
   const speedEl = card.querySelector(".plate-metaSpeed");
   if (speedEl instanceof HTMLElement) {
@@ -2914,6 +2922,13 @@ function renderPlateCard(record, { prepend, skipFilterApply } = {}) {
       isOverspeed = vs > ls;
       statusText = isOverspeed ? "超速" : "正常";
     }
+  }
+  // 状态标签中附加速度/限速值
+  if (statusText) {
+    const detail = [];
+    if (vehicleSpeed) detail.push(vehicleSpeed);
+    if (limitSpeed) detail.push(limitSpeed);
+    statusText = detail.length ? `${statusText} ${detail.join("/")}` : statusText;
   }
 
   const checkWrap = document.createElement("div");

@@ -1712,154 +1712,7 @@ function splitFtpFilenameTokens(filePath) {
   return base.split(/\s+/).map(normalizeFtpMetaToken).filter(Boolean);
 }
 
-parseFtpFilenameStructuredMeta = function (filePath) {
-  const baseName = path.basename(String(filePath || ""), path.extname(String(filePath || ""))).trim();
-  const tokens = splitFtpFilenameTokens(filePath);
-  const meta = {
-    source: "ftp-filename",
-    baseName,
-    tokens
-  };
-  if (!baseName) return meta;
-
-  const plate = extractPlateFromFilename(filePath);
-  if (plate) meta.plate = plate;
-
-  const plateColorMatchers = [
-    [/^(?:\u84dd|\u84dd\u724c)$/u, "\u84dd"],
-    [/^(?:\u9ec4|\u9ec4\u724c)$/u, "\u9ec4"],
-    [/^(?:\u767d|\u767d\u724c)$/u, "\u767d"],
-    [/^(?:\u9ed1|\u9ed1\u724c)$/u, "\u9ed1"],
-    [/^(?:\u7eff|\u7eff\u724c)$/u, "\u7eff"],
-    [/^(?:\u9ec4\u7eff|\u9ec4\u7eff\u724c)$/u, "\u9ec4\u7eff"],
-    [/^(?:\u6e10\u53d8\u7eff|\u6e10\u53d8\u7eff\u724c)$/u, "\u6e10\u53d8\u7eff"]
-  ];
-  const vehicleColorMatchers = [
-    [/^\u9ed1\u8272?$/u, "\u9ed1"],
-    [/^\u767d\u8272?$/u, "\u767d"],
-    [/^\u94f6\u8272?$/u, "\u94f6"],
-    [/^\u7070\u8272?$/u, "\u7070"],
-    [/^\u7ea2\u8272?$/u, "\u7ea2"],
-    [/^\u84dd\u8272?$/u, "\u84dd"],
-    [/^\u9ec4\u8272?$/u, "\u9ec4"],
-    [/^\u68d5\u8272?$/u, "\u68d5"],
-    [/^\u7eff\u8272?$/u, "\u7eff"],
-    [/^\u91d1\u8272?$/u, "\u91d1"]
-  ];
-  const vehicleTypeMatchers = [
-    /\bSUV\b/i,
-    /\bMPV\b/i,
-    /\u5c0f\u578b\u8f66/u,
-    /\u5927\u578b\u8f66/u,
-    /\u4e2d\u578b\u8f66/u,
-    /\u8f7f\u8d27\u6c7d\u8f66/u,
-    /\u8d27\u8f66/u,
-    /\u5ba2\u8f66/u,
-    /\u8f7f\u5ba2\u6c7d\u8f66/u,
-    /\u8f7f\u8d27\u6c7d\u8f66/u,
-    /\u8f7f\u5ba2/u,
-    /\u8f7f\u8d27/u,
-    /\u8f7f\u4eba/u,
-    /\u9762\u5305\u8f66/u,
-    /\u8f7f\u8f66/u,
-    /\u8f7f\u7535\u52a8\u8f66/u,
-    /\u6469\u6258/u
-  ];
-  const violationMatchers = [
-    /\u6b63\u5e38/u,
-    /\u65e0/u,
-    /\u8fdd\u505c/u,
-    /\u95ef\u7ea2\u706f/u,
-    /\u538b\u7ebf/u,
-    /\u9006\u884c/u,
-    /\u8d85\u901f/u,
-    /\u8fdd\u6cd5/u,
-    /\u5360\u9053/u
-  ];
-
-  for (const token of tokens) {
-    if (!token) continue;
-    if (!meta.deviceIp) {
-      const ipMatch = token.match(/\b((?:\d{1,3}\.){3}\d{1,3})\b/);
-      if (ipMatch?.[1]) meta.deviceIp = ipMatch[1];
-    }
-    if (!meta.eventAt) {
-      const ts = parseCompactTimestampToMs(token);
-      if (ts > 0) meta.eventAt = ts;
-    }
-    if (!meta.plate && extractPlateFromText(token)) {
-      meta.plate = extractPlateFromText(token);
-    }
-    if (!meta.plateColor) {
-      const hit = plateColorMatchers.find(([re]) => re.test(token));
-      if (hit) meta.plateColor = hit[1];
-    }
-    if (!meta.vehicleColor) {
-      const hit = vehicleColorMatchers.find(([re]) => re.test(token));
-      if (hit) meta.vehicleColor = hit[1];
-    }
-    if (!meta.vehicleType) {
-      const hit = vehicleTypeMatchers.find((re) => re.test(token));
-      if (hit) meta.vehicleType = token;
-    }
-    if (!meta.violationType) {
-      const hit = violationMatchers.find((re) => re.test(token));
-      if (hit) meta.violationType = token;
-    }
-    if (!meta.plateCoords) {
-      const coordMatch = token.match(/^(\d{1,4},){3}\d{1,4}$/);
-      if (coordMatch) meta.plateCoords = token;
-    }
-    if (!meta.laneNo) {
-      const m = token.match(/^(?:lane|ln|cd|chedao|[\u8f66\u9053]{1,2})[-_ ]?(\d{1,2})$/i);
-      if (m?.[1]) meta.laneNo = Number(m[1]);
-    }
-    if (!meta.channelNo) {
-      const m = token.match(/^(?:ch|channel|td|[\u901a\u9053]{1,2})[-_ ]?(\d{1,2})$/i);
-      if (m?.[1]) meta.channelNo = Number(m[1]);
-    }
-    if (!meta.directionNo) {
-      const m = token.match(/^(?:dir|fx|[\u65b9\u5411]{1,2})[-_ ]?(\d{1,2})$/i);
-      if (m?.[1]) meta.directionNo = Number(m[1]);
-    }
-    if (!meta.intersectionNo) {
-      const m = token.match(/^(?:cross|road|lk|[\u8def\u53e3]{1,2})[-_ ]?(\d{1,3})$/i);
-      if (m?.[1]) meta.intersectionNo = Number(m[1]);
-    }
-    if (!meta.imageSeq) {
-      const m = token.match(/^(?:img|image|pic|tp|[\u56fe\u7247]{1,2})[-_ ]?(\d{1,4})$/i);
-      if (m?.[1]) meta.imageSeq = Number(m[1]);
-    }
-    if (!meta.vehicleSeq) {
-      const m = token.match(/^(?:veh|car|vehicle|cl|[\u8f66\u8f86\u5e8f\u53f7]{1,4})[-_ ]?(\d{1,6})$/i);
-      if (m?.[1]) meta.vehicleSeq = Number(m[1]);
-    }
-    if (!meta.speed) {
-      const m = token.match(/^(?:spd|speed|v|[\u901f\u5ea6]{1,2})[-_ ]?(\d{1,3})(?:kmh|km\/h|kph)?$/i);
-      if (m?.[1]) meta.speed = Number(m[1]);
-    }
-    if (!meta.deviceNo) {
-      const m = token.match(/^(?:dev|device|sn|[\u8bbe\u5907\u53f7]{1,3})[-_ ]?([A-Z0-9]{2,})$/i);
-      if (m?.[1]) meta.deviceNo = m[1];
-    }
-  }
-
-  const leftovers = tokens.filter((token) => {
-    if (!token) return false;
-    if (token === meta.plate) return false;
-    if (token === meta.deviceIp) return false;
-    if (token === meta.plateColor) return false;
-    if (token === meta.vehicleColor) return false;
-    if (token === meta.vehicleType) return false;
-    if (token === meta.violationType) return false;
-    if (token === meta.plateCoords) return false;
-    if (meta.eventAt && parseCompactTimestampToMs(token) === meta.eventAt) return false;
-    return true;
-  });
-  if (leftovers.length) meta.unmatchedTokens = leftovers;
-
-  return meta;
-};
+// 注：parseFtpFilenameStructuredMeta 完整实现在下方（带 digit position fallback）
 
 function parseFtpFilenameStructuredMeta(filePath) {
   const baseName = path.basename(String(filePath || ""), path.extname(String(filePath || ""))).trim();
@@ -1999,8 +1852,8 @@ function parseFtpFilenameStructuredMeta(filePath) {
       .map((t, i) => ({ t, i }))
       .filter(({ t, i }) => i > 2 && /^\d{2,3}$/.test(t));
     if (digitTokens.length >= 2) {
-      meta.limitSpeed = Number(digitTokens[0].t);
-      meta.speed = Number(digitTokens[1].t);
+      meta.speed = Number(digitTokens[0].t);
+      meta.limitSpeed = Number(digitTokens[1].t);
     } else if (digitTokens.length === 1) {
       meta.speed = Number(digitTokens[0].t);
     }
