@@ -610,7 +610,7 @@ const SDK_FTP_PICTURE_ITEM_OPTIONS = [
   { value: 16, label: "国标违法代码" },
   { value: 17, label: "路口编号" },
   { value: 18, label: "方向编号" },
-  { value: 19, label: "车辆颜色" },
+  { value: 19, label: "车身颜色" },
   { value: 20, label: "车牌坐标" },
   { value: 21, label: "车辆类型" },
   { value: 22, label: "违规类型" },
@@ -623,7 +623,6 @@ function findSdkOptionValueByLabel(options = [], label = "", fallback = 0) {
   const aliasMap = {
     "监测点": "监测点1",
     "限速值": "限速标志",
-    "车身颜色": "车辆颜色",
     "违章类型": "违规类型"
   };
   const normalizedText = aliasMap[text] || text;
@@ -8186,6 +8185,7 @@ function applyDevicePreviewIsapiPreset(presetKey, keepBody = false) {
     if (els.devicePreviewIsapiHint) {
       els.devicePreviewIsapiHint.textContent = `已选择：${preset.label}`;
     }
+    updateDevicePreviewSaveButtonState();
     return;
   }
   
@@ -8243,6 +8243,7 @@ async function autoLoadDevicePreviewPreset(presetKey) {
         if (els.devicePreviewIsapiHint) {
           els.devicePreviewIsapiHint.textContent = "请编辑参数后点击保存";
         }
+        updateDevicePreviewSaveButtonState();
         return;
       }
       await runDevicePreviewIsapiRequest("GET");
