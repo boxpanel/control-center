@@ -805,38 +805,12 @@ const DEVICE_PREVIEW_ISAPI_SCHEMAS = {
     readOnly: false,
     saveApiPath: "/api/sdk/ftp-config/set",
     fields: [],
-    mapLoadResult(result = {}) {
-      const data = normalizeSdkFtpConfigResult(result);
-      const items = Array.isArray(data.picNameRule?.items) ? data.picNameRule.items : [];
-      const values = {
-        ftpEnableMode: data.ftpEnableMode == null ? "0" : String(data.ftpEnableMode),
-        ftp1UploadData: data.ftp1UploadData == null ? "1" : String(data.ftp1UploadData),
-        ftp2UploadData: data.ftp2UploadData == null ? "2" : String(data.ftp2UploadData),
-        uploadAdditionalInfo: Boolean(data.uploadAdditionalInfo),
-        ftpServer: data.host || "",
-        ftpPort: data.port == null ? "" : String(data.port),
-        ftpUsername: data.username || "",
-        ftpPassword: data.password || "",
-        ftpPasswordConfirm: data.password || "",
-        dirLevel: data.dirLevel == null ? "0" : String(data.dirLevel),
-        topDirMode: data.topDirMode == null ? "0" : String(data.topDirMode),
-        subDirMode: data.subDirMode == null ? "0" : String(data.subDirMode),
-        threeDirMode: data.threeDirMode == null ? "0" : String(data.threeDirMode),
-        fourDirMode: data.fourDirMode == null ? "0" : String(data.fourDirMode),
-        filterCarPic: Boolean(data.filterCarPic),
-        picNameDelimiter: data.picNameRule?.delimiter == null ? "0" : String(data.picNameRule.delimiter),
-        picNameCustom: data.picNameCustom || "",
-        ftpEnabledRaw: data.enable == null ? "1" : String(data.enable),
-        ftpAddressTypeRaw: data.addressType == null ? "" : String(data.addressType),
-        ftpIndexRaw: data.ftpIndex == null ? "" : String(data.ftpIndex),
-        topCustomDirRaw: data.topCustomDir || "",
-        subCustomDirRaw: data.subCustomDir || "",
-        threeCustomDirRaw: data.threeCustomDir || "",
-        fourCustomDirRaw: data.fourCustomDir || ""
-      };
+    mapLoadResult() {
+      // 本地保存，不从设备加载
+      const values = { picNameDelimiter: "0", picNameCustom: "" };
       for (let i = 0; i < 15; i += 1) {
-        values[`picNameItem${i + 1}`] = items[i] == null ? "0" : String(items[i]);
-        values[`picNameCustom${i + 1}`] = items[i] === 255 ? String(data.picNameCustom || "") : "";
+        values[`picNameItem${i + 1}`] = "0";
+        values[`picNameCustom${i + 1}`] = "";
       }
       return values;
     },
@@ -846,38 +820,13 @@ const DEVICE_PREVIEW_ISAPI_SCHEMAS = {
         const raw = Number(values[`picNameItem${i}`] || 0) || 0;
         items.push(raw);
       }
-      let picNameCustom = "";
-      for (let i = 1; i <= 15; i += 1) {
-        const raw = Number(values[`picNameItem${i}`] || 0) || 0;
-        if (raw !== 255) continue;
-        const customValue = String(values[`picNameCustom${i}`] || "").trim();
-        if (customValue) {
-          picNameCustom = customValue;
-          break;
-        }
-      }
-      const ftpConfig = {
-        picNameRule: {
-          delimiter: Number(values.picNameDelimiter || 0) || 0,
-          items
-        },
-        picNameCustom
-      };
-      // 将数值命名项转为标签名，供服务端直接存为字段顺序
+      // 将数值命名项转为标签名
       const fieldNames = items
         .map(v => { const opt = SDK_FTP_PICTURE_ITEM_OPTIONS.find(o => o.value === v); return opt ? opt.label : null; })
         .filter(n => n != null && n !== "空");
-      if (fieldNames.length > 0) {
-        ftpConfig.fieldNames = fieldNames;
-      }
       return {
-        connection: {
-          host: String(device.host || "").trim(),
-          port: getDevicePreviewSdkPort(device),
-          username: String(device.username || "").trim(),
-          password: String(device.password || "")
-        },
-        ftpConfig
+        deviceIp: String(device.host || "").trim(),
+        fieldNames
       };
     }
   },
@@ -8266,16 +8215,19 @@ async function saveDevicePreviewSdkPreset() {
   if (!device || !protocol) {
     throw new Error("当前没有可操作的设备");
   }
-  if (protocol === "onvif") {
+
+  // 提前检查是否是FTP命名规则（通用，不限制协议）
+  const presetKey = String(els.devicePreviewIsapiPreset?.value || "deviceInfo").trim() || "deviceInfo";
+  const preset = DEVICE_PREVIEW_ISAPI_PRESETS[presetKey] || DEVICE_PREVIEW_ISAPI_PRESETS.deviceInfo;
+  const isFtpNaming = preset?.schema === "sdkFtpConfig";
+  
+  if (protocol === "onvif" && !isFtpNaming) {
     return runDevicePreviewOnvifPresetAction("save");
   }
 
-  const presetKey = String(els.devicePreviewIsapiPreset?.value || "deviceInfo").trim() || "deviceInfo";
-  const preset = DEVICE_PREVIEW_ISAPI_PRESETS[presetKey] || DEVICE_PREVIEW_ISAPI_PRESETS.deviceInfo;
   const schema = DEVICE_PREVIEW_ISAPI_SCHEMAS[preset.schema] || DEVICE_PREVIEW_ISAPI_SCHEMAS.deviceInfo;
   
   // FTP命名规则可在任何协议下保存
-  const isFtpNaming = preset?.schema === "sdkFtpConfig";
   if (!isFtpNaming && protocol !== "hikvision-isapi") {
     throw new Error("当前协议不支持参数保存");
   }
@@ -8305,9 +8257,12 @@ async function saveDevicePreviewSdkPreset() {
       throw new Error(response?.message || response?.error || "SDK参数保存失败");
     }
     if (els.devicePreviewIsapiHint) {
-      els.devicePreviewIsapiHint.textContent = "保存成功，正在刷新参数...";
+      els.devicePreviewIsapiHint.textContent = "保存成功";
     }
-    await autoLoadDevicePreviewPreset(presetKey);
+    // FTP命名规则不触发自动刷新（避免覆盖成功提示）
+    if (preset?.schema !== "sdkFtpConfig") {
+      await autoLoadDevicePreviewPreset(presetKey);
+    }
     return response;
   } finally {
     hideLoading();

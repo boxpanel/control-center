@@ -2345,11 +2345,14 @@ setInterval(() => {
 
 function recordFtpUploadFileIp(localPath, clientIp) {
   if (!localPath || !clientIp) return;
+  // 规范IP格式：去掉 IPv6-mapped IPv4 前缀 ::ffff:
+  const normalizedIp = String(clientIp || "").replace(/^::ffff:/i, "");
+  if (!normalizedIp) return;
   const normalized = path.resolve(localPath);
-  ftpUploadFileIpMap.set(normalized, { ip: clientIp, ts: Date.now() });
+  ftpUploadFileIpMap.set(normalized, { ip: normalizedIp, ts: Date.now() });
   // 也记录目录名，方便目录级别匹配
   const dir = path.dirname(normalized);
-  ftpUploadFileIpMap.set(dir, { ip: clientIp, ts: Date.now() });
+  ftpUploadFileIpMap.set(dir, { ip: normalizedIp, ts: Date.now() });
 }
 
 function lookupFtpSourceIp(absPath) {
@@ -5515,35 +5518,24 @@ app.post("/api/sdk/ftp-config/get", async (req, res, next) => {
 
 app.post("/api/sdk/ftp-config/set", async (req, res, next) => {
   try {
-    const cfg = await getClientConfig();
-    const baseConn = normalizeConnectionConfig(cfg?.connection);
-    const reqConn = req.body?.connection && typeof req.body.connection === "object" ? normalizeConnectionConfig(req.body.connection) : {};
-    const connection = normalizeConnectionConfig({
-      host: reqConn.host || baseConn.host,
-      port: reqConn.port || baseConn.port,
-      username: reqConn.username || baseConn.username,
-      password: reqConn.password || baseConn.password
-    });
+    const deviceIp = String(req.body?.deviceIp || req.body?.connection?.host || "").trim();
+    const fieldNames = Array.isArray(req.body?.fieldNames) ? req.body.fieldNames : [];
 
-    const ftpConfig = req.body.ftpConfig || req.body.values;
+    if (!deviceIp) {
+      return res.status(400).json({ ok: false, error: "缺少设备IP" });
+    }
 
-    console.log(`[FTP命名规则] 保存到本地缓存: ${connection.host}:${connection.port}`);
+    console.log(`[FTP命名规则] 保存到本地缓存: ${deviceIp}`);
 
-    // 存入命名规则字段顺序（前端已转为标签名）
-    const fieldNames = ftpConfig?.fieldNames;
-    if (Array.isArray(fieldNames) && fieldNames.length > 0) {
-      deviceFieldOrderCache.set(connection.host, fieldNames);
+    if (fieldNames.length > 0) {
+      deviceFieldOrderCache.set(deviceIp, fieldNames);
       saveDeviceFieldOrders();
-      console.log(`[FTP命名规则] 已保存: ${connection.host} => ${fieldNames.join(" > ")}`);
+      console.log(`[FTP命名规则] 已保存: ${deviceIp} => ${fieldNames.join(" > ")}`);
     }
 
     res.json({
       ok: true,
-      connection: {
-        host: connection.host,
-        port: connection.port,
-        username: connection.username
-      },
+      deviceIp,
       message: "FTP命名规则已保存"
     });
   } catch (err) {
