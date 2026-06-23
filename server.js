@@ -238,21 +238,24 @@ if (!plateTableColumns.some((col) => String(col?.name || "") === "sourceEventKey
 if (!plateTableColumns.some((col) => String(col?.name || "") === "parsedMetaJson")) {
   plateDb.exec(`ALTER TABLE plate_records ADD COLUMN parsedMetaJson TEXT NOT NULL DEFAULT ''`);
 }
+if (!plateTableColumns.some((col) => String(col?.name || "") === "sourceIp")) {
+  plateDb.exec(`ALTER TABLE plate_records ADD COLUMN sourceIp TEXT NOT NULL DEFAULT ''`);
+}
 plateDb.exec(`CREATE INDEX IF NOT EXISTS idx_plate_records_sourceEventKey ON plate_records(sourceEventKey)`);
 plateDb.exec(`CREATE INDEX IF NOT EXISTS idx_plate_records_receivedAt_plate ON plate_records(receivedAt DESC, plate)`);
 
 const stmtPlateInsert = plateDb.prepare(`
-  INSERT INTO plate_records (id, plate, receivedAt, eventAt, imagePath, sourceEventKey, ftpRemotePath, serialSentAt, parsedMetaJson)
-  VALUES (@id, @plate, @receivedAt, @eventAt, @imagePath, @sourceEventKey, @ftpRemotePath, @serialSentAt, @parsedMetaJson)
+  INSERT INTO plate_records (id, plate, receivedAt, eventAt, imagePath, sourceEventKey, ftpRemotePath, serialSentAt, parsedMetaJson, sourceIp)
+  VALUES (@id, @plate, @receivedAt, @eventAt, @imagePath, @sourceEventKey, @ftpRemotePath, @serialSentAt, @parsedMetaJson, @sourceIp)
 `);
 const stmtPlateGet = plateDb.prepare(
-  `SELECT id, plate, receivedAt, eventAt, imagePath, ftpRemotePath, serialSentAt, parsedMetaJson FROM plate_records WHERE id = ?`
+  `SELECT id, plate, receivedAt, eventAt, imagePath, ftpRemotePath, serialSentAt, parsedMetaJson, sourceIp FROM plate_records WHERE id = ?`
 );
 const stmtPlateGetBySourceEventKey = plateDb.prepare(
-  `SELECT id, plate, receivedAt, eventAt, imagePath, ftpRemotePath, serialSentAt, parsedMetaJson FROM plate_records WHERE sourceEventKey = ? LIMIT 1`
+  `SELECT id, plate, receivedAt, eventAt, imagePath, ftpRemotePath, serialSentAt, parsedMetaJson, sourceIp FROM plate_records WHERE sourceEventKey = ? LIMIT 1`
 );
 const stmtPlateListLatest = plateDb.prepare(
-  `SELECT id, plate, receivedAt, eventAt, imagePath, ftpRemotePath, serialSentAt, parsedMetaJson FROM plate_records ORDER BY receivedAt DESC LIMIT ?`
+  `SELECT id, plate, receivedAt, eventAt, imagePath, ftpRemotePath, serialSentAt, parsedMetaJson, sourceIp FROM plate_records ORDER BY receivedAt DESC LIMIT ?`
 );
 const stmtPlateCount = plateDb.prepare(
   `SELECT COUNT(*) as total FROM plate_records`
@@ -282,7 +285,7 @@ const stmtPlateFilteredCount = plateDb.prepare(
      AND (((CASE WHEN eventAt > 0 THEN eventAt ELSE receivedAt END) >= ? AND (CASE WHEN eventAt > 0 THEN eventAt ELSE receivedAt END) < ?) OR ? IS NULL)`
 );
 const stmtPlateSearch = plateDb.prepare(
-  `SELECT id, plate, receivedAt, eventAt, imagePath, ftpRemotePath, serialSentAt, parsedMetaJson
+  `SELECT id, plate, receivedAt, eventAt, imagePath, ftpRemotePath, serialSentAt, parsedMetaJson, sourceIp
    FROM plate_records
    WHERE (plate LIKE ? OR ? IS NULL)
      AND (((CASE WHEN eventAt > 0 THEN eventAt ELSE receivedAt END) >= ? AND (CASE WHEN eventAt > 0 THEN eventAt ELSE receivedAt END) < ?) OR ? IS NULL)
@@ -290,7 +293,7 @@ const stmtPlateSearch = plateDb.prepare(
    LIMIT 10000`
 );
 const stmtPlateListPaged = plateDb.prepare(
-  `SELECT id, plate, receivedAt, eventAt, imagePath, ftpRemotePath, serialSentAt, parsedMetaJson FROM plate_records ORDER BY receivedAt DESC LIMIT ? OFFSET ?`
+  `SELECT id, plate, receivedAt, eventAt, imagePath, ftpRemotePath, serialSentAt, parsedMetaJson, sourceIp FROM plate_records ORDER BY receivedAt DESC LIMIT ? OFFSET ?`
 );
 const stmtPlateDeleteOld = plateDb.prepare(
   `DELETE FROM plate_records WHERE receivedAt < ?`
@@ -340,6 +343,7 @@ function rowToPlateDto(row) {
     imageDataUrl: imagePath ? `/api/plates/image/${encodeURIComponent(id)}` : "",
     ftpRemotePath,
     serialSentAt: Number(row.serialSentAt || 0) || 0,
+    sourceIp: String(row.sourceIp || ""),
     parsedMeta
   };
 }
@@ -2139,13 +2143,29 @@ async function ingestFtpImageFile(candidate, rootDir) {
 
   const filenameMeta = parseFtpFilenameStructuredMeta(displayRelPath);
   
-  // 尝试使用设备字段顺序解析文件名
+  // 先获取来源IP
+  const sourceIp = lookupFtpSourceIp(absPath);
+  
+  // 根据来源IP查询设备字段顺序
   let deviceFieldOrderMeta = null;
-  const firstToken = displayRelPath.split(/[\\\/]/).pop()?.split("_")[0] || "";
-  if (/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(firstToken)) {
-    const fieldOrder = getFieldOrderForIp(firstToken);
+  if (sourceIp) {
+    const fieldOrder = getFieldOrderForIp(sourceIp);
     if (fieldOrder) {
       deviceFieldOrderMeta = parseFtpFilenameByFieldOrder(displayRelPath, fieldOrder);
+      if (deviceFieldOrderMeta) {
+        console.log(`[FieldOrder] 来源IP ${sourceIp} 匹配到命名规则: ${fieldOrder.join(" > ")}`);
+      }
+    }
+  }
+  
+  // 如果来源IP没有匹配到，降级使用文件名中的IP推断
+  if (!deviceFieldOrderMeta) {
+    const firstToken = displayRelPath.split(/[\\\/]/).pop()?.split("_")[0] || "";
+    if (/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(firstToken)) {
+      const fieldOrder = getFieldOrderForIp(firstToken);
+      if (fieldOrder) {
+        deviceFieldOrderMeta = parseFtpFilenameByFieldOrder(displayRelPath, fieldOrder);
+      }
     }
   }
   // 字段顺序解析优先于启发式解析
@@ -2215,7 +2235,8 @@ async function ingestFtpImageFile(candidate, rootDir) {
     sourceEventKey,
     ftpRemotePath: relPath,
     serialSentAt: 0,
-    parsedMetaJson: safeStringifyParsedMeta(parsedMeta)
+    parsedMetaJson: safeStringifyParsedMeta(parsedMeta),
+    sourceIp
   });
   broadcastEvent({
     type: "lpr",
@@ -2309,6 +2330,39 @@ function attachFtpIngestWatcher(conf) {
   }
 }
 
+// 记录FTP上传文件的来源IP映射（文件绝对路径 → 客户端IP）
+const ftpUploadFileIpMap = new Map();
+
+// 定期清理过旧的映射记录（超过2分钟）
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, entry] of ftpUploadFileIpMap) {
+    if (now - entry.ts > 120000) ftpUploadFileIpMap.delete(key);
+  }
+}, 60000);
+
+function recordFtpUploadFileIp(localPath, clientIp) {
+  if (!localPath || !clientIp) return;
+  const normalized = path.resolve(localPath);
+  ftpUploadFileIpMap.set(normalized, { ip: clientIp, ts: Date.now() });
+  // 也记录目录名，方便目录级别匹配
+  const dir = path.dirname(normalized);
+  ftpUploadFileIpMap.set(dir, { ip: clientIp, ts: Date.now() });
+}
+
+function lookupFtpSourceIp(absPath) {
+  if (!absPath) return "";
+  const normalized = path.resolve(absPath);
+  // 1. 精确文件匹配
+  const exact = ftpUploadFileIpMap.get(normalized);
+  if (exact) return exact.ip;
+  // 2. 目录匹配
+  const dir = path.dirname(normalized);
+  const dirMatch = ftpUploadFileIpMap.get(dir);
+  if (dirMatch) return dirMatch.ip;
+  return "";
+}
+
 function scheduleFtpIngestLoop(conf) {
   const nextKey = ftpConfigKey(conf);
   if (!conf?.enabled) {
@@ -2358,14 +2412,23 @@ async function ensureFtpServer(cfg) {
     pasv_max: FTP_PASV_MAX_PORT,
     greeting: ["Control Center FTP ready"]
   });
-  srv.on("login", ({ username, password }, resolve, reject) => {
+  srv.on("login", ({ connection, username, password }, resolve, reject) => {
     if (conf.username) {
       if (String(username || "") !== conf.username || String(password || "") !== conf.password) {
         reject(new Error("Invalid credentials"));
         return;
       }
     }
+    const clientIp = connection?.ip || "";
     resolve({ root: resolvedRoot });
+    // 监听文件上传完成事件，记录文件名到客户端IP的映射
+    if (connection && typeof connection.on === "function") {
+      connection.on("STOR", (err, serverPath) => {
+        if (!err && serverPath) {
+          recordFtpUploadFileIp(serverPath, clientIp);
+        }
+      });
+    }
   });
   srv.on("client-error", () => {});
   await srv.listen();
@@ -5460,57 +5523,32 @@ app.post("/api/sdk/ftp-config/set", async (req, res, next) => {
       password: reqConn.password || baseConn.password
     });
 
-    if (!hikvisionSdkBridge) {
-      return res.status(503).json({
-        ok: false,
-        error: "SDK功能不可用",
-        message: "Java桥接器未加载或初始化失败",
-        sdkAvailable: false
-      });
+    const ftpConfig = req.body.ftpConfig || req.body.values;
+
+    console.log(`[FTP命名规则] 保存到本地缓存: ${connection.host}:${connection.port}`);
+
+    // 存入命名规则字段顺序（前端已转为标签名）
+    const fieldNames = ftpConfig?.fieldNames;
+    if (Array.isArray(fieldNames) && fieldNames.length > 0) {
+      deviceFieldOrderCache.set(connection.host, fieldNames);
+      saveDeviceFieldOrders();
+      console.log(`[FTP命名规则] 已保存: ${connection.host} => ${fieldNames.join(" > ")}`);
     }
 
-    const ftpConfig = req.body.ftpConfig;
-    if (!ftpConfig || typeof ftpConfig !== 'object') {
-      throw new Error("缺少FTP配置参数");
-    }
-
-    console.log(`[SDK API] 使用Java桥接器保存FTP配置: ${connection.host}:${connection.port}`);
-
-    const result = await hikvisionSdkBridge.setFtpConfig({
-      ip: connection.host,
-      port: connection.port,
-      username: connection.username,
-      password: connection.password
-    }, ftpConfig);
-
-    if (result && result.success) {
-      res.json({
-        ok: true,
-        connection: {
-          host: connection.host,
-          port: connection.port,
-          username: connection.username
-        },
-        message: result.message || "FTP配置保存成功"
-      });
-    } else {
-      throw new Error(result?.error || result?.message || "FTP配置保存失败");
-    }
+    res.json({
+      ok: true,
+      connection: {
+        host: connection.host,
+        port: connection.port,
+        username: connection.username
+      },
+      message: "FTP命名规则已保存"
+    });
   } catch (err) {
-    console.error("[SDK API] Java桥接器保存FTP配置失败:", err.message);
-    console.error("[SDK API] 详细错误:", err.stack || err);
-    
-    // 检测设备不支持FTP配置的情况 (status=1419 表示设备拒绝该命令)
-    const errMsg = err.message || "";
-    const isDeviceUnsupported = errMsg.includes("status=1419") || errMsg.includes("SetDeviceConfig") || errMsg.includes("ITC_FTP_CFG");
-    
+    console.error("[FTP命名规则] 保存失败:", err.message);
     res.status(500).json({
       ok: false,
-      error: "保存FTP配置失败",
-      message: isDeviceUnsupported
-        ? "设备型号(iDS-2CD9371-KS)不支持通过程序修改FTP配置。请使用设备Web界面(http://192.168.11.253)进行FTP配置"
-        : errMsg,
-      sdkAvailable: hikvisionSdkBridge ? hikvisionSdkBridge.sdkAvailable : false
+      error: err.message || "保存FTP命名规则失败"
     });
   }
 });
@@ -6121,7 +6159,8 @@ app.post("/api/isapi/event", express.raw({ type: "*/*", limit: "50mb" }), async 
           sourceEventKey: parsed.sourceEventKey || "",
           ftpRemotePath: ftpPlan?.remotePath || "",
           serialSentAt: 0,
-          parsedMetaJson: safeStringifyParsedMeta(parsedMeta)
+          parsedMetaJson: safeStringifyParsedMeta(parsedMeta),
+          sourceIp: ""
         });
       } catch {}
       const imageUrl = imagePath ? `/api/plates/image/${encodeURIComponent(id)}` : "";

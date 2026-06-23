@@ -319,7 +319,7 @@ const devicePreviewModalState = {
 };
 const DEVICE_PREVIEW_ISAPI_PRESETS = {
   deviceInfo: { label: "设备信息", schema: "deviceInfo" },
-  sdkFtpConfig: { label: "FTP参数配置", schema: "sdkFtpConfig" }
+  sdkFtpConfig: { label: "FTP命名规则", schema: "sdkFtpConfig" }
   };
 const DEVICE_PREVIEW_ONVIF_PRESETS = {
   deviceInfo: { label: "设备信息", method: "GET", contentType: "application/json; charset=utf-8", path: "getDeviceInformation", body: "" }
@@ -842,11 +842,6 @@ const DEVICE_PREVIEW_ISAPI_SCHEMAS = {
       return values;
     },
     buildSaveRequest(device, values = {}) {
-      const password = String(values.ftpPassword || "").trim();
-      const passwordConfirm = String(values.ftpPasswordConfirm || "").trim();
-      if (Object.prototype.hasOwnProperty.call(values, "ftpPassword") && password !== passwordConfirm) {
-        throw new Error("两次输入的 FTP 密码不一致");
-      }
       const items = [];
       for (let i = 1; i <= 15; i += 1) {
         const raw = Number(values[`picNameItem${i}`] || 0) || 0;
@@ -869,72 +864,12 @@ const DEVICE_PREVIEW_ISAPI_SCHEMAS = {
         },
         picNameCustom
       };
-      if (Object.prototype.hasOwnProperty.call(values, "ftpEnableMode")) {
-        const ftpEnableMode = Number(values.ftpEnableMode || 0) || 0;
-        ftpConfig.enable = ftpEnableMode > 0;
-        ftpConfig.ftpIndex = ftpEnableMode >= 2 ? 2 : 1;
-        if (ftpEnableMode < 2) {
-          ftpConfig.uploadDataType = 0;
-        } else {
-          const currentChannel = Math.max(1, Math.min(2, Number(values.ftpIndexRaw || 1) || 1));
-          const ftp1UploadData = Number(values.ftp1UploadData ?? 1);
-          const ftp2UploadData = Number(values.ftp2UploadData ?? 2);
-          ftpConfig.uploadDataType = currentChannel === 2 ? ftp2UploadData : ftp1UploadData;
-        }
-      }
-      if (Object.prototype.hasOwnProperty.call(values, "uploadAdditionalInfo")) {
-        ftpConfig.uploadAdditionalInfo = values.uploadAdditionalInfo ? 1 : 0;
-      }
-      if (Object.prototype.hasOwnProperty.call(values, "dirLevel")) {
-        ftpConfig.dirLevel = Number(values.dirLevel || 0) || 0;
-      }
-      if (Object.prototype.hasOwnProperty.call(values, "filterCarPic")) {
-        ftpConfig.filterCarPic = values.filterCarPic ? 1 : 0;
-      }
-      if (Object.prototype.hasOwnProperty.call(values, "topDirMode")) {
-        ftpConfig.topDirMode = Number(values.topDirMode || 0) || 0;
-      }
-      if (Object.prototype.hasOwnProperty.call(values, "subDirMode")) {
-        ftpConfig.subDirMode = Number(values.subDirMode || 0) || 0;
-      }
-      if (Object.prototype.hasOwnProperty.call(values, "threeDirMode")) {
-        ftpConfig.threeDirMode = Number(values.threeDirMode || 0) || 0;
-      }
-      if (Object.prototype.hasOwnProperty.call(values, "fourDirMode")) {
-        ftpConfig.fourDirMode = Number(values.fourDirMode || 0) || 0;
-      }
-      if (!Object.prototype.hasOwnProperty.call(values, "ftpEnableMode") && Object.prototype.hasOwnProperty.call(values, "ftpEnabledRaw")) {
-        ftpConfig.enable = String(values.ftpEnabledRaw || "0") === "1";
-      }
-      if (Object.prototype.hasOwnProperty.call(values, "ftpAddressTypeRaw") && values.ftpAddressTypeRaw !== "") {
-        ftpConfig.addressType = Number(values.ftpAddressTypeRaw || 0) || 0;
-      }
-      if (Object.prototype.hasOwnProperty.call(values, "ftpServer")) {
-        ftpConfig.host = String(values.ftpServer || "").trim();
-      }
-      if (Object.prototype.hasOwnProperty.call(values, "ftpPort")) {
-        ftpConfig.port = Number(values.ftpPort || 0) || 0;
-      }
-      if (Object.prototype.hasOwnProperty.call(values, "ftpUsername")) {
-        ftpConfig.username = String(values.ftpUsername || "").trim();
-      }
-      if (Object.prototype.hasOwnProperty.call(values, "ftpPassword")) {
-        ftpConfig.password = password;
-      }
-      if (!Object.prototype.hasOwnProperty.call(values, "ftpEnableMode") && Object.prototype.hasOwnProperty.call(values, "ftpIndexRaw") && values.ftpIndexRaw !== "") {
-        ftpConfig.ftpIndex = Number(values.ftpIndexRaw || 0) || 0;
-      }
-      if (Object.prototype.hasOwnProperty.call(values, "topCustomDirRaw")) {
-        ftpConfig.topCustomDir = String(values.topCustomDirRaw || "").trim();
-      }
-      if (Object.prototype.hasOwnProperty.call(values, "subCustomDirRaw")) {
-        ftpConfig.subCustomDir = String(values.subCustomDirRaw || "").trim();
-      }
-      if (Object.prototype.hasOwnProperty.call(values, "threeCustomDirRaw")) {
-        ftpConfig.threeCustomDir = String(values.threeCustomDirRaw || "").trim();
-      }
-      if (Object.prototype.hasOwnProperty.call(values, "fourCustomDirRaw")) {
-        ftpConfig.fourCustomDir = String(values.fourCustomDirRaw || "").trim();
+      // 将数值命名项转为标签名，供服务端直接存为字段顺序
+      const fieldNames = items
+        .map(v => { const opt = SDK_FTP_PICTURE_ITEM_OPTIONS.find(o => o.value === v); return opt ? opt.label : null; })
+        .filter(n => n != null && n !== "空");
+      if (fieldNames.length > 0) {
+        ftpConfig.fieldNames = fieldNames;
       }
       return {
         connection: {
@@ -943,7 +878,6 @@ const DEVICE_PREVIEW_ISAPI_SCHEMAS = {
           username: String(device.username || "").trim(),
           password: String(device.password || "")
         },
-        channel: Math.max(1, Math.min(2, Number(values.ftpIndexRaw || 1) || 1)),
         ftpConfig
       };
     }
@@ -8331,6 +8265,13 @@ async function autoLoadDevicePreviewPreset(presetKey) {
       
       if (els.devicePreviewIsapiPreset && els.devicePreviewIsapiPreset.value !== safePresetKey) {
         els.devicePreviewIsapiPreset.value = safePresetKey;
+      }
+      // FTP命名规则只显示控件，不自动从设备读取
+      if (preset.schema === "sdkFtpConfig") {
+        if (els.devicePreviewIsapiHint) {
+          els.devicePreviewIsapiHint.textContent = "请编辑参数后点击保存";
+        }
+        return;
       }
       await runDevicePreviewIsapiRequest("GET");
     } else {
