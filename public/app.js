@@ -1830,9 +1830,11 @@ async function initSystemUi() {
     const addr = String(iface?.address || "").trim();
     const gateway = String(iface?.gateway || "").trim();
     const prefix = String(iface?.prefix || "").trim();
-    els.systemIfaceInfo.textContent = ifaceName
-      ? `${ifaceName}${addr ? ` | 当前IP ${addr}` : ""}${prefix ? `/${prefix}` : ""}${gateway ? ` | 网关 ${gateway}` : ""}`
-      : "未识别到可配置网卡";
+    if (ifaceName) {
+      els.systemIfaceInfo.innerHTML = `<span>网卡：<strong>${ifaceName}</strong></span>${addr ? `<span>当前IP：<strong>${addr}${prefix ? `/${prefix}` : ""}</strong></span>` : ""}${gateway ? `<span>网关：<strong>${gateway}</strong></span>` : ""}`;
+    } else {
+      els.systemIfaceInfo.innerHTML = `<span>未识别到可配置网卡</span>`;
+    }
   }
 
   els.systemSaveBtn.addEventListener("click", async () => {
