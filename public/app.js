@@ -2770,43 +2770,9 @@ async function fillPlateDetailModal(record) {
   const ftpPath = String(record.ftpRemotePath || "");
   if (ftpEl) ftpEl.textContent = ftpPath || "无";
   
-  // 判断设备协议类型
-  const isIsapiDevice = isIsapiProtocolRecord(record);
-  
-  // 根据协议类型选择不同的显示方式
-  if (isIsapiDevice) {
-    // ISAPI协议设备：使用ISAPI命名规则显示
-    if (parsedMetaEl) {
-      parsedMetaEl.textContent = "正在加载ISAPI命名规则...";
-    }
-    
-    try {
-      // 尝试从记录中获取设备信息，用于调用ISAPI API
-      // 获取完整的ISAPI FTP配置
-      const ftpConfig = await loadIsapiFtpConfigForRecord(record);
-      
-      // 用ISAPI的详细命名规则（带值）替代解析信息
-      if (parsedMetaEl && ftpConfig.namingRules && ftpConfig.namingRules.length > 0) {
-        // 格式化命名规则为文本显示
-        const namingRulesText = formatNamingRulesAsText(ftpConfig.namingRules);
-        parsedMetaEl.textContent = namingRulesText;
-      } else if (parsedMetaEl) {
-        parsedMetaEl.textContent = "未获取到ISAPI命名规则";
-      }
-      
-    } catch (error) {
-      console.error("加载ISAPI FTP配置失败:", error);
-      
-      // 如果加载失败，显示错误信息
-      if (parsedMetaEl) {
-        parsedMetaEl.textContent = "加载ISAPI命名规则失败";
-      }
-    }
-  } else {
-    // 其他协议设备：使用自己分析的解析信息显示
-    if (parsedMetaEl) {
-      parsedMetaEl.textContent = formatParsedMetaText(record.parsedMeta);
-    }
+  // 直接用文件中解析出的元数据显示，不通过SDK从设备获取
+  if (parsedMetaEl) {
+    parsedMetaEl.textContent = formatParsedMetaText(record.parsedMeta);
   }
 }
 
