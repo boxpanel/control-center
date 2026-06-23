@@ -5516,6 +5516,19 @@ app.post("/api/sdk/ftp-config/get", async (req, res, next) => {
   }
 });
 
+app.get("/api/ftp-naming-rules", async (req, res) => {
+  try {
+    const ip = String(req.query?.ip || "").trim();
+    if (!ip) {
+      return res.json({ ok: false, error: "缺少IP参数", fieldNames: [] });
+    }
+    const fieldNames = getFieldOrderForIp(ip) || [];
+    res.json({ ok: true, ip, fieldNames });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message, fieldNames: [] });
+  }
+});
+
 app.post("/api/sdk/ftp-config/set", async (req, res, next) => {
   try {
     const deviceIp = String(req.body?.deviceIp || req.body?.connection?.host || "").trim();

@@ -8175,26 +8175,49 @@ async function autoLoadDevicePreviewPreset(presetKey) {
   try {
     const device = devicePreviewModalState.currentDevice;
     const protocol = getDevicePreviewProtocol(device);
+    const safePresetKey = normalizeHikvisionPreviewPresetKey(presetKey);
+    let preset = DEVICE_PREVIEW_ISAPI_PRESETS[safePresetKey] || DEVICE_PREVIEW_ISAPI_PRESETS.deviceInfo;
+    
+    // 渲染控件
+    renderDevicePreviewIsapiControls(preset.schema);
+    
+    if (els.devicePreviewIsapiPreset && els.devicePreviewIsapiPreset.value !== safePresetKey) {
+      els.devicePreviewIsapiPreset.value = safePresetKey;
+    }
+    
+    // FTP命名规则：加载本地已保存的命名项
+    if (preset.schema === "sdkFtpConfig") {
+      if (device?.host) {
+        try {
+          const r = await fetchJsonGet(`/api/ftp-naming-rules?ip=${encodeURIComponent(device.host)}`);
+          if (r?.ok && Array.isArray(r.fieldNames) && r.fieldNames.length > 0) {
+            const values = {};
+            // 将字段名转为 option value 填入 picNameItem1~15
+            r.fieldNames.forEach((label, i) => {
+              if (i < 15) {
+                values[`picNameItem${i + 1}`] = String(findSdkOptionValueByLabel(SDK_FTP_PICTURE_ITEM_OPTIONS, label, 0));
+              }
+            });
+            fillDevicePreviewIsapiControls(values);
+            if (els.devicePreviewIsapiHint) {
+              els.devicePreviewIsapiHint.textContent = "已加载已保存的命名规则";
+            }
+          } else {
+            if (els.devicePreviewIsapiHint) {
+              els.devicePreviewIsapiHint.textContent = "请编辑参数后点击保存";
+            }
+          }
+        } catch {
+          if (els.devicePreviewIsapiHint) {
+            els.devicePreviewIsapiHint.textContent = "请编辑参数后点击保存";
+          }
+        }
+      }
+      updateDevicePreviewSaveButtonState();
+      return;
+    }
     
     if (protocol === "hikvision-isapi") {
-      const safePresetKey = normalizeHikvisionPreviewPresetKey(presetKey);
-      let preset = DEVICE_PREVIEW_ISAPI_PRESETS[safePresetKey] || DEVICE_PREVIEW_ISAPI_PRESETS.deviceInfo;
-      const schema = DEVICE_PREVIEW_ISAPI_SCHEMAS[preset.schema] || DEVICE_PREVIEW_ISAPI_SCHEMAS.deviceInfo;
-      
-      // 渲染控件
-      renderDevicePreviewIsapiControls(preset.schema);
-      
-      if (els.devicePreviewIsapiPreset && els.devicePreviewIsapiPreset.value !== safePresetKey) {
-        els.devicePreviewIsapiPreset.value = safePresetKey;
-      }
-      // FTP命名规则只显示控件，不自动从设备读取
-      if (preset.schema === "sdkFtpConfig") {
-        if (els.devicePreviewIsapiHint) {
-          els.devicePreviewIsapiHint.textContent = "请编辑参数后点击保存";
-        }
-        updateDevicePreviewSaveButtonState();
-        return;
-      }
       await runDevicePreviewIsapiRequest("GET");
     } else {
       await runDevicePreviewIsapiRequest("GET");
