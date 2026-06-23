@@ -6917,20 +6917,19 @@ function getDevicePreviewProtocol(device = null) {
 }
 
 function getDevicePreviewPresetMap(protocol = "") {
+  // FTP命名规则对所有设备都可用
+  const basePresets = { ...DEVICE_PREVIEW_ISAPI_PRESETS };
   const key = String(protocol || "").trim();
-  if (key === "onvif") return DEVICE_PREVIEW_ONVIF_PRESETS;
-  return DEVICE_PREVIEW_ISAPI_PRESETS;
+  if (key === "onvif") {
+    return { ...DEVICE_PREVIEW_ONVIF_PRESETS, sdkFtpConfig: { label: "FTP命名规则", schema: "sdkFtpConfig" } };
+  }
+  return basePresets;
 }
 
 function normalizeHikvisionPreviewPresetKey(rawKey = "") {
   const key = String(rawKey || "").trim();
+  if (key === "sdkFtpConfig") return key; // FTP命名规则通用，不限制协议
   return DEVICE_PREVIEW_ISAPI_PRESETS[key] ? key : "deviceInfo";
-}
-
-function isAllowedHikvisionSchema(schemaName = "") {
-  const key = String(schemaName || "").trim();
-  return key === "deviceInfo"
-    || key === "sdkFtpConfig";
 }
 
 function isSdkApiSuccess(response) {
@@ -8174,6 +8173,11 @@ function updateDevicePreviewSaveButtonState() {
   if (!els.devicePreviewIsapiSaveBtn) return;
   const protocol = getDevicePreviewProtocol();
   const presetKey = String(els.devicePreviewIsapiPreset?.value || "deviceInfo").trim() || "deviceInfo";
+  // FTP命名规则在任何协议下都可保存
+  if (presetKey === "sdkFtpConfig") {
+    els.devicePreviewIsapiSaveBtn.disabled = false;
+    return;
+  }
   if (protocol === "onvif") {
     const schema = getDevicePreviewOnvifSchema(presetKey);
     els.devicePreviewIsapiSaveBtn.disabled = !schema?.saveOperation;
@@ -8204,14 +8208,20 @@ function applyDevicePreviewIsapiPreset(presetKey, keepBody = false) {
   const isOnvif = protocol === "onvif";
   const isHikvisionIsapi = protocol === "hikvision-isapi";
   const presets = getDevicePreviewPresetMap(protocol);
-  const key = isHikvisionIsapi
-    ? normalizeHikvisionPreviewPresetKey(presetKey)
-    : (String(presetKey || "").trim() || "deviceInfo");
+  const key = ((String(presetKey || "").trim()) || "deviceInfo");
   let preset = presets[key] || presets.deviceInfo;
-  if (isHikvisionIsapi && !isAllowedHikvisionSchema(preset?.schema)) {
-    preset = presets.deviceInfo || DEVICE_PREVIEW_ISAPI_PRESETS.deviceInfo;
-  }
   if (els.devicePreviewIsapiPreset) els.devicePreviewIsapiPreset.value = key;
+  
+  // FTP命名规则手动设置，不依赖协议，直接用ISAPI控件渲染
+  if (preset?.schema === "sdkFtpConfig") {
+    setDevicePreviewOnvifModeActive(true);
+    renderDevicePreviewIsapiControls(preset.schema);
+    if (els.devicePreviewIsapiResponse) els.devicePreviewIsapiResponse.value = "";
+    if (els.devicePreviewIsapiHint) {
+      els.devicePreviewIsapiHint.textContent = `已选择：${preset.label}`;
+    }
+    return;
+  }
   
   // 检查是否有schema定义
   const hasSchema = isHikvisionIsapi && preset.schema && DEVICE_PREVIEW_ISAPI_SCHEMAS[preset.schema];
@@ -8253,11 +8263,7 @@ async function autoLoadDevicePreviewPreset(presetKey) {
     
     if (protocol === "hikvision-isapi") {
       const safePresetKey = normalizeHikvisionPreviewPresetKey(presetKey);
-      // 获取预设信息
       let preset = DEVICE_PREVIEW_ISAPI_PRESETS[safePresetKey] || DEVICE_PREVIEW_ISAPI_PRESETS.deviceInfo;
-      if (!isAllowedHikvisionSchema(preset?.schema)) {
-        preset = DEVICE_PREVIEW_ISAPI_PRESETS.deviceInfo;
-      }
       const schema = DEVICE_PREVIEW_ISAPI_SCHEMAS[preset.schema] || DEVICE_PREVIEW_ISAPI_SCHEMAS.deviceInfo;
       
       // 渲染控件
@@ -8296,13 +8302,16 @@ async function saveDevicePreviewSdkPreset() {
   if (protocol === "onvif") {
     return runDevicePreviewOnvifPresetAction("save");
   }
-  if (protocol !== "hikvision-isapi") {
-    throw new Error("当前协议不支持参数保存");
-  }
 
   const presetKey = String(els.devicePreviewIsapiPreset?.value || "deviceInfo").trim() || "deviceInfo";
   const preset = DEVICE_PREVIEW_ISAPI_PRESETS[presetKey] || DEVICE_PREVIEW_ISAPI_PRESETS.deviceInfo;
   const schema = DEVICE_PREVIEW_ISAPI_SCHEMAS[preset.schema] || DEVICE_PREVIEW_ISAPI_SCHEMAS.deviceInfo;
+  
+  // FTP命名规则可在任何协议下保存
+  const isFtpNaming = preset?.schema === "sdkFtpConfig";
+  if (!isFtpNaming && protocol !== "hikvision-isapi") {
+    throw new Error("当前协议不支持参数保存");
+  }
   if (!schema?.saveApiPath) {
     throw new Error("当前分类不支持保存");
   }
@@ -8405,7 +8414,8 @@ async function runDevicePreviewIsapiRequest(methodOverride = "") {
         els.devicePreviewIsapiPreset.value = presetKey;
       }
       let preset = DEVICE_PREVIEW_ISAPI_PRESETS[presetKey] || DEVICE_PREVIEW_ISAPI_PRESETS.deviceInfo;
-      if (!isAllowedHikvisionSchema(preset?.schema)) {
+      // FTP命名规则通用，不限制协议；其他schema仅限Hikvision部分支持
+      if (preset?.schema !== "sdkFtpConfig" && !DEVICE_PREVIEW_ISAPI_SCHEMAS[preset?.schema]) {
         preset = DEVICE_PREVIEW_ISAPI_PRESETS.deviceInfo;
       }
       const schema = DEVICE_PREVIEW_ISAPI_SCHEMAS[preset.schema] || DEVICE_PREVIEW_ISAPI_SCHEMAS.deviceInfo;
