@@ -213,6 +213,10 @@ button:disabled {
   grid-column: 1 / -1;
 }
 
+.span-12 {
+  grid-column: 1 / -1;
+}
+
 .span-3 {
   grid-column: span 3;
 }
