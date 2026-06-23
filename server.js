@@ -120,7 +120,9 @@ async function scanMountPoints() {
 function isExternalMountPoint(mp) {
   const m = String(mp || "").trim().toLowerCase();
   if (!m || m === "/" || m === "/boot" || m.startsWith("/sys") || m.startsWith("/proc") || m.startsWith("/dev")
-    || m.startsWith("/run") || m === "/tmp" || m.startsWith("/snap")) return false;
+    || m === "/tmp" || m.startsWith("/snap")) return false;
+  // 排除 /run 自身的系统目录，但 /run/media 保留为外部存储
+  if (m === "/run" || m.startsWith("/run/") && !m.startsWith("/run/media")) return false;
   // 检查是否匹配常见外部存储挂载点前缀
   for (const prefix of EXTERNAL_MOUNT_PREFIXES) {
     if (m === prefix || m.startsWith(prefix + "/")) return true;
