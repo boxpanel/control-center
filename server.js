@@ -3383,6 +3383,9 @@ async function createOnvifCamConnection({ host, port, username, password }) {
   const conn = normalizeConnectionConfig({ host, port, username, password });
   if (!conn.host) throw new Error("请填写设备 IP / Host");
   return await new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      reject(new Error(`ONVIF 连接超时（${conn.host}:${conn.port}，10秒）`));
+    }, 10000);
     const device = new Cam(
       {
         hostname: conn.host,
@@ -3392,6 +3395,7 @@ async function createOnvifCamConnection({ host, port, username, password }) {
         timeout: 10000
       },
       function onConnect(err) {
+        clearTimeout(timeout);
         if (err) {
           reject(err);
           return;
@@ -4699,7 +4703,7 @@ app.get("/api/plates/count", (req, res) => {
   }
 });
 
-function parsePlateSearchDateRange(date) {
+function parsePlateSearchDateRange(date, dateEndOpt) {
   const text = String(date || "").trim();
   if (!/^\d{4}-\d{2}-\d{2}$/.test(text)) return { start: null, end: null };
   const [year, month, day] = text.split("-").map((part) => Number(part));
@@ -4711,7 +4715,21 @@ function parsePlateSearchDateRange(date) {
   ) {
     return { start: null, end: null };
   }
-  const endDate = new Date(year, month - 1, day + 1, 0, 0, 0, 0);
+  let endDate;
+  if (dateEndOpt) {
+    const endText = String(dateEndOpt).trim();
+    if (/^\d{4}-\d{2}-\d{2}$/.test(endText)) {
+      const [ey, em, ed] = endText.split("-").map((part) => Number(part));
+      endDate = new Date(ey, em - 1, ed + 1, 0, 0, 0, 0);
+      if (endDate.getFullYear() !== ey || endDate.getMonth() !== em - 1 || endDate.getDate() !== ed + 1) {
+        endDate = new Date(year, month - 1, day + 1, 0, 0, 0, 0);
+      }
+    } else {
+      endDate = new Date(year, month - 1, day + 1, 0, 0, 0, 0);
+    }
+  } else {
+    endDate = new Date(year, month - 1, day + 1, 0, 0, 0, 0);
+  }
   return { start: startDate.getTime(), end: endDate.getTime() };
 }
 
@@ -4719,9 +4737,10 @@ app.get("/api/plates/stats", (req, res) => {
   try {
     const plate = String(req.query?.plate || "").trim();
     const date = String(req.query?.date || "").trim();
+    const dateEndStr = String(req.query?.dateEnd || "").trim();
     const plateParam = plate ? `%${plate}%` : null;
 
-    const { start: dateStart, end: dateEnd } = parsePlateSearchDateRange(date);
+    const { start: dateStart, end: dateEnd } = parsePlateSearchDateRange(date, dateEndStr || null);
 
     const nowMs = Date.now();
     const todayStart = new Date();
@@ -4733,7 +4752,7 @@ app.get("/api/plates/stats", (req, res) => {
     const today = Number(stmtPlateStatsToday.get(todayStartMs)?.total || 0);
     const lastHour = Number(stmtPlateStatsLastHour.get(lastHourStartMs)?.total || 0);
     const uniqueToday = Number(stmtPlateStatsUniqueToday.get(todayStartMs)?.total || 0);
-    const filtered = plate || date
+    const filtered = plate || date || dateEndStr
       ? Number(stmtPlateFilteredCount.get(plateParam, plateParam, dateStart, dateEnd, dateStart)?.total || 0)
       : total;
     const latest = rowToPlateDto(stmtPlateStatsLatest.get());
@@ -4802,9 +4821,10 @@ app.get("/api/plates/paged", (req, res) => {
 app.get("/api/plates/search", (req, res) => {
   const plate = String(req.query?.plate || "").trim();
   const date = String(req.query?.date || "").trim();
+  const dateEnd = String(req.query?.dateEnd || "").trim();
   
   const plateParam = plate ? `%${plate}%` : null;
-  const { start: startTimestamp, end: endTimestamp } = parsePlateSearchDateRange(date);
+  const { start: startTimestamp, end: endTimestamp } = parsePlateSearchDateRange(date, dateEnd || null);
   
   const rows = stmtPlateSearch.all(plateParam, plateParam, startTimestamp, endTimestamp, startTimestamp);
   const items = rows.map(rowToPlateDto);
@@ -5532,6 +5552,8 @@ app.post("/api/onvif/request", async (req, res, next) => {
       rawXml: String(result.xml || "")
     });
   } catch (err) {
+    // ONVIF 错误不应该是 500，设置 statusCode 让全局错误处理器显示真实信息
+    if (!err.statusCode) err.statusCode = 400;
     next(err);
   }
 });
@@ -7046,6 +7068,28 @@ app.post("/api/device/refresh-field-order", async (req, res) => {
     }
     const result = await fetchDeviceFieldOrder(device);
     res.json({ ok: true, fieldOrder: result, ip: targetIp });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+/**
+ * 手动设置设备的字段顺序
+ */
+app.put("/api/device/field-order", async (req, res) => {
+  try {
+    const targetIp = String(req.body?.ip || "").trim();
+    const fieldOrderRaw = req.body?.fieldOrder;
+    if (!targetIp) {
+      return res.status(400).json({ ok: false, error: "缺少设备 IP" });
+    }
+    if (!Array.isArray(fieldOrderRaw) || fieldOrderRaw.length === 0) {
+      return res.status(400).json({ ok: false, error: "字段顺序不能为空" });
+    }
+    deviceFieldOrderCache.set(targetIp, fieldOrderRaw);
+    saveDeviceFieldOrders();
+    console.log(`[FieldOrder] 已手动设置设备 ${targetIp} 的命名规则: ${fieldOrderRaw.join(" > ")}`);
+    res.json({ ok: true, fieldOrder: fieldOrderRaw, ip: targetIp });
   } catch (err) {
     res.status(500).json({ ok: false, error: err.message });
   }

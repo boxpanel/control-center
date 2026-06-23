@@ -200,6 +200,9 @@ const els = {
   deleteDeviceBtn: document.getElementById("deleteDeviceBtn"),
   checkDeviceBtn: document.getElementById("checkDeviceBtn"),
   refreshNamingBtn: document.getElementById("refreshNamingBtn"),
+  fieldOrderInput: document.getElementById("fieldOrderInput"),
+  saveFieldOrderBtn: document.getElementById("saveFieldOrderBtn"),
+  fieldOrderHint: document.getElementById("fieldOrderHint"),
   managedDeviceHint: document.getElementById("managedDeviceHint"),
   managedDeviceTableBody: document.getElementById("managedDeviceTableBody"),
   deviceConfigModal: document.getElementById("deviceConfigModal"),
@@ -223,6 +226,7 @@ const els = {
   plateSelectAllBtn: document.getElementById("plateSelectAllBtn"),
   plateSearchInput: document.getElementById("plateSearchInput"),
   plateDateInput: document.getElementById("plateDateInput"),
+  plateDateEndInput: document.getElementById("plateDateEndInput"),
   plateStatusFilter: document.getElementById("plateStatusFilter"),
   plateQueryBtn: document.getElementById("plateQueryBtn"),
   plateDeleteBtn: document.getElementById("plateDeleteBtn"),
@@ -311,9 +315,7 @@ const devicePreviewModalState = {
 };
 const DEVICE_PREVIEW_ISAPI_PRESETS = {
   deviceInfo: { label: "设备信息", schema: "deviceInfo" },
-  sdkNetworkConfig: { label: "网络参数", schema: "sdkNetworkConfig" },
-  sdkFtpConfig: { label: "FTP参数配置", schema: "sdkFtpConfig" },
-  sdkTriggerConfig: { label: "触发模式配置", schema: "sdkTriggerConfig" }
+  sdkFtpConfig: { label: "FTP参数配置", schema: "sdkFtpConfig" }
   };
 const DEVICE_PREVIEW_ONVIF_PRESETS = {
   deviceInfo: { label: "设备信息", method: "GET", contentType: "application/json; charset=utf-8", path: "getDeviceInformation", body: "" }
@@ -796,44 +798,6 @@ const DEVICE_PREVIEW_ISAPI_SCHEMAS = {
       };
     }
   },
-  sdkNetworkConfig: {
-    readOnly: false,
-    saveApiPath: "/api/sdk/network-config/set",
-    fields: [
-      { key: "ipAddress", label: "IP地址", type: "text" },
-      { key: "subnetMask", label: "IP地址掩码", type: "text" },
-      { key: "gateway", label: "网关地址", type: "text" },
-      { key: "dns1", label: "首选DNS", type: "text" },
-      { key: "dns2", label: "备用DNS", type: "text" },
-      { key: "dhcpEnabled", label: "自动源IP地址", type: "select", options: SDK_BOOLEAN_OPTIONS },
-      { key: "sdkPort", label: "设备通讯端口号", type: "number" },
-      { key: "httpPort", label: "HTTP端口", type: "number" },
-      { key: "mtu", label: "MTU大小", type: "number" },
-      { key: "netInterfaceLabel", label: "网路层属性", type: "text", readOnly: true },
-      { key: "macAddress", label: "物理地址", type: "text", readOnly: true },
-      { key: "alarmHostIp", label: "告警主机IP", type: "text" },
-      { key: "alarmHostPort", label: "告警主机端口", type: "number" },
-      { key: "dhcpEnabledLabel", label: "自动源IP状态", type: "text", readOnly: true }
-    ],
-    mapLoadResult(result = {}) {
-      return result && typeof result === "object" ? result : {};
-    },
-    buildSavePayload(values = {}) {
-      return {
-        ipAddress: String(values.ipAddress || "").trim(),
-        subnetMask: String(values.subnetMask || "").trim(),
-        gateway: String(values.gateway || "").trim(),
-        dns1: String(values.dns1 || "").trim(),
-        dns2: String(values.dns2 || "").trim(),
-        dhcpEnabled: String(values.dhcpEnabled || "") === "1" || values.dhcpEnabled === true,
-        sdkPort: Number(values.sdkPort || 0) || 0,
-        httpPort: Number(values.httpPort || 0) || 0,
-        mtu: Number(values.mtu || 0) || 0,
-        alarmHostIp: String(values.alarmHostIp || "").trim(),
-        alarmHostPort: Number(values.alarmHostPort || 0) || 0
-      };
-    }
-  },
   sdkFtpConfig: {
     readOnly: false,
     saveApiPath: "/api/sdk/ftp-config/set",
@@ -980,278 +944,7 @@ const DEVICE_PREVIEW_ISAPI_SCHEMAS = {
       };
     }
   },
-  sdkCurrentTriggerMode: {
-    readOnly: false,
-    saveApiPath: "/api/sdk/current-trigger-mode/set",
-    fields: [
-      { key: "triggerTypeCode", label: "触发类型代码", type: "select", options: SDK_TRIGGER_TYPE_OPTIONS },
-      { key: "triggerTypeLabel", label: "当前触发模式", type: "text", readOnly: true },
-      { key: "triggerTypeHex", label: "触发类型HEX", type: "text", readOnly: true },
-      { key: "summary", label: "摘要", type: "text", readOnly: true }
-    ],
-    mapLoadResult(result = {}) {
-      return result && typeof result === "object" ? result : {};
-    },
-    buildSavePayload(values = {}) {
-      return {
-        triggerTypeCode: Number(values.triggerTypeCode || 0) || 0
-      };
-    }
-  },
-  sdkTriggerConfig: {
-    readOnly: false,
-    saveApiPath: "/api/sdk/trigger-config/set",
-    fields: [
-      { key: "enabled", label: "启用状态", type: "select", options: SDK_BOOLEAN_OPTIONS },
-      { key: "triggerTypeCode", label: "触发模式类型", type: "select", options: SDK_TRIGGER_TYPE_OPTIONS },
-      { key: "laneCount", label: "关联车道总数", type: "select", options: SDK_TRIGGER_LANE_COUNT_OPTIONS },
-      { key: "triggerSpareMode", label: "备用模式", type: "select", options: SDK_TRIGGER_SPARE_MODE_OPTIONS },
-      { key: "faultToleranceMinutes", label: "容错时间(分钟)", type: "number" },
-      { key: "displayEnabled", label: "显示辅助线", type: "select", options: SDK_BOOLEAN_OPTIONS },
-      { key: "snapMode", label: "抓拍模式", type: "select", options: SDK_SNAP_MODE_OPTIONS },
-      { key: "speedDetector", label: "测速方式", type: "select", options: SDK_SPEED_DETECTOR_OPTIONS },
-      { key: "sceneMode", label: "场景模式", type: "select", options: SDK_SCENE_MODE_OPTIONS },
-      { key: "capType", label: "抓拍类型", type: "select", options: SDK_CAP_TYPE_OPTIONS },
-      { key: "capMode", label: "抓拍方式", type: "select", options: SDK_CAP_MODE_OPTIONS },
-      { key: "speedMode", label: "速度模式", type: "select", options: SDK_SPEED_MODE_OPTIONS },
-      { key: "enabledLabel", label: "启用状态文本", type: "text", readOnly: true },
-      { key: "triggerTypeLabel", label: "触发模式", type: "text", readOnly: true },
-      { key: "triggerTypeHex", label: "触发类型HEX", type: "text", readOnly: true },
-      { key: "detailSource", label: "详细来源", type: "text", readOnly: true },
-      { key: "triggerSpareModeLabel", label: "触发备用模式", type: "text", readOnly: true },
-      { key: "snapModeLabel", label: "抓拍模式", type: "text", readOnly: true },
-      { key: "speedDetectorLabel", label: "测速方式", type: "text", readOnly: true },
-      { key: "sceneModeLabel", label: "场景模式", type: "text", readOnly: true },
-      { key: "capTypeLabel", label: "抓拍类型", type: "text", readOnly: true },
-      { key: "capModeLabel", label: "抓拍方式", type: "text", readOnly: true },
-      { key: "speedModeLabel", label: "速度模式", type: "text", readOnly: true },
-      { key: "radarUsePort", label: "使用雷达", type: "select", options: SDK_RADAR_PORT_OPTIONS },
-      { key: "radarType", label: "雷达类型", type: "select", options: SDK_RADAR_TYPE_OPTIONS },
-      { key: "radarTypeLabel", label: "雷达类型", type: "text", readOnly: true },
-      { key: "levelAngle", label: "水平夹角", type: "number" },
-      { key: "radarSensitivity", label: "灵敏度", type: "number" },
-      { key: "radarSpeedValidTime", label: "雷达速度有效时间", type: "number" },
-      { key: "lineCorrectParam", label: "线性矫正参数", type: "text" },
-      { key: "constCorrectParam", label: "常量矫正参数", type: "number" },
-      { key: "plateRecogEnabled", label: "启用车牌识别", type: "select", options: SDK_BOOLEAN_OPTIONS },
-      { key: "plateRecogEnabledLabel", label: "牌识启用文本", type: "text", readOnly: true },
-      { key: "plateRecogMode", label: "车牌识别模式", type: "select", options: SDK_PLATE_RECOG_MODE_OPTIONS },
-      { key: "vehicleLogoRecogEnabled", label: "启用车标识别", type: "select", options: SDK_BOOLEAN_OPTIONS },
-      { key: "vehicleLogoRecogEnabledLabel", label: "车标识别文本", type: "text", readOnly: true },
-      { key: "plateProvince", label: "省份代码", type: "number" },
-      { key: "plateRegion", label: "区域代码", type: "number" },
-      { key: "plateCountry", label: "国家代码", type: "number" },
-      { key: "platePixelWidthMin", label: "车牌最小像素宽", type: "number" },
-      { key: "platePixelWidthMax", label: "车牌最大像素宽", type: "number" },
-      { key: "firstLaneEnabled", label: "启用单车道参数", type: "select", options: SDK_BOOLEAN_OPTIONS },
-      { key: "firstLaneEnabledLabel", label: "首车道启用文本", type: "text", readOnly: true },
-      { key: "firstLaneRelatedDriveWay", label: "关联车道号", type: "number" },
-      { key: "firstLaneDistance", label: "线圈距离(m)", type: "number" },
-      { key: "firstLaneTrigDelayTime", label: "触发延迟时间(s)", type: "number" },
-      { key: "firstLaneTrigDelayDistance", label: "触发延迟距离(m)", type: "number" },
-      { key: "firstLaneSpeedCapEnabled", label: "是否启用超速抓拍", type: "select", options: SDK_BOOLEAN_OPTIONS },
-      { key: "firstLaneSpeedCapEnabledLabel", label: "首车道超速抓拍文本", type: "text", readOnly: true },
-      { key: "firstLaneSignSpeed", label: "限速(km/h)", type: "number" },
-      { key: "firstLaneSpeedLimit", label: "车速阈值(km/h)", type: "number" },
-      { key: "firstLaneSnapTimes", label: "抓拍次数", type: "select", options: SDK_SNAP_TIMES_OPTIONS },
-      { key: "firstLaneOverlayDriveWay", label: "车道编号", type: "number" },
-      { key: "firstLaneFlashMode", label: "闪光灯闪烁模式", type: "select", options: SDK_FLASH_MODE_OPTIONS },
-      { key: "firstLaneCartSignSpeed", label: "大车限速(km/h)", type: "number" },
-      { key: "firstLaneCartSpeedLimit", label: "大车速度阈值(km/h)", type: "number" },
-      { key: "firstLaneRelatedIOOutEx", label: "关联IO输出", type: "number" },
-      { key: "firstLaneLaneType", label: "车道类型", type: "select", options: SDK_LANE_PROPERTY_OPTIONS },
-      { key: "firstLaneUseageType", label: "车道用途", type: "select", options: SDK_LANE_USAGE_OPTIONS },
-      { key: "firstLaneDirectionType", label: "车道方向", type: "select", options: SDK_LANE_DIRECTION_OPTIONS },
-      { key: "firstLaneLowSpeedLimit", label: "最低限速(km/h)", type: "number" },
-      { key: "firstLaneBigCarLowSpeedLimit", label: "大车最低限速(km/h)", type: "number" },
-      { key: "firstLaneLowSpeedCapEnabled", label: "低速抓拍", type: "select", options: SDK_BOOLEAN_OPTIONS },
-      { key: "firstLaneLowSpeedCapEnabledLabel", label: "首车道低速抓拍文本", type: "text", readOnly: true },
-      { key: "firstLaneEmergencyCapEnabled", label: "应急车道抓拍", type: "select", options: SDK_BOOLEAN_OPTIONS },
-      { key: "firstLaneEmergencyCapEnabledLabel", label: "首车道应急车道抓拍文本", type: "text", readOnly: true },
-      { key: "summary", label: "摘要", type: "text", readOnly: true }
-    ],
-    mapLoadResult(result = {}) {
-      if (!result || typeof result !== "object") return {};
-      return {
-        ...result,
-        radarUsePort: result.radarUsePort ?? 1,
-        radarCopyParamMask: result.radarCopyParamMask ?? 1
-      };
-    },
-    buildSavePayload(values = {}) {
-      return {
-        enabled: String(values.enabled || "") === "1" || values.enabled === true,
-        triggerTypeCode: Number(values.triggerTypeCode || 0) || 0,
-        laneCount: Number(values.laneCount || 0) || 0,
-        triggerSpareMode: Number(values.triggerSpareMode || 0) || 0,
-        faultToleranceMinutes: Number(values.faultToleranceMinutes || 0) || 0,
-        displayEnabled: String(values.displayEnabled || "") === "1" || values.displayEnabled === true,
-        snapMode: Number(values.snapMode || 0) || 0,
-        speedDetector: Number(values.speedDetector || 0) || 0,
-        sceneMode: Number(values.sceneMode || 0) || 0,
-        capType: Number(values.capType || 0) || 0,
-        capMode: Number(values.capMode || 0) || 0,
-        speedMode: Number(values.speedMode || 0) || 0,
-        radarUsePort: Number(values.radarUsePort || 1) || 1,
-        radarCopyParamMask: Number(values.radarCopyParamMask || 1) || 1,
-        radarType: Number(values.radarType || 0) || 0,
-        levelAngle: Number(values.levelAngle || 0) || 0,
-        radarSensitivity: Number(values.radarSensitivity || 0) || 0,
-        radarSpeedValidTime: Number(values.radarSpeedValidTime || 0) || 0,
-        lineCorrectParam: String(values.lineCorrectParam || "").trim(),
-        constCorrectParam: Number(values.constCorrectParam || 0) || 0,
-        plateRecogEnabled: String(values.plateRecogEnabled || "") === "1" || values.plateRecogEnabled === true,
-        plateRecogMode: Number(values.plateRecogMode || 0) || 0,
-        vehicleLogoRecogEnabled: String(values.vehicleLogoRecogEnabled || "") === "1" || values.vehicleLogoRecogEnabled === true,
-        plateProvince: Number(values.plateProvince || 0) || 0,
-        plateRegion: Number(values.plateRegion || 0) || 0,
-        plateCountry: Number(values.plateCountry || 0) || 0,
-        platePixelWidthMin: Number(values.platePixelWidthMin || 0) || 0,
-        platePixelWidthMax: Number(values.platePixelWidthMax || 0) || 0,
-        firstLaneEnabled: String(values.firstLaneEnabled || "") === "1" || values.firstLaneEnabled === true,
-        firstLaneRelatedDriveWay: Number(values.firstLaneRelatedDriveWay || 0) || 0,
-        firstLaneOverlayDriveWay: Number(values.firstLaneOverlayDriveWay || 0) || 0,
-        firstLaneDistance: Number(values.firstLaneDistance || 0) || 0,
-        firstLaneTrigDelayTime: Number(values.firstLaneTrigDelayTime || 0) || 0,
-        firstLaneTrigDelayDistance: Number(values.firstLaneTrigDelayDistance || 0) || 0,
-        firstLaneIntervalType: Number(values.firstLaneIntervalType || 0) || 0,
-        firstLaneInterval1: Number(values.firstLaneInterval1 || 0) || 0,
-        firstLaneInterval2: Number(values.firstLaneInterval2 || 0) || 0,
-        firstLaneInterval3: Number(values.firstLaneInterval3 || 0) || 0,
-        firstLaneInterval4: Number(values.firstLaneInterval4 || 0) || 0,
-        firstLaneSpeedCapEnabled: String(values.firstLaneSpeedCapEnabled || "") === "1" || values.firstLaneSpeedCapEnabled === true,
-        firstLaneSignSpeed: Number(values.firstLaneSignSpeed || 0) || 0,
-        firstLaneSpeedLimit: Number(values.firstLaneSpeedLimit || 0) || 0,
-        firstLaneSnapTimes: Number(values.firstLaneSnapTimes || 0) || 0,
-        firstLaneFlashMode: Number(values.firstLaneFlashMode || 0) || 0,
-        firstLaneCartSignSpeed: Number(values.firstLaneCartSignSpeed || 0) || 0,
-        firstLaneCartSpeedLimit: Number(values.firstLaneCartSpeedLimit || 0) || 0,
-        firstLaneRelatedIOOutEx: Number(values.firstLaneRelatedIOOutEx || 0) || 0,
-        firstLaneLaneType: Number(values.firstLaneLaneType || 0) || 0,
-        firstLaneUseageType: Number(values.firstLaneUseageType || 0) || 0,
-        firstLaneDirectionType: Number(values.firstLaneDirectionType || 0) || 0,
-        firstLaneLowSpeedLimit: Number(values.firstLaneLowSpeedLimit || 0) || 0,
-        firstLaneBigCarLowSpeedLimit: Number(values.firstLaneBigCarLowSpeedLimit || 0) || 0,
-        firstLaneLowSpeedCapEnabled: String(values.firstLaneLowSpeedCapEnabled || "") === "1" || values.firstLaneLowSpeedCapEnabled === true,
-        firstLaneEmergencyCapEnabled: String(values.firstLaneEmergencyCapEnabled || "") === "1" || values.firstLaneEmergencyCapEnabled === true,
-        firstLaneRegionMode: Number(values.firstLaneRegionMode || 0) || 0,
-        firstLaneRegionPoints: String(values.firstLaneRegionPoints || "").trim(),
-        singleIoEnabledMask: Number(values.singleIoEnabledMask || 0) || 0,
-        singleIoDefaultStatus: Number(values.singleIoDefaultStatus || 0) || 0,
-        singleIoIntervalType: Number(values.singleIoIntervalType || 0) || 0,
-        singleIoInterval1: Number(values.singleIoInterval1 || 0) || 0,
-        singleIoInterval2: Number(values.singleIoInterval2 || 0) || 0,
-        singleIoInterval3: Number(values.singleIoInterval3 || 0) || 0,
-        singleIoInterval4: Number(values.singleIoInterval4 || 0) || 0,
-        singleIoCopyMask: Number(values.singleIoCopyMask || 1) || 1,
-        epoliceTrafficLightSignalSrc: Number(values.epoliceTrafficLightSignalSrc || 0) || 0,
-        epoliceSnapPicPreRecord: Number(values.epoliceSnapPicPreRecord || 0) || 0,
-        epoliceSerialType: Number(values.epoliceSerialType || 0) || 0,
-        epoliceSerialProtocol: Number(values.epoliceSerialProtocol || 0) || 0,
-        epoliceNormalPassProtocol: Number(values.epoliceNormalPassProtocol || 0) || 0,
-        epoliceInverseProtocol: Number(values.epoliceInverseProtocol || 0) || 0,
-        epoliceSpeedProtocol: Number(values.epoliceSpeedProtocol || 0) || 0,
-        epoliceCopyProtocolMask: Number(values.epoliceCopyProtocolMask || 1) || 1,
-        epoliceCopyParamMask: Number(values.epoliceCopyParamMask || 1) || 1,
-        videoEpoliceIntervalType: Number(values.videoEpoliceIntervalType || 0) || 0,
-        videoEpoliceIntervalMs: Number(values.videoEpoliceIntervalMs || 0) || 0,
-        videoEpoliceCheckpointEnabled: values.videoEpoliceCheckpointEnabled === true,
-        videoEpoliceCheckpointLevel: Number(values.videoEpoliceCheckpointLevel || 1) || 1,
-        videoEpoliceWrongDirectionEnabled: values.videoEpoliceWrongDirectionEnabled === true,
-        videoEpoliceIllegalUTurnEnabled: values.videoEpoliceIllegalUTurnEnabled === true,
-        videoEpoliceIllegalUTurnLevel: Number(values.videoEpoliceIllegalUTurnLevel || 1) || 1,
-        videoEpoliceIllegalLaneChangeEnabled: values.videoEpoliceIllegalLaneChangeEnabled === true,
-        videoEpoliceIllegalLaneChangeLevel: Number(values.videoEpoliceIllegalLaneChangeLevel || 1) || 1,
-        videoEpoliceReverseEnabled: values.videoEpoliceReverseEnabled === true,
-        videoEpoliceReverseLevel: Number(values.videoEpoliceReverseLevel || 1) || 1,
-        videoEpoliceLaneLineEnabled: values.videoEpoliceLaneLineEnabled === true,
-        videoEpoliceLaneLineLevel: Number(values.videoEpoliceLaneLineLevel || 1) || 1,
-        videoEpoliceLaneLineSensitivity: Number(values.videoEpoliceLaneLineSensitivity || 0) || 0,
-        videoEpoliceMotorOccupyNonMotorEnabled: values.videoEpoliceMotorOccupyNonMotorEnabled === true,
-        videoEpoliceMotorOccupyNonMotorLevel: Number(values.videoEpoliceMotorOccupyNonMotorLevel || 1) || 1,
-        videoEpoliceStopSeconds: Number(values.videoEpoliceStopSeconds || 0) || 0,
-        videoEpoliceIntersectionStopEnabled: values.videoEpoliceIntersectionStopEnabled === true,
-        videoEpoliceGreenLightStopEnabled: values.videoEpoliceGreenLightStopEnabled === true,
-        videoEpoliceProhibitionSignEnabled: values.videoEpoliceProhibitionSignEnabled === true,
-        videoEpoliceProhibitionSignLevel: Number(values.videoEpoliceProhibitionSignLevel || 1) || 1,
-        videoEpoliceSpeedingEnabled: values.videoEpoliceSpeedingEnabled === true,
-        videoEpoliceSpeedingLevel: Number(values.videoEpoliceSpeedingLevel || 1) || 1,
-        videoEpoliceRedLightEnabled: values.videoEpoliceRedLightEnabled === true,
-        videoEpoliceCarDriveDirect: Number(values.videoEpoliceCarDriveDirect || 0) || 0,
-        videoEpoliceCopyParamMask: Number(values.videoEpoliceCopyParamMask || 1) || 1,
-        videoEpoliceTrafficLightDetect: Number(values.videoEpoliceTrafficLightDetect || 0) || 0
-      };
-    }
-  },
-  
-  // 触发模式配置schema
-  triggerConfig: {
-    readOnly: true,
-    method: "GET",
-    contentType: "application/xml; charset=utf-8",
-    path: "/ISAPI/Event/triggers",
-    fields: [
-      { key: "triggerEnabled", label: "触发启用状态", type: "text", readOnly: true },
-      { key: "triggerType", label: "触发类型", type: "text", readOnly: true },
-      { key: "triggerSource", label: "触发源", type: "text", readOnly: true },
-      { key: "triggerCondition", label: "触发条件", type: "text", readOnly: true },
-      { key: "triggerSensitivity", label: "触发灵敏度", type: "text", readOnly: true },
-      { key: "triggerDelay", label: "触发延时(ms)", type: "text", readOnly: true },
-      { key: "triggerDuration", label: "触发持续时间(ms)", type: "text", readOnly: true },
-      { key: "triggerThreshold", label: "触发阈值", type: "text", readOnly: true },
-      { key: "triggerDirection", label: "触发方向", type: "text", readOnly: true },
-      { key: "triggerArea", label: "触发区域", type: "text", readOnly: true },
-      { key: "triggerSchedule", label: "触发时间表", type: "text", readOnly: true },
-      { key: "triggerAction", label: "触发动作", type: "text", readOnly: true }
-    ],
-    mapLoadResult(xmlText = "", device = null) {
-      // 从XML中提取触发配置信息
-      const extract = (tag) => {
-        const match = xmlText.match(new RegExp(`<${tag}>([\\s\\S]*?)</${tag}>`, "i"));
-        return match ? match[1].trim() : "";
-      };
-      
-      const extractAll = (tag) => {
-        const regex = new RegExp(`<${tag}>([\\s\\S]*?)</${tag}>`, "gi");
-        const matches = [];
-        let match;
-        while ((match = regex.exec(xmlText)) !== null) {
-          matches.push(match[1].trim());
-        }
-        return matches;
-      };
-      
-      // 解析触发配置
-      const enabled = extract("enabled") || extract("Enabled") || "unknown";
-      const triggerType = extract("triggerType") || extract("TriggerType") || extract("type") || "unknown";
-      const source = extract("source") || extract("Source") || extract("triggerSource") || "unknown";
-      const condition = extract("condition") || extract("Condition") || "unknown";
-      const sensitivity = extract("sensitivity") || extract("Sensitivity") || extract("TriggerSensitivity") || "unknown";
-      const delay = extract("delay") || extract("Delay") || extract("triggerDelay") || "unknown";
-      const duration = extract("duration") || extract("Duration") || extract("triggerDuration") || "unknown";
-      const threshold = extract("threshold") || extract("Threshold") || extract("triggerThreshold") || "unknown";
-      const direction = extract("direction") || extract("Direction") || extract("triggerDirection") || "unknown";
-      const area = extract("area") || extract("Area") || extract("triggerArea") || "unknown";
-      const schedule = extract("schedule") || extract("Schedule") || extract("triggerSchedule") || "unknown";
-      const action = extract("action") || extract("Action") || extract("triggerAction") || "unknown";
-      
-      return {
-        triggerEnabled: enabled === "true" ? "已启用" : enabled === "false" ? "已禁用" : enabled,
-        triggerType: triggerType,
-        triggerSource: source,
-        triggerCondition: condition,
-        triggerSensitivity: sensitivity,
-        triggerDelay: delay,
-        triggerDuration: duration,
-        triggerThreshold: threshold,
-        triggerDirection: direction,
-        triggerArea: area,
-        triggerSchedule: schedule,
-        triggerAction: action
-      };
-    }
-  },
-  
+
   // 智能事件触发配置schema
   smartTriggerConfig: {
     readOnly: true,
@@ -2431,7 +2124,7 @@ const plateTableState = {
   sortDir: "desc"
 };
 let plateTableVisibleIds = [];
-let lastPlateQueryState = { plateText: "", date: "", status: "" };
+let lastPlateQueryState = { plateText: "", date: "", dateEnd: "", status: "" };
 
 function idbRequestToPromise(req) {
   return new Promise((resolve, reject) => {
@@ -2632,6 +2325,7 @@ function getPlateQueryStateFromUi() {
   return {
     plateText: String(els.plateSearchInput?.value || ""),
     date: String(els.plateDateInput?.value || ""),
+    dateEnd: String(els.plateDateEndInput?.value || ""),
     status: String(els.plateStatusFilter?.value || "")
   };
 }
@@ -2645,9 +2339,10 @@ function getAllPlateRecords() {
   return out;
 }
 
-function filterPlateRecords(records, { plateText, date, status } = {}) {
+function filterPlateRecords(records, { plateText, date, dateEnd, status } = {}) {
   const q = String(plateText || "").trim().toLowerCase();
   const dateVal = String(date || "").trim();
+  const dateEndVal = String(dateEnd || "").trim();
   const statusVal = String(status || "").trim();
   const out = [];
   for (const rec of records || []) {
@@ -2655,7 +2350,13 @@ function filterPlateRecords(records, { plateText, date, status } = {}) {
     const ts = getRecordTs(rec);
     const day = toLocalIsoDate(ts);
     const matchPlate = !q || plate.includes(q);
-    const matchDate = !dateVal || day === dateVal;
+    let matchDate = true;
+    if (dateVal && dateEndVal) {
+      // 日期范围：day >= dateStart && day <= dateEnd
+      matchDate = day >= dateVal && day <= dateEndVal;
+    } else if (dateVal) {
+      matchDate = day === dateVal;
+    }
     let matchStatus = true;
     if (statusVal === "overspeed") matchStatus = isOverspeedRecord(rec);
     else if (statusVal === "normal") matchStatus = !isOverspeedRecord(rec);
@@ -2664,10 +2365,11 @@ function filterPlateRecords(records, { plateText, date, status } = {}) {
   return out;
 }
 
-async function applyPlateFilters({ plateText, date, status } = {}) {
-  lastPlateQueryState = { plateText: String(plateText || ""), date: String(date || ""), status: String(status || "") };
+async function applyPlateFilters({ plateText, date, dateEnd, status } = {}) {
+  lastPlateQueryState = { plateText: String(plateText || ""), date: String(date || ""), dateEnd: String(dateEnd || ""), status: String(status || "") };
   const q = String(plateText || "").trim();
   const dateVal = String(date || "").trim();
+  const dateEndVal = String(dateEnd || "").trim();
   const statusVal = String(status || "").trim();
   const plateListEl = document.getElementById("plateList");
   if (!plateListEl) return;
@@ -2685,7 +2387,7 @@ async function applyPlateFilters({ plateText, date, status } = {}) {
     let pagination = null;
     
     // 如果查询条件为空，则使用分页API加载数据
-    if (!q && !dateVal && !statusVal) {
+    if (!q && !dateVal && !dateEndVal && !statusVal) {
       const page = Math.max(1, Number(plateTableState.page) || 1);
       const pageSize = Math.max(1, Math.min(500, Number(plateTableState.pageSize) || 100));
       
@@ -2701,6 +2403,7 @@ async function applyPlateFilters({ plateText, date, status } = {}) {
       const params = new URLSearchParams();
       if (q) params.set("plate", q);
       if (dateVal) params.set("date", dateVal);
+      if (dateEndVal) params.set("dateEnd", dateEndVal);
       
       // 调用搜索API（返回所有匹配记录，用于客户端状态筛选）
       const r = await fetchJsonGet(`/api/plates/search?${params.toString()}`);
@@ -2723,7 +2426,7 @@ async function applyPlateFilters({ plateText, date, status } = {}) {
     let filteredItems = items;
     if (statusVal) {
       const all = getAllPlateRecords();
-      const filtered = filterPlateRecords(all, { plateText: q, date: dateVal, status: statusVal });
+      const filtered = filterPlateRecords(all, { plateText: q, date: dateVal, dateEnd: dateEndVal, status: statusVal });
       // 重建 plateById 只保留筛选后的数据
       plateById.clear();
       for (const rec of filtered) {
@@ -3495,8 +3198,10 @@ async function updatePlateDashboard() {
     const params = new URLSearchParams();
     const q = String(lastPlateQueryState.plateText || "").trim();
     const dateVal = String(lastPlateQueryState.date || "").trim();
+    const dateEndVal = String(lastPlateQueryState.dateEnd || "").trim();
     if (q) params.set("plate", q);
     if (dateVal) params.set("date", dateVal);
+    if (dateEndVal) params.set("dateEnd", dateEndVal);
     const url = params.size ? `/api/plates/stats?${params.toString()}` : "/api/plates/stats";
     const statsResponse = await fetchJsonGet(url);
 
@@ -3663,7 +3368,7 @@ function renderPlateTable() {
   if (!els.plateTableWrap || !els.plateTableBody) return;
   const all = getAllPlateRecords();
   const query = getPlateQueryStateFromUi();
-  lastPlateQueryState = { plateText: query.plateText, date: query.date, status: query.status };
+  lastPlateQueryState = { plateText: query.plateText, date: query.date, dateEnd: query.dateEnd, status: query.status };
   const filtered = filterPlateRecords(all, query);
 
   filtered.sort((a, b) => compareRecords(a, b, plateTableState.sortKey, plateTableState.sortDir));
@@ -3870,6 +3575,11 @@ function initPlateModule() {
   }
   if (els.plateDateInput) {
     els.plateDateInput.addEventListener("keydown", (ev) => {
+      if (ev.key === "Enter") runQuery();
+    });
+  }
+  if (els.plateDateEndInput) {
+    els.plateDateEndInput.addEventListener("keydown", (ev) => {
       if (ev.key === "Enter") runQuery();
     });
   }
@@ -4274,6 +3984,26 @@ function fillConnectionForm(device) {
   if (els.deviceNameInput) els.deviceNameInput.value = String(item?.name || "");
   if (els.userInput) els.userInput.value = String(item?.username || "");
   if (els.passInput) els.passInput.value = String(item?.password || "");
+  // 加载该设备的字段顺序
+  if (els.fieldOrderInput) {
+    els.fieldOrderInput.value = "";
+  }
+  if (item?.host) {
+    loadDeviceFieldOrderForIp(item.host);
+  }
+}
+
+async function loadDeviceFieldOrderForIp(ip) {
+  if (!ip || !els.fieldOrderInput) return;
+  try {
+    const r = await fetchJsonGet("/api/device/field-orders");
+    if (r.ok && r.orders && r.orders[ip]) {
+      const order = r.orders[ip];
+      if (Array.isArray(order) && order.length > 0) {
+        els.fieldOrderInput.value = order.join(" , ");
+      }
+    }
+  } catch {}
 }
 
 function getManagedDeviceSummaryText(item) {
@@ -5521,6 +5251,8 @@ function resetDeviceConfigDialogUi() {
   if (els.deviceNameInput) els.deviceNameInput.value = "";
   if (els.userInput) els.userInput.value = "";
   if (els.passInput) els.passInput.value = "";
+  if (els.fieldOrderInput) els.fieldOrderInput.value = "";
+  if (els.fieldOrderHint) els.fieldOrderHint.textContent = "";
   setIsapiDeviceStatus("日志");
   renderIsapiDeviceSummary(null, "");
   setIsapiDeviceRaw("");
@@ -6618,6 +6350,40 @@ if (els.refreshNamingBtn) {
     }
   });
 }
+if (els.saveFieldOrderBtn) {
+  els.saveFieldOrderBtn.addEventListener("click", async () => {
+    const item = managedDeviceState.items.find(d => d.id === managedDeviceState.selectedId);
+    if (!item) {
+      setManagedDeviceHint("请先选择设备", true);
+      return;
+    }
+    const raw = String(els.fieldOrderInput?.value || "").trim();
+    if (!raw) {
+      setManagedDeviceHint("请输入字段顺序，用逗号分隔", true);
+      return;
+    }
+    const fieldOrder = raw.split(/[,，\s]+/).map(s => s.trim()).filter(Boolean);
+    if (fieldOrder.length < 2) {
+      setManagedDeviceHint("字段顺序至少需要2个字段", true);
+      return;
+    }
+    try {
+      els.saveFieldOrderBtn.disabled = true;
+      const r = await fetchJson("/api/device/field-order", { ip: item.host, fieldOrder }, "PUT");
+      if (r.ok) {
+        const orderStr = fieldOrder.join(" → ");
+        setManagedDeviceHint(`已保存设备 ${item.name} 的字段顺序: ${orderStr}`);
+        if (els.fieldOrderHint) els.fieldOrderHint.textContent = "已保存";
+      } else {
+        setManagedDeviceHint(`保存失败: ${r.error || "未知错误"}`, true);
+      }
+    } catch (e) {
+      setManagedDeviceHint(`保存失败: ${e?.message || e}`, true);
+    } finally {
+      els.saveFieldOrderBtn.disabled = false;
+    }
+  });
+}
 if (els.clearLogBtn) {
   els.clearLogBtn.addEventListener("click", () => {
     if (els.log) els.log.textContent = "";
@@ -7176,9 +6942,7 @@ function normalizeHikvisionPreviewPresetKey(rawKey = "") {
 function isAllowedHikvisionSchema(schemaName = "") {
   const key = String(schemaName || "").trim();
   return key === "deviceInfo"
-    || key === "sdkNetworkConfig"
-    || key === "sdkFtpConfig"
-    || key === "sdkTriggerConfig";
+    || key === "sdkFtpConfig";
 }
 
 function isSdkApiSuccess(response) {
@@ -7464,7 +7228,7 @@ function renderDevicePreviewSdkNamingSection(includeOsd = false) {
 }
 
 function renderDevicePreviewSdkFtpControls(schemaKey = "") {
-  return `<div class="devicePreviewFtpPanel">${renderDevicePreviewSdkFtpTopForm()}${renderDevicePreviewSdkNamingSection(false)}</div>`;
+  return `<div class="devicePreviewFtpPanel">${renderDevicePreviewSdkNamingSection(false)}</div>`;
 }
 
 function getActiveDevicePreviewFtpChannel(host = ensureDevicePreviewOnvifControlsHost()) {
@@ -7555,55 +7319,16 @@ function syncDevicePreviewFtpModeState() {
 function bindDevicePreviewFtpControls() {
   const host = ensureDevicePreviewOnvifControlsHost();
   if (!host || host.dataset.ftpControlsBound === "1") {
-    syncDevicePreviewFtpModeState();
     return;
   }
   host.dataset.ftpControlsBound = "1";
   host.addEventListener("change", (event) => {
     const target = event.target;
     if (!(target instanceof HTMLElement)) return;
-    if (target.matches('[data-isapi-field="ftpEnableMode"]')) {
-      const ftpIndexField = host.querySelector('[data-isapi-field="ftpIndexRaw"]');
-      if (ftpIndexField && Number(getOnvifControlValue(target) || 0) < 2) {
-        ftpIndexField.value = "1";
-      }
-      syncDevicePreviewFtpModeState();
-      return;
-    }
     if (target.matches('[data-isapi-field^="picNameItem"]')) {
       syncDevicePreviewFtpCustomInputs();
     }
   });
-  host.addEventListener("click", async (event) => {
-    const target = event.target;
-    if (!(target instanceof HTMLElement)) return;
-    const tabButton = target.closest("[data-ftp-tab]");
-    if (!(tabButton instanceof HTMLElement)) return;
-    event.preventDefault();
-    const ftpIndexField = host.querySelector('[data-isapi-field="ftpIndexRaw"]');
-    const channel = Number(tabButton.getAttribute("data-ftp-tab") || "1") || 1;
-    if (ftpIndexField) {
-      ftpIndexField.value = String(channel);
-    }
-    syncDevicePreviewFtpModeState();
-    if (els.devicePreviewIsapiHint) {
-      els.devicePreviewIsapiHint.textContent = `正在读取 FTP${channel} 参数...`;
-    }
-    showLoading("获取参数中...");
-    try {
-      await reloadDevicePreviewFtpTabData(channel);
-    } catch (error) {
-      if (els.devicePreviewIsapiHint) {
-        els.devicePreviewIsapiHint.textContent = `自动读取失败：${error.message || error}`;
-      }
-      if (els.devicePreviewIsapiResponse) {
-        els.devicePreviewIsapiResponse.value = String(error?.message || error || "");
-      }
-    } finally {
-      hideLoading();
-    }
-  });
-  syncDevicePreviewFtpModeState();
 }
 
 const devicePreviewTriggerEditorState = {
@@ -8285,7 +8010,7 @@ function fillDevicePreviewIsapiControls(values = {}) {
     syncDevicePreviewTriggerRegionFromFields();
   }
   if (host.querySelector(".devicePreviewFtpPanel")) {
-    syncDevicePreviewFtpModeState();
+    syncDevicePreviewFtpCustomInputs();
   }
   if (host.querySelector('[data-trigger-group]')) {
     syncDevicePreviewTriggerModeSections();
@@ -8312,17 +8037,6 @@ function renderDevicePreviewIsapiControls(schemaKey = "") {
   if (schemaKey === "sdkFtpConfig") {
     host.innerHTML = renderDevicePreviewSdkFtpControls(schemaKey);
     bindDevicePreviewFtpControls();
-    return;
-  }
-  if (schemaKey === "sdkCurrentTriggerMode") {
-    host.innerHTML = renderDevicePreviewSdkCurrentTriggerModeControls();
-    return;
-  }
-  if (schemaKey === "sdkTriggerConfig") {
-    host.innerHTML = renderDevicePreviewSdkTriggerConfigControls();
-    bindDevicePreviewTriggerRegionEditor();
-    bindDevicePreviewTriggerTypeChange();
-    bindDevicePreviewTriggerAdvancedToggles();
     return;
   }
   const schema = DEVICE_PREVIEW_ISAPI_SCHEMAS[schemaKey] || DEVICE_PREVIEW_ISAPI_SCHEMAS.deviceInfo;

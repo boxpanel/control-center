@@ -71,7 +71,9 @@
             <div class="plate-pagination">
               <div class="plate-search">
                 <input id="plateSearchInput" type="text" placeholder="查询车牌..." autocomplete="off" />
-                <input id="plateDateInput" type="date" />
+                <input id="plateDateInput" type="date" style="max-width:140px;" />
+                <span style="color:#6b7280; font-size:13px;">至</span>
+                <input id="plateDateEndInput" type="date" style="max-width:140px;" />
                 <select id="plateStatusFilter" class="plate-pageSize" style="min-width:80px;">
                   <option value="">所有</option>
                   <option value="normal">未超速</option>
@@ -412,6 +414,14 @@
               <label for="deviceNameInput">设备名</label>
               <div class="deviceFormControl">
                 <input id="deviceNameInput" type="text" placeholder="海康ISAPI协议设备" autocomplete="off" />
+              </div>
+            </div>
+            <div class="deviceFormRow">
+              <label for="fieldOrderInput">字段顺序（FTP图片命名规则）</label>
+              <div class="deviceFormControl">
+                <input id="fieldOrderInput" type="text" placeholder="留空自动获取，格式：设备名,设备号,设备IP,通道名,通道号,时间,车牌号码..." autocomplete="off" />
+                <button id="saveFieldOrderBtn" type="button" class="secondaryBtn" style="margin-top:4px; font-size:12px; padding:2px 8px;">保存字段顺序</button>
+                <span id="fieldOrderHint" style="font-size:11px; color:#6b7280; margin-left:6px;"></span>
               </div>
             </div>
             <div class="deviceActionRow">
