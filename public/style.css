@@ -2657,3 +2657,53 @@ body.login-page {
 body.app-page .systemStorageUsedBar {
   background: linear-gradient(90deg, #3b82f6, #60a5fa);
 }
+
+/* 外部存储卷列表 */
+#systemStorageVolumes {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(148, 163, 184, 0.25);
+}
+
+.systemStorageVolumeItem {
+  margin-bottom: 10px;
+}
+
+.systemStorageVolumeItem.is-active {
+  background: rgba(59, 130, 246, 0.05);
+  border-radius: 8px;
+  padding: 8px;
+  margin: 0 -8px 10px;
+}
+
+.systemStorageVolumeRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 4px;
+  font-size: 12px;
+}
+
+.systemStorageVolumeLabel {
+  color: #334155;
+  font-weight: 500;
+}
+
+.systemStorageVolumeSize {
+  color: #64748b;
+}
+
+.systemStorageVolumeBar {
+  height: 8px;
+}
+
+.systemStorageVolumeBar .systemStorageUsedBar {
+  height: 8px;
+}
+
+.systemStorageNoVolumes {
+  font-size: 12px;
+  color: #94a3b8;
+  text-align: center;
+  padding: 12px 0;
+}

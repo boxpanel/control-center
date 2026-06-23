@@ -65,6 +65,138 @@ await fs.mkdir(ftpUploadRootDir, { recursive: true });
 await fs.mkdir(dataDir, { recursive: true });
 await fs.mkdir(platesUploadDir, { recursive: true });
 
+// ==================== 存储管理 ====================
+// 当前活跃的存储根路径，初始为默认 FTP 目录
+let activeStoragePath = ftpUploadRootDir;
+
+// 可切换的候选外部存储挂载点前缀
+const EXTERNAL_MOUNT_PREFIXES = [
+  "/mnt", "/media", "/run/media", "/srv",
+  "/mnt/tfcard", "/mnt/sdcard", "/mnt/extsd", "/mnt/mmc"
+];
+
+// 存储空间不足阈值（低于此百分比时触发切换）
+const STORAGE_LOW_THRESHOLD_PCT = 20;
+
+async function scanMountPoints() {
+  try {
+    const { execFile } = await import("node:child_process");
+    const stdout = await new Promise((resolve, reject) => {
+      execFile("df", ["-k", "--output=size,used,avail,pcent,target"], { timeout: 5000 }, (err, out) => {
+        if (err) { reject(err); return; }
+        resolve(out);
+      });
+    });
+    const lines = stdout.trim().split("\n").filter(Boolean);
+    const mounts = [];
+    for (let i = 1; i < lines.length; i++) {
+      const parts = lines[i].trim().split(/\s+/);
+      if (parts.length < 5) continue;
+      const totalKb = Number(parts[0] || 0);
+      const usedKb = Number(parts[1] || 0);
+      const availKb = Number(parts[2] || 0);
+      const pct = String(parts[3] || "0%");
+      const mountPoint = parts.slice(4).join(" ");
+      if (totalKb <= 0 || !mountPoint) continue;
+      mounts.push({
+        mount: mountPoint,
+        total: totalKb,
+        used: usedKb,
+        free: availKb,
+        usedPercent: pct,
+        totalGb: Math.round((totalKb / 1024 / 1024) * 100) / 100,
+        usedGb: Math.round((usedKb / 1024 / 1024) * 100) / 100,
+        freeGb: Math.round((availKb / 1024 / 1024) * 100) / 100,
+        isExternal: isExternalMountPoint(mountPoint),
+        isActive: mountPoint === getActiveStorageMountPoint()
+      });
+    }
+    return mounts;
+  } catch {
+    return [];
+  }
+}
+
+function isExternalMountPoint(mp) {
+  const m = String(mp || "").trim().toLowerCase();
+  if (!m || m === "/" || m === "/boot" || m.startsWith("/sys") || m.startsWith("/proc") || m.startsWith("/dev")
+    || m.startsWith("/run") || m === "/tmp" || m.startsWith("/snap")) return false;
+  // 检查是否匹配常见外部存储挂载点前缀
+  for (const prefix of EXTERNAL_MOUNT_PREFIXES) {
+    if (m === prefix || m.startsWith(prefix + "/")) return true;
+  }
+  // 如果 mount 点不是根分区也不是系统分区，也视为外部/辅助存储
+  if (m.startsWith("/")) {
+    // 排除常见系统分区
+    const systemPaths = ["/", "/boot", "/boot/efi", "/home", "/var", "/var/log", "/var/tmp", "/opt", "/usr", "/tmp"];
+    if (!systemPaths.includes(m)) return true;
+  }
+  return false;
+}
+
+function getActiveStorageMountPoint() {
+  // 返回当前活跃存储所在的挂载点
+  if (activeStoragePath && activeStoragePath.startsWith("/")) {
+    // 取最长的匹配挂载点
+    const parts = activeStoragePath.split("/").filter(Boolean);
+    let best = "/";
+    for (let i = 1; i <= parts.length; i++) {
+      const candidate = "/" + parts.slice(0, i).join("/");
+      try {
+        if (require("fs").existsSync(candidate)) best = candidate;
+      } catch {}
+    }
+    return best;
+  }
+  return "/";
+}
+
+async function selectBestStoragePath() {
+  // 1. 扫描所有挂载点
+  const mounts = await scanMountPoints();
+  
+  // 2. 找到根分区
+  const rootMount = mounts.find(m => m.mount === "/");
+  const rootFreePct = rootMount ? (rootMount.free / rootMount.total) * 100 : 0;
+
+  // 3. 如果根分区空间充足，直接使用默认路径
+  if (rootFreePct >= STORAGE_LOW_THRESHOLD_PCT) {
+    return ftpUploadRootDir;
+  }
+
+  // 4. 根分区不足，寻找外部存储
+  const externalMounts = mounts.filter(m => m.isExternal && m.freeGb > 1);
+  if (externalMounts.length === 0) {
+    return ftpUploadRootDir; // 没有外部存储，只能用根分区
+  }
+
+  // 5. 选择剩余空间最大的外部存储
+  externalMounts.sort((a, b) => b.freeGb - a.freeGb);
+  const best = externalMounts[0];
+  const storagePath = path.join(best.mount, "control-center", "ftp");
+  await fs.mkdir(storagePath, { recursive: true });
+  console.log(`[Storage] 根分区空间不足 (剩余 ${Math.round(rootFreePct)}%)，切换到外部存储 ${best.mount} (剩余 ${best.freeGb} GB)`);
+  return storagePath;
+}
+
+async function ensureStorageSpace() {
+  try {
+    const bestPath = await selectBestStoragePath();
+    if (bestPath !== activeStoragePath) {
+      const oldPath = activeStoragePath;
+      activeStoragePath = bestPath;
+      console.log(`[Storage] 存储路径切换: ${oldPath} → ${activeStoragePath}`);
+    }
+    return activeStoragePath;
+  } catch (err) {
+    console.warn("[Storage] 存储空间检查失败:", err.message);
+    return activeStoragePath;
+  }
+}
+
+// 定时检查存储空间（每5分钟）
+setInterval(() => { ensureStorageSpace().catch(() => {}); }, 5 * 60 * 1000);
+
 const deviceInfoPath = path.join(__dirname, ".device-info.json");
 
 const plateDb = new Database(plateDbPath);
@@ -884,9 +1016,17 @@ async function ensureDir(p) {
 
 function resolveFtpRootDir(rootDir) {
   const v = String(rootDir || "").trim();
-  if (!v) return ftpUploadRootDir;
+  if (!v) {
+    // 未配置自定义目录时，使用自动管理的活跃存储路径
+    return activeStoragePath;
+  }
   if (path.isAbsolute(v)) return v;
   return path.join(__dirname, v);
+}
+
+async function resolveFtpRootDirAuto() {
+  await ensureStorageSpace();
+  return activeStoragePath;
 }
 
 function isLoopbackIp(ip) {
@@ -2204,6 +2344,8 @@ async function ensureFtpServer(cfg) {
   }
 
   const url = `ftp://0.0.0.0:${conf.port}`;
+  // 启动前检查存储空间，确保使用最佳存储路径
+  await ensureStorageSpace();
   const resolvedRoot = resolveFtpRootDir(conf.rootDir);
   const info = await loadOrInitDeviceInfo();
   const preferredLanIp = resolvePreferredLanIp(info?.system);
@@ -6180,31 +6322,29 @@ app.post("/api/hikvision/sadp-discover", async (req, res, next) => {
  */
 app.get("/api/system/storage", async (req, res) => {
   try {
-    const { execFile } = await import("node:child_process");
-    const df = await new Promise((resolve, reject) => {
-      execFile("df", ["-k", "--output=size,used,avail,pcent,target", "/"], { timeout: 3000 }, (err, stdout) => {
-        if (err) { reject(err); return; }
-        resolve(stdout);
-      });
-    });
-    const lines = df.trim().split("\n").filter(Boolean);
-    const header = lines[0];
-    const dataLine = lines[1];
-    if (!dataLine) throw new Error("df output parse failed");
-    const parts = dataLine.trim().split(/\s+/);
-    const sizeKb = Number(parts[0] || 0);
-    const usedKb = Number(parts[1] || 0);
-    const availKb = Number(parts[2] || 0);
-    const pct = String(parts[3] || "0%");
-    const mount = String(parts.slice(4).join(" ") || "/");
-    const toGb = (kb) => Math.round((kb / 1024 / 1024) * 100) / 100;
+    const mounts = await scanMountPoints();
+    const activeMount = getActiveStorageMountPoint();
+    // 标记活跃挂载点
+    for (const m of mounts) {
+      m.isActive = m.mount === activeMount;
+    }
+    // 找到根分区和外部存储
+    const rootMount = mounts.find(m => m.mount === "/") || null;
+    const externalMounts = mounts.filter(m => m.isExternal);
+    const activeMountData = mounts.find(m => m.isActive) || rootMount;
+    
     res.json({
       ok: true,
-      total: toGb(sizeKb),
-      used: toGb(usedKb),
-      free: toGb(availKb),
-      usedPercent: pct,
-      mount
+      mounts,
+      root: rootMount,
+      external: externalMounts,
+      active: activeMountData,
+      activeStoragePath,
+      total: activeMountData?.totalGb || 0,
+      used: activeMountData?.usedGb || 0,
+      free: activeMountData?.freeGb || 0,
+      usedPercent: activeMountData?.usedPercent || "0%",
+      mount: activeMountData?.mount || "/"
     });
   } catch (err) {
     // fallback: 使用 os 模块
@@ -6221,7 +6361,10 @@ app.get("/api/system/storage", async (req, res) => {
         free: toGb(free),
         usedPercent: Math.round((used / total) * 100) + "%",
         mount: "memory",
-        note: "df 命令不可用，显示内存信息"
+        note: "df 命令不可用，显示内存信息",
+        mounts: [],
+        active: null,
+        external: []
       });
     } catch (osErr) {
       res.status(500).json({ ok: false, error: String(osErr.message || osErr) });

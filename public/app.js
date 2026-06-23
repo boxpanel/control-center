@@ -1675,6 +1675,8 @@ async function loadSystemStorageInfo() {
   try {
     const r = await fetchJsonGet("/api/system/storage");
     if (!r.ok) throw new Error(r.error || "获取存储空间失败");
+    
+    // 主存储（活跃分区）
     if (els.systemStorageTotal) els.systemStorageTotal.textContent = r.total + " GB";
     if (els.systemStorageUsed) els.systemStorageUsed.textContent = r.used + " GB";
     if (els.systemStorageFree) els.systemStorageFree.textContent = r.free + " GB";
@@ -1685,6 +1687,30 @@ async function loadSystemStorageInfo() {
       else if (pct > 75) els.systemStorageUsedBar.style.background = "linear-gradient(90deg, #f59e0b, #fbbf24)";
       else els.systemStorageUsedBar.style.background = "";
     }
+    
+    // 外部存储卷列表
+    const storageVolumesEl = document.getElementById("systemStorageVolumes");
+    if (storageVolumesEl && Array.isArray(r.mounts)) {
+      const externalMounts = r.mounts.filter(m => m.isExternal);
+      if (externalMounts.length > 0) {
+        storageVolumesEl.innerHTML = externalMounts.map(m => {
+          const pct = parseFloat(m.usedPercent || "0");
+          const isActive = m.isActive;
+          return `<div class="systemStorageVolumeItem${isActive ? ' is-active' : ''}">
+            <div class="systemStorageVolumeRow">
+              <span class="systemStorageVolumeLabel">${m.mount}${isActive ? ' <span style="color:#3b82f6;font-size:11px;">(活跃)</span>' : ''}</span>
+              <span class="systemStorageVolumeSize">总 ${m.totalGb} GB · 已用 ${m.usedGb} GB · 剩余 ${m.freeGb} GB</span>
+            </div>
+            <div class="systemStorageBar systemStorageVolumeBar">
+              <div class="systemStorageUsedBar" style="width:${Math.min(100, Math.max(0, pct))}%"></div>
+            </div>
+          </div>`;
+        }).join("");
+      } else {
+        storageVolumesEl.innerHTML = '<div class="systemStorageNoVolumes">未检测到外部存储设备</div>';
+      }
+    }
+    
     if (r.note) console.log("[Storage]", r.note);
   } catch (e) {
     console.warn("获取存储空间失败:", e.message);
