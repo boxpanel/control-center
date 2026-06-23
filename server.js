@@ -6175,6 +6175,60 @@ app.post("/api/hikvision/sadp-discover", async (req, res, next) => {
   }
 });
 
+/**
+ * 获取磁盘存储空间信息
+ */
+app.get("/api/system/storage", async (req, res) => {
+  try {
+    const { execFile } = await import("node:child_process");
+    const df = await new Promise((resolve, reject) => {
+      execFile("df", ["-k", "--output=size,used,avail,pcent,target", "/"], { timeout: 3000 }, (err, stdout) => {
+        if (err) { reject(err); return; }
+        resolve(stdout);
+      });
+    });
+    const lines = df.trim().split("\n").filter(Boolean);
+    const header = lines[0];
+    const dataLine = lines[1];
+    if (!dataLine) throw new Error("df output parse failed");
+    const parts = dataLine.trim().split(/\s+/);
+    const sizeKb = Number(parts[0] || 0);
+    const usedKb = Number(parts[1] || 0);
+    const availKb = Number(parts[2] || 0);
+    const pct = String(parts[3] || "0%");
+    const mount = String(parts.slice(4).join(" ") || "/");
+    const toGb = (kb) => Math.round((kb / 1024 / 1024) * 100) / 100;
+    res.json({
+      ok: true,
+      total: toGb(sizeKb),
+      used: toGb(usedKb),
+      free: toGb(availKb),
+      usedPercent: pct,
+      mount
+    });
+  } catch (err) {
+    // fallback: 使用 os 模块
+    try {
+      const os = await import("node:os");
+      const total = os.totalmem();
+      const free = os.freemem();
+      const used = total - free;
+      const toGb = (b) => Math.round((b / 1024 / 1024 / 1024) * 100) / 100;
+      res.json({
+        ok: true,
+        total: toGb(total),
+        used: toGb(used),
+        free: toGb(free),
+        usedPercent: Math.round((used / total) * 100) + "%",
+        mount: "memory",
+        note: "df 命令不可用，显示内存信息"
+      });
+    } catch (osErr) {
+      res.status(500).json({ ok: false, error: String(osErr.message || osErr) });
+    }
+  }
+});
+
 app.post("/api/onvif/ws-unicast", async (req, res, next) => {
   try {
     const bindAddress = requireOptionalString(req.body?.bindAddress);

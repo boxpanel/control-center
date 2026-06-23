@@ -249,6 +249,10 @@ const els = {
   systemIfaceInfo: document.getElementById("systemIfaceInfo"),
   dataCleanupEnabled: document.getElementById("dataCleanupEnabled"),
   dataCleanupDays: document.getElementById("dataCleanupDays"),
+  systemStorageTotal: document.getElementById("systemStorageTotal"),
+  systemStorageUsed: document.getElementById("systemStorageUsed"),
+  systemStorageFree: document.getElementById("systemStorageFree"),
+  systemStorageUsedBar: document.getElementById("systemStorageUsedBar"),
   systemNewPassword: document.getElementById("systemNewPassword"),
   systemSaveBtn: document.getElementById("systemSaveBtn"),
   systemRestartBtn: document.getElementById("systemRestartBtn"),
@@ -1667,6 +1671,29 @@ function setFtpHint(text, isError = false) {
   els.ftpServerHint.style.color = isError ? "#b91c1c" : "#6b7280";
 }
 
+async function loadSystemStorageInfo() {
+  try {
+    const r = await fetchJsonGet("/api/system/storage");
+    if (!r.ok) throw new Error(r.error || "获取存储空间失败");
+    if (els.systemStorageTotal) els.systemStorageTotal.textContent = r.total + " GB";
+    if (els.systemStorageUsed) els.systemStorageUsed.textContent = r.used + " GB";
+    if (els.systemStorageFree) els.systemStorageFree.textContent = r.free + " GB";
+    if (els.systemStorageUsedBar) {
+      const pct = parseFloat(String(r.usedPercent || "0%"));
+      els.systemStorageUsedBar.style.width = Math.min(100, Math.max(0, pct)) + "%";
+      if (pct > 90) els.systemStorageUsedBar.style.background = "linear-gradient(90deg, #dc2626, #f87171)";
+      else if (pct > 75) els.systemStorageUsedBar.style.background = "linear-gradient(90deg, #f59e0b, #fbbf24)";
+      else els.systemStorageUsedBar.style.background = "";
+    }
+    if (r.note) console.log("[Storage]", r.note);
+  } catch (e) {
+    console.warn("获取存储空间失败:", e.message);
+    if (els.systemStorageTotal) els.systemStorageTotal.textContent = "--";
+    if (els.systemStorageUsed) els.systemStorageUsed.textContent = "--";
+    if (els.systemStorageFree) els.systemStorageFree.textContent = "--";
+  }
+}
+
 function setSerialSaveHint(text, isError = false) {
   if (!els.serialSaveHint) return;
   els.serialSaveHint.textContent = String(text || "");
@@ -1729,8 +1756,7 @@ async function initSystemUi() {
     !els.systemGatewayInput
   )
     return;
-  setSystemHint("");
-  setSystemPassHint("");
+  loadSystemStorageInfo().catch(() => {});
 
   const cfg = await loadDeviceConfig();
   const system = cfg?.system || {};

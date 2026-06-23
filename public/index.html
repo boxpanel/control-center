@@ -234,6 +234,21 @@
                   <label>当前操作网卡</label>
                   <div id="systemIfaceInfo" class="fingerprintBox" style="margin-top:6px;">加载中...</div>
                 </div>
+                <div class="field span-12">
+                  <div class="systemStorageSection">
+                    <div class="systemStorageHeader">存储空间</div>
+                    <div id="systemStorageContent" class="systemStorageContent">
+                      <div class="systemStorageBar">
+                        <div id="systemStorageUsedBar" class="systemStorageUsedBar"></div>
+                      </div>
+                      <div class="systemStorageStats">
+                        <span>总空间：<strong id="systemStorageTotal">--</strong></span>
+                        <span>已使用：<strong id="systemStorageUsed">--</strong></span>
+                        <span>剩余：<strong id="systemStorageFree">--</strong></span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
                 <div class="field span-4">
                   <label for="dataCleanupEnabled">数据清理</label>
                   <div style="display:flex; align-items:center; gap:8px; margin-top:6px;">

@@ -2599,3 +2599,57 @@ body.login-page {
   border-color: #6b7280;
   cursor: not-allowed;
 }
+
+/* 存储空间 */
+.systemStorageSection {
+  border: 1px solid rgba(17, 24, 39, 0.08);
+  border-radius: 10px;
+  padding: 16px;
+  background: #f8fafc;
+}
+
+.systemStorageHeader {
+  font-size: 14px;
+  font-weight: 600;
+  color: #334155;
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.25);
+}
+
+.systemStorageContent {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.systemStorageBar {
+  height: 22px;
+  background: #e2e8f0;
+  border-radius: 11px;
+  overflow: hidden;
+}
+
+.systemStorageUsedBar {
+  height: 100%;
+  background: linear-gradient(90deg, #3b82f6, #60a5fa);
+  border-radius: 11px;
+  width: 0%;
+  transition: width 0.5s ease;
+}
+
+.systemStorageStats {
+  display: flex;
+  gap: 24px;
+  font-size: 13px;
+  color: #64748b;
+}
+
+.systemStorageStats strong {
+  color: #0f172a;
+  font-weight: 600;
+}
+
+body.app-page .systemStorageUsedBar {
+  background: linear-gradient(90deg, #3b82f6, #60a5fa);
+}
