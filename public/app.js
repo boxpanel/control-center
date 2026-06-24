@@ -93,13 +93,6 @@ function showStorageWarning(data) {
   els.storageWarningOverlay.style.display = "flex";
 }
 
-// 绑定存储告警确认按钮
-if (els.storageWarningOk) {
-  els.storageWarningOk.addEventListener("click", () => {
-    if (els.storageWarningOverlay) els.storageWarningOverlay.style.display = "none";
-  });
-}
-
 // 检查服务器是否可用
 async function checkServerAvailable() {
   try {
@@ -6773,6 +6766,14 @@ if (copyBtn) {
   });
 }
 initSidebarNav();
+
+// 绑定存储告警确认按钮（els 已可用）
+if (els.storageWarningOk) {
+  els.storageWarningOk.addEventListener("click", () => {
+    if (els.storageWarningOverlay) els.storageWarningOverlay.style.display = "none";
+  });
+}
+
 document.documentElement.classList.add("serial-hidden");
 const serialKv = document.getElementById("plateDetailSerialKv");
 if (serialKv) serialKv.style.display = "none";
