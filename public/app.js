@@ -76,6 +76,30 @@ function showRestartConfirm() {
   });
 }
 
+// 存储空间告警弹窗
+function showStorageWarning(data) {
+  if (!els.storageWarningOverlay) return;
+  const isCritical = data?.level === "critical";
+  const icon = els.storageWarningIcon;
+  if (icon) {
+    icon.style.background = isCritical ? "#dc2626" : "#f59e0b";
+  }
+  if (els.storageWarningTitle) {
+    els.storageWarningTitle.textContent = isCritical ? "存储空间严重不足" : "存储空间不足";
+  }
+  if (els.storageWarningMessage) {
+    els.storageWarningMessage.textContent = data?.message || "存储空间不足，请及时备份数据";
+  }
+  els.storageWarningOverlay.style.display = "flex";
+}
+
+// 绑定存储告警确认按钮
+if (els.storageWarningOk) {
+  els.storageWarningOk.addEventListener("click", () => {
+    if (els.storageWarningOverlay) els.storageWarningOverlay.style.display = "none";
+  });
+}
+
 // 检查服务器是否可用
 async function checkServerAvailable() {
   try {
@@ -247,8 +271,6 @@ const els = {
   systemPrefixInput: document.getElementById("systemPrefixInput"),
   systemGatewayInput: document.getElementById("systemGatewayInput"),
   systemIfaceInfo: document.getElementById("systemIfaceInfo"),
-  dataCleanupEnabled: document.getElementById("dataCleanupEnabled"),
-  dataCleanupDays: document.getElementById("dataCleanupDays"),
   systemStorageTotal: document.getElementById("systemStorageTotal"),
   systemStorageUsed: document.getElementById("systemStorageUsed"),
   systemStorageFree: document.getElementById("systemStorageFree"),
@@ -256,6 +278,11 @@ const els = {
   systemNewPassword: document.getElementById("systemNewPassword"),
   systemSaveBtn: document.getElementById("systemSaveBtn"),
   systemRestartBtn: document.getElementById("systemRestartBtn"),
+  storageWarningOverlay: document.getElementById("storageWarningOverlay"),
+  storageWarningIcon: document.getElementById("storageWarningIcon"),
+  storageWarningTitle: document.getElementById("storageWarningTitle"),
+  storageWarningMessage: document.getElementById("storageWarningMessage"),
+  storageWarningOk: document.getElementById("storageWarningOk"),
   restartConfirmOverlay: document.getElementById("restartConfirmOverlay"),
   restartConfirmCancel: document.getElementById("restartConfirmCancel"),
   restartConfirmOk: document.getElementById("restartConfirmOk"),
@@ -1676,11 +1703,6 @@ async function initSystemUi() {
   const manualGateway = String(system?.manualGateway || "");
   const manualNetmask = formatNetmaskDisplay(manualPrefix, "");
   
-  // 数据清理配置
-  const cleanupConfig = system?.dataCleanup || {};
-  const cleanupEnabled = cleanupConfig?.enabled ?? true;
-  const cleanupDays = cleanupConfig?.days ?? 30;
-  
   els.systemNameInput.value = name;
   els.systemNameInput.readOnly = false;
   els.systemNameInput.title = "操作系统主机名（可修改）";
@@ -1688,14 +1710,6 @@ async function initSystemUi() {
   updatePageTitle(name);
   // 客户端模式默认开启，不再显示开关
   els.systemIpMode.value = ipMode;
-  
-  // 设置数据清理配置
-  if (els.dataCleanupEnabled instanceof HTMLInputElement) {
-    els.dataCleanupEnabled.checked = cleanupEnabled;
-  }
-  if (els.dataCleanupDays) {
-    els.dataCleanupDays.value = String(cleanupDays);
-  }
 
   const ifaces = await loadNetIfaces();
   const autoIp = pickFirstIfaceIp(ifaces);
@@ -1758,11 +1772,7 @@ async function initSystemUi() {
         ipMode: mode,
         manualIp: mode === "manual" ? String(els.systemIpInput?.value || "").trim() : "",
         manualPrefix: mode === "manual" ? String(els.systemPrefixInput?.value || "").trim() : "",
-        manualGateway: mode === "manual" ? String(els.systemGatewayInput?.value || "").trim() : "",
-        dataCleanup: {
-          enabled: els.dataCleanupEnabled instanceof HTMLInputElement ? els.dataCleanupEnabled.checked : true,
-          days: Number(els.dataCleanupDays?.value || 30)
-        }
+        manualGateway: mode === "manual" ? String(els.systemGatewayInput?.value || "").trim() : ""
       }
     };
     try {
@@ -6705,6 +6715,12 @@ function initEventStream() {
         logSerialLine(`[串口发送] 已转发车牌: ${plate}`);
       }
     }
+    if (data?.type === "storage-warning") {
+      // 仅显示自动清理（critical）事件，< 1GB 警告已在页面加载时通过 API 检查
+      if (data?.level === "critical") {
+        showStorageWarning(data);
+      }
+    }
   };
 }
 
@@ -6712,6 +6728,16 @@ function initEventStream() {
 setButtons({ streaming: false });
 
 loadFingerprint();
+
+// 页面加载时检查存储空间，不足1GB弹出提示
+(async () => {
+  try {
+    const r = await fetchJsonGet("/api/storage/check");
+    if (r?.warning) {
+      showStorageWarning(r);
+    }
+  } catch {}
+})();
 const copyBtn = document.getElementById("copyFingerprintBtn");
 if (copyBtn) {
   copyBtn.addEventListener("click", async () => {

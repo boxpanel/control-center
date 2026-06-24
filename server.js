@@ -199,6 +199,87 @@ async function ensureStorageSpace() {
 // 定时检查存储空间（每5分钟）
 setInterval(() => { ensureStorageSpace().catch(() => {}); }, 5 * 60 * 1000);
 
+// 存储空间低阈值告警及自动清理
+const STORAGE_WARN_KB = 1024 * 1024;  // 1GB
+const STORAGE_CRITICAL_KB = 100 * 1024; // 100MB
+
+async function checkStorageSpaceAndWarn() {
+  try {
+    const targetPath = activeStoragePath || ftpUploadRootDir;
+    const availKb = await getAvailableSpaceKb(targetPath);
+    if (availKb <= 0) return;
+
+    // 小于100MB：自动清理最旧的图片并广播（仅实际清理时广播一次）
+    if (availKb < STORAGE_CRITICAL_KB) {
+      console.log(`[Storage] 存储空间严重不足 (${Math.round(availKb / 1024)} MB)，自动清理最早的照片...`);
+      const cutoffTime = Date.now() - 7 * 24 * 60 * 60 * 1000;
+      const imageRows = stmtPlateGetOldImages.all(cutoffTime);
+      const imagePaths = imageRows.map(row => row.imagePath).filter(Boolean);
+      if (imagePaths.length > 0) {
+        await deleteImageFiles(imagePaths);
+      }
+      const result = stmtPlateDeleteOld.run(cutoffTime);
+      if (result.changes > 0) {
+        plateDb.exec("VACUUM");
+        console.log(`[Storage] 自动清理了 ${result.changes} 条旧记录和 ${imagePaths.length} 个图片文件`);
+        broadcastEvent({
+          type: "storage-warning",
+          level: "critical",
+          freeMB: Math.round(availKb / 1024),
+          message: `存储空间严重不足（剩余 ${Math.round(availKb / 1024)} MB），已自动清理7天前的旧照片。请及时备份重要数据！`
+        });
+      }
+      return;
+    }
+  } catch (err) {
+    console.warn("[Storage] 存储空间检查失败:", err.message);
+  }
+}
+
+async function getAvailableSpaceKb(targetPath) {
+  const { execFile } = await import("node:child_process");
+  const stdout = await new Promise((resolve, reject) => {
+    execFile("df", ["-k", targetPath], { timeout: 5000 }, (err, out) => {
+      if (err) { reject(err); return; }
+      resolve(out);
+    });
+  });
+  const lines = stdout.trim().split("\n").filter(Boolean);
+  if (lines.length < 2) return 0;
+  const parts = lines[1].trim().split(/\s+/);
+  if (parts.length < 4) return 0;
+  const availKb = Number(parts[3] || 0);
+  return availKb > 0 ? availKb : 0;
+}
+
+// 存储空间检查API（登录页加载时调用）
+app.get("/api/storage/check", async (req, res) => {
+  try {
+    const targetPath = activeStoragePath || ftpUploadRootDir;
+    const availKb = await getAvailableSpaceKb(targetPath);
+    const freeMB = Math.round(availKb / 1024);
+    if (availKb < STORAGE_WARN_KB) {
+      return res.json({
+        ok: true,
+        freeMB,
+        warning: true,
+        level: availKb < STORAGE_CRITICAL_KB ? "critical" : "warning",
+        message: availKb < STORAGE_CRITICAL_KB
+          ? `存储空间严重不足（剩余 ${freeMB} MB），系统将在后台自动清理旧照片`
+          : `存储空间不足（剩余 ${freeMB} MB），请尽快备份照片数据！`
+      });
+    }
+    res.json({ ok: true, freeMB, warning: false });
+  } catch (err) {
+    res.json({ ok: false, warning: false, error: err.message });
+  }
+});
+
+// 在原有存储检查间隔中增加空间告警检查（每5分钟）
+const storageCheckInterval = setInterval(() => {
+  checkStorageSpaceAndWarn().catch(() => {});
+}, 5 * 60 * 1000);
+
 const deviceInfoPath = path.join(__dirname, ".device-info.json");
 
 const plateDb = new Database(plateDbPath);
