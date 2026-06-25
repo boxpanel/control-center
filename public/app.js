@@ -1469,6 +1469,10 @@ function setMainView(view) {
     if (v === "system") els.navSystemBtn.setAttribute("aria-current", "page");
     else els.navSystemBtn.removeAttribute("aria-current");
   }
+  // 切换系统设置页面时刷新存储空间信息
+  if (v === "system") {
+    loadSystemStorageInfo().catch(() => {});
+  }
 }
 
 function initSidebarNav() {
