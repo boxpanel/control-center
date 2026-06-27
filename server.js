@@ -4511,6 +4511,10 @@ async function applyUbuntuSystemNetwork(nextSystem, currentSystem) {
   }
 
   await execFileAsync("nmcli", ["connection", "up", connectionName, "ifname", iface.name]);
+
+  // 同时写入 netplan 配置使设置重启持久化
+  await applyNetplanPersistentConfig(iface.name, desired);
+
   return {
     applied: true,
     skipped: false,
@@ -4521,6 +4525,42 @@ async function applyUbuntuSystemNetwork(nextSystem, currentSystem) {
         ? `已应用网卡 ${iface.name} 的手动 IP：${desired.manualIp}/${String(desired.manualPrefix || iface.prefix || 24).trim()}`
         : `已恢复网卡 ${iface.name} 为自动获取 IP`
   };
+}
+
+async function applyNetplanPersistentConfig(ifaceName, desired) {
+  // 检查系统是否使用 netplan
+  try {
+    await fs.access("/etc/netplan", fs.constants.F_OK);
+  } catch {
+    return false; // 没有 netplan，仅依赖 nmcli
+  }
+
+  const lines = ["network:", "  version: 2", "  renderer: NetworkManager", "  ethernets:"];
+  if (desired.ipMode === "manual") {
+    const manualIp = String(desired.manualIp || "").trim();
+    if (!manualIp) return false;
+    const prefix = Math.max(1, Math.min(32, Number(desired.manualPrefix || 24) || 24));
+    const gateway = String(desired.manualGateway || "").trim();
+    lines.push(`    ${ifaceName}:`, "      dhcp4: false", `      addresses: [${manualIp}/${prefix}]`);
+    if (gateway) {
+      lines.push(`      routes:`, `        - to: default`, `          via: ${gateway}`);
+    }
+  } else {
+    lines.push(`    ${ifaceName}:`, "      dhcp4: true");
+  }
+
+  const netplanFile = "/etc/netplan/99-control-center.yaml";
+  await fs.writeFile(netplanFile, lines.join("\n") + "\n", "utf8");
+  await fs.chmod(netplanFile, 0o600);
+
+  try {
+    await execFileAsync("netplan", ["apply"]);
+    console.log(`[Netplan] 已写入持久化配置: ${netplanFile}`);
+    return true;
+  } catch (err) {
+    console.warn("[Netplan] apply 失败（不影响当前网络）:", err.message);
+    return false;
+  }
 }
 
 function buildSadpInquiryMessage(uuid) {
@@ -4599,7 +4639,7 @@ async function getLinuxSerialByIdMap() {
 }
 
 async function sadpDiscover({ timeoutMs = 2500, port = 37020 } = {}) {
-  const waitMs = Math.max(500, Math.min(10_000, toPositiveInt(timeoutMs, 2500)));
+  const waitMs = Math.max(500, Math.min(15_000, toPositiveInt(timeoutMs, 2500)));
   const udpPort = toPort(port, 37020);
   const inquiryUuid = crypto.randomUUID().toUpperCase();
   const payload = buildSadpInquiryMessage(inquiryUuid);
@@ -4624,7 +4664,9 @@ async function sadpDiscover({ timeoutMs = 2500, port = 37020 } = {}) {
       if (err) reject(err);
       else resolve();
     };
-    const timer = setTimeout(() => finish(), waitMs);
+    // 延长等待时间让多台设备都能回复（至少4秒）
+    const effectiveWait = Math.max(waitMs, 4000);
+    const timer = setTimeout(() => finish(), effectiveWait);
 
     socket.on("message", (msg, rinfo) => {
       try {
@@ -4637,15 +4679,29 @@ async function sadpDiscover({ timeoutMs = 2500, port = 37020 } = {}) {
       } catch {}
     });
     socket.on("error", (err) => finish(err));
-    socket.bind(0, "0.0.0.0", () => {
+    // 绑定标准 SADP 端口 37020 确保设备回复，失败时回退到随机端口
+    const tryBind = (bindPort) => {
       try {
-        socket.setBroadcast(true);
-        socket.setMulticastTTL(2);
-      } catch {}
-      for (const host of targets) {
-        socket.send(payload, udpPort, host, () => undefined);
+        socket.bind(bindPort, "0.0.0.0", () => {
+          try {
+            socket.setBroadcast(true);
+            socket.setMulticastTTL(2);
+          } catch {}
+          // 依次向每个目标地址发送探测（每个网段的广播地址 + 组播地址）
+          for (const host of targets) {
+            socket.send(payload, udpPort, host, () => undefined);
+          }
+        });
+      } catch {
+        // 绑定指定端口失败，回退到随机端口
+        if (bindPort !== 0) {
+          tryBind(0);
+        } else {
+          finish(new Error("无法绑定 SADP 探测端口"));
+        }
       }
-    });
+    };
+    tryBind(udpPort); // 先尝试绑定 37020
   });
 
   return devices.sort((a, b) => String(a.host || "").localeCompare(String(b.host || "")));
