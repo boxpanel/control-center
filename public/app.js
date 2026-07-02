@@ -2163,6 +2163,17 @@ function formatDateTime(ms) {
   return `${year}年${month}月${day}日 ${hour}:${minute}:${second}`;
 }
 
+function formatFileTimestamp() {
+  const d = new Date();
+  const y = d.getFullYear();
+  const M = String(d.getMonth() + 1).padStart(2, "0");
+  const D = String(d.getDate()).padStart(2, "0");
+  const h = String(d.getHours()).padStart(2, "0");
+  const m = String(d.getMinutes()).padStart(2, "0");
+  const s = String(d.getSeconds()).padStart(2, "0");
+  return `${y}${M}${D}_${h}${m}${s}`;
+}
+
 function formatTimeOnly(ms) {
   const n = Number(ms);
   if (!Number.isFinite(n) || n <= 0) return "";
@@ -3667,7 +3678,7 @@ function initPlateModule() {
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
         a.href = url;
-        a.download = `plates_${new Date().toISOString().slice(0, 10)}.zip`;
+        a.download = `图片_${formatFileTimestamp()}.zip`;
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
@@ -3744,7 +3755,7 @@ function initPlateModule() {
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
         a.href = url;
-        a.download = `车牌记录_${new Date().toISOString().slice(0, 10)}.csv`;
+        a.download = `表格_${formatFileTimestamp()}.csv`;
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);

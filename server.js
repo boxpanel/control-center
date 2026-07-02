@@ -5344,7 +5344,9 @@ app.post("/api/plates/download-zip", async (req, res) => {
     
     // 只有找到文件才设置 ZIP 响应头并触发下载
     res.setHeader("Content-Type", "application/zip");
-    res.setHeader("Content-Disposition", `attachment; filename="plates_${new Date().toISOString().slice(0, 10)}.zip"`);
+    const d = new Date();
+    const ts = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, "0")}${String(d.getDate()).padStart(2, "0")}_${String(d.getHours()).padStart(2, "0")}${String(d.getMinutes()).padStart(2, "0")}${String(d.getSeconds()).padStart(2, "0")}`;
+    res.setHeader("Content-Disposition", `attachment; filename="图片_${ts}.zip"`);
     
     const archive = archiver("zip", { zlib: { level: 6 } });
     archive.on("error", (err) => { throw err; });
