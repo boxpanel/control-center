@@ -5324,16 +5324,17 @@ app.post("/api/plates/download-zip", async (req, res) => {
     // 先统计可用的图片文件
     const files = [];
     for (const row of rows) {
-      const imagePath = String(row.imagePath || "").trim();
-      if (!imagePath) continue;
+      const relPath = String(row.imagePath || "").trim();
+      if (!relPath) continue;
+      const absPath = path.resolve(uploadsDir, relPath);
       try {
-        await fs.access(imagePath);
-        const ext = path.extname(imagePath) || ".jpg";
+        await fs.access(absPath);
+        const ext = path.extname(relPath) || ".jpg";
         const plate = String(row.plate || "unknown").replace(/[\\/:*?"<>|]/g, "_");
         const timestamp = String(row.id || "").split("-")[0] || Date.now();
-        files.push({ path: imagePath, name: `${plate}_${timestamp}${ext}` });
+        files.push({ path: absPath, name: `${plate}_${timestamp}${ext}` });
       } catch (err) {
-        console.log(`[ZIP] 跳过不存在的文件: ${imagePath}`);
+        console.log(`[ZIP] 跳过不存在的文件: ${absPath}`);
       }
     }
     
