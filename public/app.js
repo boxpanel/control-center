@@ -3677,7 +3677,7 @@ function initPlateModule() {
         console.log(`已下载 ${ids.length} 张图片的 ZIP 包`);
       } catch (error) {
         console.error("下载出错:", error);
-        btn.textContent = error.message.startsWith("HTTP") ? error.message.slice(0, 12) : "下载失败";
+        btn.textContent = `失败(${error.message.slice(0, 18)})`;
         setTimeout(() => { btn.textContent = originalText; }, 4000);
       } finally {
         updatePlateBulkUi();
