@@ -3627,26 +3627,32 @@ function initPlateModule() {
     });
   }
   if (els.plateImageDownloadBtn) {
-    els.plateImageDownloadBtn.addEventListener("click", async () => {
+    const btn = els.plateImageDownloadBtn;
+    btn.addEventListener("click", async () => {
       const ids = Array.from(plateSelectedIds);
       if (!ids.length) return;
-      if (els.plateImageDownloadBtn) els.plateImageDownloadBtn.disabled = true;
+      btn.disabled = true;
+      const originalText = btn.textContent;
       
       try {
         // 只有1张时直接下载原图
         if (ids.length === 1) {
           const record = plateById.get(ids[0]);
           if (!record) {
-            logLine("未找到该记录");
+            console.log("下载: 未找到该记录");
             return;
           }
+          btn.textContent = "下载中...";
           await downloadPlateImage({ id: record.id, plate: record.plate || "未知车牌" });
-          logLine(`已下载: ${record.plate || "未知车牌"}`);
+          btn.textContent = "已下载";
+          setTimeout(() => { btn.textContent = originalText; }, 2000);
+          console.log(`已下载: ${record.plate || "未知车牌"}`);
           return;
         }
         
         // 2张以上：调用后端 ZIP 打包下载
-        logLine(`正在打包 ${ids.length} 张图片...`);
+        btn.textContent = "打包中...";
+        console.log(`正在打包 ${ids.length} 张图片...`);
         const response = await fetch("/api/plates/download-zip", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -3666,10 +3672,13 @@ function initPlateModule() {
         a.click();
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
-        logLine(`已下载 ${ids.length} 张图片的 ZIP 包`);
+        btn.textContent = "已下载";
+        setTimeout(() => { btn.textContent = originalText; }, 2000);
+        console.log(`已下载 ${ids.length} 张图片的 ZIP 包`);
       } catch (error) {
         console.error("下载出错:", error);
-        logLine(`下载失败: ${error.message}`);
+        btn.textContent = "下载失败";
+        setTimeout(() => { btn.textContent = originalText; }, 3000);
       } finally {
         updatePlateBulkUi();
       }
@@ -3677,8 +3686,11 @@ function initPlateModule() {
   }
   // 表格下载按钮
   if (els.plateCsvDownloadBtn) {
-    els.plateCsvDownloadBtn.addEventListener("click", async () => {
+    const csvBtn = els.plateCsvDownloadBtn;
+    csvBtn.addEventListener("click", async () => {
       try {
+        csvBtn.disabled = true;
+        csvBtn.textContent = "导出中...";
         const state = getPlateQueryStateFromUi();
         const q = String(state.plateText || "").trim();
         const dateVal = String(state.date || "").trim();
@@ -3705,7 +3717,8 @@ function initPlateModule() {
         }
 
         if (!items.length) {
-          logLine("没有数据可导出");
+          csvBtn.textContent = "无数据";
+          setTimeout(() => { csvBtn.textContent = "表格下载"; }, 2000);
           return;
         }
         // 生成 CSV
@@ -3736,9 +3749,15 @@ function initPlateModule() {
         a.click();
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
-        logLine(`已导出 ${items.length} 条记录到 CSV`);
+        csvBtn.textContent = "已导出";
+        setTimeout(() => { csvBtn.textContent = "表格下载"; }, 2000);
+        console.log(`已导出 ${items.length} 条记录到 CSV`);
       } catch (e) {
-        logLine(`表格导出失败: ${e.message}`);
+        console.error("导出失败:", e);
+        csvBtn.textContent = "导出失败";
+        setTimeout(() => { csvBtn.textContent = "表格下载"; }, 3000);
+      } finally {
+        csvBtn.disabled = false;
       }
     });
   }
