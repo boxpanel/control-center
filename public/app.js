@@ -247,7 +247,8 @@ const els = {
   plateStatusFilter: document.getElementById("plateStatusFilter"),
   plateQueryBtn: document.getElementById("plateQueryBtn"),
   plateDeleteBtn: document.getElementById("plateDeleteBtn"),
-  plateDownloadBtn: document.getElementById("plateDownloadBtn"),
+  plateImageDownloadBtn: document.getElementById("plateImageDownloadBtn"),
+  plateCsvDownloadBtn: document.getElementById("plateCsvDownloadBtn"),
   loadingOverlay: document.getElementById("loadingOverlay"),
   plateViewCardsBtn: document.getElementById("plateViewCardsBtn"),
   plateViewTableBtn: document.getElementById("plateViewTableBtn"),
@@ -2194,7 +2195,7 @@ function ensureEmptyHint(plateListEl) {
 
 function updatePlateBulkUi() {
   if (els.plateDeleteBtn) els.plateDeleteBtn.disabled = plateSelectedIds.size === 0;
-  if (els.plateDownloadBtn) els.plateDownloadBtn.disabled = plateSelectedIds.size === 0;
+  if (els.plateImageDownloadBtn) els.plateImageDownloadBtn.disabled = plateSelectedIds.size === 0;
   if (els.plateSelectAll) {
     let visibleIds = [];
     if (plateUiState.view === "table") {
@@ -3625,81 +3626,122 @@ function initPlateModule() {
       }
     });
   }
-  if (els.plateDownloadBtn) {
-    els.plateDownloadBtn.addEventListener("click", async () => {
+  if (els.plateImageDownloadBtn) {
+    els.plateImageDownloadBtn.addEventListener("click", async () => {
       const ids = Array.from(plateSelectedIds);
       if (!ids.length) return;
-      if (els.plateDownloadBtn) els.plateDownloadBtn.disabled = true;
+      if (els.plateImageDownloadBtn) els.plateImageDownloadBtn.disabled = true;
       
       try {
-        logLine(`开始下载 ${ids.length} 张图片...`);
-        
-        // 获取选中记录的图片信息
-        const recordsToDownload = [];
-        for (const id of ids) {
-          const record = plateById.get(id);
-          if (record && record.id) {
-            recordsToDownload.push({
-              id: record.id,
-              plate: record.plate || "未知车牌",
-              receivedAt: record.receivedAt || new Date().toISOString(),
-              imagePath: record.imagePath || "",
-              ftpRemotePath: record.ftpRemotePath || ""
-            });
+        // 只有1张时直接下载原图
+        if (ids.length === 1) {
+          const record = plateById.get(ids[0]);
+          if (!record) {
+            logLine("未找到该记录");
+            return;
           }
-        }
-        
-        if (recordsToDownload.length === 0) {
-          logLine("选中的记录没有图片可下载");
+          await downloadPlateImage({ id: record.id, plate: record.plate || "未知车牌" });
+          logLine(`已下载: ${record.plate || "未知车牌"}`);
           return;
         }
         
-        // 批量下载图片 - 使用限制并行的方式提高速度
-        logLine(`开始下载 ${recordsToDownload.length} 张图片...`);
-        
-        // 限制并行下载数量，避免浏览器过载
-        const MAX_CONCURRENT_DOWNLOADS = 3;
-        let successfulDownloads = 0;
-        let failedDownloads = 0;
-        let completedDownloads = 0;
-        
-        // 分批下载函数
-        const downloadBatch = async (batch) => {
-          const batchPromises = batch.map(record => 
-            downloadPlateImage(record).then(() => {
-              completedDownloads++;
-              logLine(`已下载: ${record.plate} (${completedDownloads}/${recordsToDownload.length})`);
-              successfulDownloads++;
-              return { success: true, plate: record.plate };
-            }).catch(error => {
-              completedDownloads++;
-              console.error(`下载图片失败 ${record.plate}:`, error);
-              logLine(`下载失败: ${record.plate} (${completedDownloads}/${recordsToDownload.length})`);
-              failedDownloads++;
-              return { success: false, plate: record.plate, error };
-            })
-          );
-          
-          await Promise.allSettled(batchPromises);
-        };
-        
-        // 分批下载
-        for (let i = 0; i < recordsToDownload.length; i += MAX_CONCURRENT_DOWNLOADS) {
-          const batch = recordsToDownload.slice(i, i + MAX_CONCURRENT_DOWNLOADS);
-          await downloadBatch(batch);
+        // 2张以上：调用后端 ZIP 打包下载
+        logLine(`正在打包 ${ids.length} 张图片...`);
+        const response = await fetch("/api/plates/download-zip", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ids })
+        });
+        if (!response.ok) {
+          const err = await response.json().catch(() => ({ error: response.statusText }));
+          throw new Error(err.error || "打包下载失败");
         }
-        
-        logLine(`下载完成: ${successfulDownloads} 成功, ${failedDownloads} 失败`);
-        
+        // 触发浏览器下载 zip
+        const blob = await response.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `plates_${new Date().toISOString().slice(0, 10)}.zip`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        logLine(`已下载 ${ids.length} 张图片的 ZIP 包`);
       } catch (error) {
-        console.error("下载过程出错:", error);
-        logLine("下载过程出错");
+        console.error("下载出错:", error);
+        logLine(`下载失败: ${error.message}`);
       } finally {
         updatePlateBulkUi();
       }
     });
   }
-}
+  // 表格下载按钮
+  if (els.plateCsvDownloadBtn) {
+    els.plateCsvDownloadBtn.addEventListener("click", async () => {
+      try {
+        const state = getPlateQueryStateFromUi();
+        const q = String(state.plateText || "").trim();
+        const dateVal = String(state.date || "").trim();
+        const dateEndVal = String(state.dateEnd || "").trim();
+        const statusVal = String(state.status || "").trim();
+
+        let items = [];
+        // 有搜索条件时调用搜索API，否则不分页取全部
+        if (q || dateVal || dateEndVal) {
+          const params = new URLSearchParams();
+          if (q) params.set("plate", q);
+          if (dateVal) params.set("date", dateVal);
+          if (dateEndVal) params.set("dateEnd", dateEndVal);
+          const r = await fetchJsonGet(`/api/plates/search?${params.toString()}`);
+          items = Array.isArray(r?.items) ? r.items : [];
+        } else {
+          const r = await fetchJsonGet("/api/plates/paged?page=1&pageSize=10000");
+          items = Array.isArray(r?.items) ? r.items : [];
+        }
+
+        // 客户端过滤状态
+        if (statusVal) {
+          items = filterPlateRecords(items, { plateText: q, date: dateVal, dateEnd: dateEndVal, status: statusVal });
+        }
+
+        if (!items.length) {
+          logLine("没有数据可导出");
+          return;
+        }
+        // 生成 CSV
+        const headers = ["车牌号", "接收时间", "速度", "限速", "违规类型", "车身颜色", "车辆类型", "FTP路径"];
+        const rows = items.map(rec => {
+          const meta = rec.parsedMeta || {};
+          const speed = meta.speed != null ? meta.speed : (meta.fields?.["车辆速度"] || "");
+          const limitSpeed = meta.limitSpeed != null ? meta.limitSpeed : (meta.fields?.["限速标志"] || "");
+          return [
+            rec.plate || "",
+            formatDateTime(rec.eventAt || rec.receivedAt) || "",
+            speed,
+            limitSpeed,
+            meta.violationType || "",
+            meta.vehicleColor || meta.fields?.["车辆颜色"] || "",
+            meta.vehicleType || meta.fields?.["车辆类型"] || "",
+            rec.ftpRemotePath || ""
+          ].map(v => `"${String(v).replace(/"/g, '""')}"`).join(",");
+        });
+        const bom = "\uFEFF";
+        const csv = bom + headers.join(",") + "\n" + rows.join("\n");
+        const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `车牌记录_${new Date().toISOString().slice(0, 10)}.csv`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        logLine(`已导出 ${items.length} 条记录到 CSV`);
+      } catch (e) {
+        logLine(`表格导出失败: ${e.message}`);
+      }
+    });
+  }
 
 async function downloadPlateImage(record) {
   if (!record || !record.id) {

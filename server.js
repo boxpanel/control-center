@@ -8,6 +8,7 @@ import path from "node:path";
 import { Readable } from "node:stream";
 import { fileURLToPath } from "node:url";
 import os from "node:os";
+import archiver from "archiver";
 import { Worker } from "node:worker_threads";
 
 import Database from "better-sqlite3";
@@ -5316,6 +5317,53 @@ app.post("/api/plates/delete", async (req, res) => {
   } catch (error) {
     console.error(`[服务器调试] /api/plates/delete 错误:`, error);
     res.status(500).json({ ok: false, error: "删除记录失败" });
+  }
+});
+
+// ZIP 批量下载图片
+app.post("/api/plates/download-zip", async (req, res) => {
+  try {
+    const ids = Array.isArray(req.body?.ids) ? req.body.ids : [];
+    if (!ids.length) {
+      return res.status(400).json({ ok: false, error: "未指定记录ID" });
+    }
+    
+    // 查询记录
+    const stmt = plateDb.prepare(`SELECT id, plate, imagePath FROM plate_records WHERE id IN (${ids.map(() => "?").join(",")})`);
+    const rows = stmt.all(...ids);
+    
+    res.setHeader("Content-Type", "application/zip");
+    res.setHeader("Content-Disposition", `attachment; filename="plates_${new Date().toISOString().slice(0, 10)}.zip"`);
+    
+    const archive = archiver("zip", { zlib: { level: 6 } });
+    archive.on("error", (err) => { throw err; });
+    archive.pipe(res);
+    
+    let added = 0;
+    for (const row of rows) {
+      const imagePath = String(row.imagePath || "").trim();
+      if (!imagePath) continue;
+      try {
+        await fs.access(imagePath);
+        const ext = path.extname(imagePath) || ".jpg";
+        const plate = String(row.plate || "unknown").replace(/[\\/:*?"<>|]/g, "_");
+        const timestamp = String(row.id || "").split("-")[0] || Date.now();
+        archive.file(imagePath, { name: `${plate}_${timestamp}${ext}` });
+        added++;
+      } catch {}
+    }
+    
+    if (added === 0) {
+      res.status(404).json({ ok: false, error: "没有可下载的图片文件" });
+      return;
+    }
+    
+    await archive.finalize();
+  } catch (error) {
+    console.error("[ZIP] 下载失败:", error);
+    if (!res.headersSent) {
+      res.status(500).json({ ok: false, error: "图片打包下载失败" });
+    }
   }
 });
 
