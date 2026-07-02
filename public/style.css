@@ -537,15 +537,26 @@ canvas {
   border-color: #1d4ed8;
 }
 
-#plateDownloadBtn {
+#plateImageDownloadBtn {
   background: #10b981;
   border-color: #10b981;
   color: #fff;
 }
 
-#plateDownloadBtn:hover:not(:disabled) {
+#plateImageDownloadBtn:hover:not(:disabled) {
   background: #059669;
   border-color: #059669;
+}
+
+#plateCsvDownloadBtn {
+  background: #8b5cf6;
+  border-color: #8b5cf6;
+  color: #fff;
+}
+
+#plateCsvDownloadBtn:hover:not(:disabled) {
+  background: #7c3aed;
+  border-color: #7c3aed;
 }
 
 #plateDeleteBtn {
