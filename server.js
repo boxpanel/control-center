@@ -5321,14 +5321,8 @@ app.post("/api/plates/download-zip", async (req, res) => {
     const stmt = plateDb.prepare(`SELECT id, plate, imagePath FROM plate_records WHERE id IN (${ids.map(() => "?").join(",")})`);
     const rows = stmt.all(...ids);
     
-    res.setHeader("Content-Type", "application/zip");
-    res.setHeader("Content-Disposition", `attachment; filename="plates_${new Date().toISOString().slice(0, 10)}.zip"`);
-    
-    const archive = archiver("zip", { zlib: { level: 6 } });
-    archive.on("error", (err) => { throw err; });
-    archive.pipe(res);
-    
-    let added = 0;
+    // 先统计可用的图片文件
+    const files = [];
     for (const row of rows) {
       const imagePath = String(row.imagePath || "").trim();
       if (!imagePath) continue;
@@ -5337,14 +5331,26 @@ app.post("/api/plates/download-zip", async (req, res) => {
         const ext = path.extname(imagePath) || ".jpg";
         const plate = String(row.plate || "unknown").replace(/[\\/:*?"<>|]/g, "_");
         const timestamp = String(row.id || "").split("-")[0] || Date.now();
-        archive.file(imagePath, { name: `${plate}_${timestamp}${ext}` });
-        added++;
-      } catch {}
+        files.push({ path: imagePath, name: `${plate}_${timestamp}${ext}` });
+      } catch (err) {
+        console.log(`[ZIP] 跳过不存在的文件: ${imagePath}`);
+      }
     }
     
-    if (added === 0) {
-      res.status(404).json({ ok: false, error: "没有可下载的图片文件" });
-      return;
+    if (files.length === 0) {
+      return res.status(404).json({ ok: false, error: "没有可下载的图片文件（图片文件可能已被删除）" });
+    }
+    
+    // 只有找到文件才设置 ZIP 响应头并触发下载
+    res.setHeader("Content-Type", "application/zip");
+    res.setHeader("Content-Disposition", `attachment; filename="plates_${new Date().toISOString().slice(0, 10)}.zip"`);
+    
+    const archive = archiver("zip", { zlib: { level: 6 } });
+    archive.on("error", (err) => { throw err; });
+    archive.pipe(res);
+    
+    for (const f of files) {
+      archive.file(f.path, { name: f.name });
     }
     
     await archive.finalize();
