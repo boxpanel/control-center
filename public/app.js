@@ -3742,6 +3742,7 @@ function initPlateModule() {
       }
     });
   }
+}
 
 async function downloadPlateImage(record) {
   if (!record || !record.id) {
