@@ -1149,17 +1149,6 @@ function isFtpMetadataFile(filePath) {
   return /\.(json|xml|txt|dat)$/i.test(String(filePath || ""));
 }
 
-extractPlateFromText = function (text) {
-  const raw = String(text || "");
-  if (/无车牌|未识别|无牌/u.test(raw)) return "无车牌";
-  const compact = raw.replace(/\s+/g, "").toUpperCase();
-  const cn = compact.match(/([\u4E00-\u9FFF][A-Z][A-Z0-9]{5,6})/u);
-  if (cn?.[1]) return cn[1];
-  const en = compact.match(/\b([A-Z]{1,3}[A-Z0-9]{4,7})\b/);
-  if (en?.[1]) return en[1];
-  return "";
-};
-
 function decodeFtpMetadataBuffer(buffer, ext = "") {
   const buf = Buffer.isBuffer(buffer) ? buffer : Buffer.from(buffer || []);
   if (!buf.length) return "";
