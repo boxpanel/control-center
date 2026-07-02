@@ -1233,9 +1233,20 @@ function parseCompactTimestampToMs(text) {
 function extractPlateFromText(text) {
   const raw = String(text || "");
   if (/(?:\u65e0\u8f66\u724c|\u672a\u8bc6\u522b|\u65e0\u724c)/u.test(raw)) return "\u65e0\u8f66\u724c";
+  // 按空白字符分割，逐段检查，避免跨字段匹配导致车牌尾部多吞字符
+  const segments = raw.split(/\s+/);
+  for (const seg of segments) {
+    if (!seg) continue;
+    const upper = seg.toUpperCase();
+    // 先尝试匹配新能源车牌（6位数字字母，用$确保不在段内截断）
+    let cn = upper.match(/([\u4E00-\u9FFF][A-Z][A-Z0-9]{6})$/u);
+    if (cn?.[1]) return cn[1];
+    // 再尝试匹配普通车牌（5位数字字母）
+    cn = upper.match(/([\u4E00-\u9FFF][A-Z][A-Z0-9]{5})(?![A-Z0-9])/u);
+    if (cn?.[1]) return cn[1];
+  }
+  // 回退：对整个文本检查英文车牌
   const compact = raw.replace(/\s+/g, "").toUpperCase();
-  const cn = compact.match(/([\u4E00-\u9FFF][A-Z][A-Z0-9]{5,6})/u);
-  if (cn?.[1]) return cn[1];
   const en = compact.match(/\b([A-Z]{1,3}[A-Z0-9]{4,7})\b/);
   if (en?.[1]) return en[1];
   return "";
