@@ -1711,6 +1711,12 @@ async function initSystemUi() {
 
   const ifaces = await loadNetIfaces();
   const autoIp = pickFirstIfaceIp(ifaces);
+  // 如果 DHCP（自动获取）无法获取到有效局域网 IP，则回退到手动模式 + 默认 IP
+  if (ipMode === "auto" && autoIp === DEFAULT_DEVICE_FALLBACK_IP) {
+    ipMode = "manual";
+    manualIp = DEFAULT_DEVICE_FALLBACK_IP;
+    els.systemIpMode.value = "manual";
+  }
   const appPort = readCurrentAppPort();
   const iface = cfg?.systemNetworkTarget || null;
   const autoPrefix = String(iface?.prefix || "").trim();
