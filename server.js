@@ -5371,11 +5371,14 @@ app.post("/api/plates/download-zip", async (req, res) => {
       archive.finalize();
     });
   } catch (error) {
-    console.error("[ZIP] 下载失败:", error.message || error);
+    const errMsg = (error && error.message) ? error.message : String(error || "未知错误");
+    console.error("[ZIP] 下载失败:", errMsg);
+    console.error("[ZIP] 错误堆栈:", error && error.stack ? error.stack : "无堆栈");
     if (!res.headersSent) {
-      res.status(500).json({ ok: false, error: "图片打包下载失败" });
+      res.status(500).json({ ok: false, error: "图片打包下载失败：" + errMsg });
     } else {
-      res.end();
+      // 已经发送了响应头，无法返回 JSON，尝试结束响应
+      try { res.end(); } catch (_) {}
     }
   }
 });
