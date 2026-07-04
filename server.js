@@ -5350,25 +5350,20 @@ app.post("/api/plates/download-zip", async (req, res) => {
     
     const archive = archiver("zip", { zlib: { level: 6 } });
     
+    // 先设置 pipe 和添加文件，再等待完成
+    archive.pipe(res);
+    for (const f of files) {
+      archive.file(f.path, { name: f.name });
+    }
+    archive.finalize();
+    
     await new Promise((resolve, reject) => {
-      let finished = false;
       archive.on("error", (err) => {
         console.error("[ZIP] archiver 错误:", err);
         reject(err);
       });
-      archive.on("finish", () => { finished = true; resolve(); });
-      res.on("finish", () => { finished = true; resolve(); });
-      res.on("close", () => {
-        if (!finished) reject(new Error("客户端提前断开连接"));
-      });
-      res.on("error", (err) => {
-        reject(err);
-      });
-      archive.pipe(res);
-      for (const f of files) {
-        archive.file(f.path, { name: f.name });
-      }
-      archive.finalize();
+      archive.on("finish", resolve);
+      res.on("close", resolve);
     });
   } catch (error) {
     const errMsg = (error && error.message) ? error.message : String(error || "未知错误");
