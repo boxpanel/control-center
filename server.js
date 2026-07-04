@@ -5349,18 +5349,30 @@ app.post("/api/plates/download-zip", async (req, res) => {
     res.setHeader("Content-Disposition", `attachment; filename="图片_${ts}.zip"`);
     
     const archive = archiver("zip", { zlib: { level: 6 } });
-    archive.on("error", (err) => { throw err; });
-    archive.pipe(res);
     
-    for (const f of files) {
-      archive.file(f.path, { name: f.name });
-    }
-    
-    await archive.finalize();
+    await new Promise((resolve, reject) => {
+      archive.on("error", (err) => {
+        console.error("[ZIP] archiver 错误:", err);
+        reject(err);
+      });
+      res.on("close", () => {
+        reject(new Error("客户端提前断开连接"));
+      });
+      res.on("error", (err) => {
+        reject(err);
+      });
+      archive.pipe(res);
+      for (const f of files) {
+        archive.file(f.path, { name: f.name });
+      }
+      archive.finalize();
+    });
   } catch (error) {
-    console.error("[ZIP] 下载失败:", error);
+    console.error("[ZIP] 下载失败:", error.message || error);
     if (!res.headersSent) {
       res.status(500).json({ ok: false, error: "图片打包下载失败" });
+    } else {
+      res.end();
     }
   }
 });
