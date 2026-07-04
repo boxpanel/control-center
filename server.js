@@ -5351,12 +5351,15 @@ app.post("/api/plates/download-zip", async (req, res) => {
     const archive = archiver("zip", { zlib: { level: 6 } });
     
     await new Promise((resolve, reject) => {
+      let finished = false;
       archive.on("error", (err) => {
         console.error("[ZIP] archiver 错误:", err);
         reject(err);
       });
+      archive.on("finish", () => { finished = true; resolve(); });
+      res.on("finish", () => { finished = true; resolve(); });
       res.on("close", () => {
-        reject(new Error("客户端提前断开连接"));
+        if (!finished) reject(new Error("客户端提前断开连接"));
       });
       res.on("error", (err) => {
         reject(err);
