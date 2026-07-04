@@ -5350,20 +5350,35 @@ app.post("/api/plates/download-zip", async (req, res) => {
     
     const archive = archiver("zip", { zlib: { level: 6 } });
     
-    // 先设置 pipe 和添加文件，再等待完成
+    // 日志：准备打包哪些文件
+    console.log(`[ZIP] 开始打包 ${files.length} 个文件`);
+    for (const f of files) {
+      console.log(`[ZIP]   文件: ${f.path} -> ${f.name}`);
+    }
+    
+    archive.on("error", (err) => {
+      console.error("[ZIP] archiver 错误:", err.message, err.code || "");
+      // archiver 出错时直接结束响应
+      try {
+        if (res.destroyed) return;
+        if (!res.headersSent) {
+          res.status(500).json({ ok: false, error: "图片打包下载失败：" + (err.message || String(err)) });
+        } else {
+          res.destroy(err);
+        }
+      } catch (_) {}
+    });
+    
     archive.pipe(res);
     for (const f of files) {
       archive.file(f.path, { name: f.name });
     }
     archive.finalize();
     
-    await new Promise((resolve, reject) => {
-      archive.on("error", (err) => {
-        console.error("[ZIP] archiver 错误:", err);
-        reject(err);
-      });
+    // 等待完成
+    await new Promise((resolve) => {
       archive.on("finish", resolve);
-      res.on("close", resolve);
+      res.on("finish", resolve);
     });
   } catch (error) {
     const errMsg = (error && error.message) ? error.message : String(error || "未知错误");
