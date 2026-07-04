@@ -5362,16 +5362,21 @@ app.post("/api/plates/download-zip", async (req, res) => {
     
     const archive = archiver("zip", { zlib: { level: 6 } });
     
-    archive.on("error", (err) => {
-      console.error("[ZIP] archiver 错误:", err.message, err.code || "");
-      try {
-        if (res.destroyed) return;
-        if (!res.headersSent) {
-          res.status(500).json({ ok: false, error: "图片打包下载失败：" + (err.message || String(err)) });
-        } else {
-          res.destroy(err);
-        }
-      } catch (_) {}
+    // 所有事件监听必须在 finalize() 之前设置
+    let done = false;
+    const waitForFinish = new Promise((resolve, reject) => {
+      archive.on("error", (err) => {
+        console.error("[ZIP] archiver 错误:", err.message, err.code || "");
+        done = true;
+        reject(err);
+      });
+      archive.on("finish", () => {
+        done = true;
+        resolve();
+      });
+      res.on("finish", () => {
+        if (!done) resolve();
+      });
     });
     
     archive.pipe(res);
@@ -5380,10 +5385,7 @@ app.post("/api/plates/download-zip", async (req, res) => {
     }
     archive.finalize();
     
-    await new Promise((resolve) => {
-      archive.on("finish", resolve);
-      res.on("finish", resolve);
-    });
+    await waitForFinish;
   } catch (error) {
     const errMsg = (error && error.message) ? error.message : String(error || "未知错误");
     console.error("[ZIP] 下载失败:", errMsg);
