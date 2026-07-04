@@ -5338,7 +5338,19 @@ app.post("/api/plates/download-zip", async (req, res) => {
       }
     }
     
-    if (files.length === 0) {
+    // 先读取所有文件到内存
+    const entries = [];
+    for (const f of files) {
+      try {
+        const buf = await fs.readFile(f.path);
+        entries.push({ buf, name: f.name });
+        console.log(`[ZIP]   已读取: ${f.name} (${buf.length} bytes)`);
+      } catch (err) {
+        console.log(`[ZIP]   跳过不可读的文件: ${f.path} - ${err.message}`);
+      }
+    }
+    
+    if (entries.length === 0) {
       return res.status(404).json({ ok: false, error: "没有可下载的图片文件（图片文件可能已被删除）" });
     }
     
@@ -5350,15 +5362,8 @@ app.post("/api/plates/download-zip", async (req, res) => {
     
     const archive = archiver("zip", { zlib: { level: 6 } });
     
-    // 日志：准备打包哪些文件
-    console.log(`[ZIP] 开始打包 ${files.length} 个文件`);
-    for (const f of files) {
-      console.log(`[ZIP]   文件: ${f.path} -> ${f.name}`);
-    }
-    
     archive.on("error", (err) => {
       console.error("[ZIP] archiver 错误:", err.message, err.code || "");
-      // archiver 出错时直接结束响应
       try {
         if (res.destroyed) return;
         if (!res.headersSent) {
@@ -5370,12 +5375,11 @@ app.post("/api/plates/download-zip", async (req, res) => {
     });
     
     archive.pipe(res);
-    for (const f of files) {
-      archive.file(f.path, { name: f.name });
+    for (const e of entries) {
+      archive.append(e.buf, { name: e.name });
     }
     archive.finalize();
     
-    // 等待完成
     await new Promise((resolve) => {
       archive.on("finish", resolve);
       res.on("finish", resolve);
